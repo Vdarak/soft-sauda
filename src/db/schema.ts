@@ -1,6 +1,18 @@
 import { pgTable, serial, integer, text, real, timestamp } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+export const parties = pgTable("parties", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  gstin: text("gstin"),
+  tin: text("tin"),
+  cst: text("cst"),
+  broker: text("broker"),
+  phone: text("phone"),
+  address: text("address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const contracts = pgTable("contracts", {
   id: serial("id").primaryKey(),
   saudaNo: integer("sauda_no").unique().notNull(), // The user-facing contract ID

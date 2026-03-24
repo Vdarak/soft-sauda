@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { Zap, FileText, Truck, Receipt, CreditCard, BookOpen } from 'lucide-react';
+import { Zap, FileText, Truck, Receipt, CreditCard, BookOpen, Users } from 'lucide-react';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -26,6 +26,9 @@ export default function RootLayout({
            <div className="flex-1 overflow-y-auto py-6 space-y-2 px-3 font-medium text-sm">
              <a href="/" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
                <FileText className="w-5 h-5" /> Contracts (Sauda)
+             </a>
+             <a href="/parties" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
+               <Users className="w-5 h-5" /> Parties Directory
              </a>
              <a href="/deliveries" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
                <Truck className="w-5 h-5" /> Deliveries

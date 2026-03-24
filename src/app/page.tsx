@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { contracts } from '@/db/schema';
+import { contracts, parties } from '@/db/schema';
 import { createContract } from './actions/contract';
 import { desc } from 'drizzle-orm';
 import { PenLine, Archive, Printer } from 'lucide-react';
@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   let recentContracts: any[] = [];
+  let availableParties: any[] = [];
   let dbError = false;
   
   try {
     recentContracts = await db.select().from(contracts).orderBy(desc(contracts.saudaNo)).limit(15);
+    availableParties = await db.select().from(parties).limit(500);
   } catch (err) {
     console.error("DB connection error:", err);
     dbError = true;
@@ -49,6 +51,10 @@ export default async function Home() {
             </div>
             
             <form action={createContract} className="p-6 space-y-6 flex-1 bg-white">
+              <datalist id="partyNamesList">
+                {availableParties.map(p => <option key={p.id} value={p.name} />)}
+              </datalist>
+
               {/* Row 1: Identifiers */}
               <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
                 <div>
@@ -74,7 +80,7 @@ export default async function Home() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required name="sellerName" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input required list="partyNamesList" name="sellerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600">Broker</label>
@@ -105,7 +111,7 @@ export default async function Home() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required name="buyerName" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <input required list="partyNamesList" name="buyerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600">Broker</label>
@@ -164,19 +170,39 @@ export default async function Home() {
                 {/* Extremely performant inline vanilla JS for UI updates without React state */}
                 <script dangerouslySetInnerHTML={{ __html: `
                   if (typeof document !== 'undefined') {
+                    const partiesDict = ${JSON.stringify(availableParties.reduce((a, p) => { a[p.name] = p; return a; }, {}))};
+                    
                     document.addEventListener('input', function(e) {
+                      const form = e.target.closest('form');
+                      if (!form) return;
+
+                      // Auto-calculate Amount
                       if (e.target.name === 'weight' || e.target.name === 'rate') {
-                        const form = e.target.closest('form');
-                        if (form) {
-                           const weight = parseFloat(form.weight.value) || 0;
-                           const rate = parseFloat(form.rate.value) || 0;
-                           const display = form.querySelector('#calcAmount');
-                           if (display && weight > 0 && rate > 0) {
-                             display.value = '₹ ' + (weight * rate).toFixed(2);
-                           } else if (display) {
-                             display.value = '';
-                           }
-                        }
+                         const weight = parseFloat(form.weight.value) || 0;
+                         const rate = parseFloat(form.rate.value) || 0;
+                         const display = form.querySelector('#calcAmount');
+                         if (display && weight > 0 && rate > 0) {
+                           display.value = '₹ ' + (weight * rate).toFixed(2);
+                         } else if (display) {
+                           display.value = '';
+                         }
+                      }
+                      
+                      // Auto-complete Party Data
+                      if (e.target.name === 'sellerName' || e.target.name === 'buyerName') {
+                         const prefix = e.target.name === 'sellerName' ? 'seller' : 'buyer';
+                         const party = partiesDict[e.target.value];
+                         if (party) {
+                            if(form[prefix + 'Broker']) form[prefix + 'Broker'].value = party.broker || '';
+                            if(form[prefix + 'Gstin']) form[prefix + 'Gstin'].value = party.gstin || '';
+                            if(form[prefix + 'Tin']) form[prefix + 'Tin'].value = party.tin || '';
+                            if(form[prefix + 'Cst']) form[prefix + 'Cst'].value = party.cst || '';
+                            e.target.style.borderWidth = '2px';
+                            e.target.style.borderColor = '#10b981'; // highlight green match
+                         } else {
+                            e.target.style.borderWidth = '';
+                            e.target.style.borderColor = '';
+                         }
                       }
                     });
                   }
