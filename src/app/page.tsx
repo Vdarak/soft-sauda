@@ -1,65 +1,239 @@
-import Image from "next/image";
+import { db } from '@/db';
+import { contracts } from '@/db/schema';
+import { createContract } from './actions/contract';
+import { desc } from 'drizzle-orm';
+import { PenLine, Archive, Printer } from 'lucide-react';
 
-export default function Home() {
+export default async function Home() {
+  let recentContracts: any[] = [];
+  let dbError = false;
+  
+  try {
+    recentContracts = await db.select().from(contracts).orderBy(desc(contracts.saudaNo)).limit(15);
+  } catch (err) {
+    console.error("DB connection error:", err);
+    dbError = true;
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-slate-100 p-4 font-sans text-sm text-slate-800">
+      {dbError && (
+        <div className="max-w-7xl mx-auto mb-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800">
+          <h3 className="font-bold text-lg">Database Connection Failed</h3>
+          <p className="mt-1">Please ensure SQLite/PostgreSQL is running and configured correctly.</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      <div className="max-w-screen-2xl mx-auto space-y-4">
+        {/* Header Ribbon */}
+        <header className="bg-blue-900 border-b border-blue-800 p-4 rounded-xl shadow flex justify-between items-center text-white">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Soft Sauda</h1>
+            <p className="text-blue-200 text-xs">Enterprise Trading & Logistics ERP</p>
+          </div>
+          <div className="flex gap-4">
+             <div className="px-3 py-1 bg-blue-800 rounded-md text-xs font-mono font-medium border border-blue-700">Financial Year: 2026-27</div>
+             <div className="px-3 py-1 bg-emerald-600 rounded-md text-xs font-bold shadow-inner">SYSTEM ONLINE</div>
+          </div>
+        </header>
+
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* Main Data Entry Form */}
+          <div className="lg:col-span-8 bg-white shadow-md border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            <div className="bg-slate-50 border-b border-slate-200 p-4">
+               <h2 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                 <PenLine className="w-6 h-6 text-blue-600" /> Draft New Trade Contract (Sauda)
+               </h2>
+            </div>
+            
+            <form action={createContract} className="p-6 space-y-6 flex-1 bg-white">
+              {/* Row 1: Identifiers */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda No *</label>
+                  <input required name="saudaNo" type="number" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="1042" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda Date</label>
+                  <input name="saudaDate" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda Book</label>
+                  <input name="saudaBook" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Main Book" />
+                </div>
+              </div>
+
+              {/* Row 2: Parties */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Seller Group */}
+                <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 relative">
+                  <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Seller Details</legend>
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-600">Company Name *</label>
+                        <input required name="sellerName" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600">Broker</label>
+                        <input name="sellerBroker" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">GSTIN</label>
+                        <input name="sellerGstin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy TIN</label>
+                        <input name="sellerTin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy CST</label>
+                        <input name="sellerCst" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+
+                {/* Buyer Group */}
+                <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 relative">
+                  <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Buyer Details</legend>
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-600">Company Name *</label>
+                        <input required name="buyerName" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600">Broker</label>
+                        <input name="buyerBroker" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">GSTIN</label>
+                        <input name="buyerGstin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy TIN</label>
+                        <input name="buyerTin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy CST</label>
+                        <input name="buyerCst" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+
+              {/* Row 3: Trade & Pricing */}
+              <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 mt-4 relative">
+                <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Trade Execution</legend>
+                <div className="grid-cols-6 grid gap-4 pt-2">
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-600">Commodity *</label>
+                     <input required name="commodity" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" />
+                   </div>
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-600">Brand/Grade</label>
+                     <input name="brand" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" />
+                   </div>
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-600">Packaging</label>
+                     <input name="packaging" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 50kg Gunny" />
+                   </div>
+                   
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-600">Total Qty (Weight)</label>
+                     <input name="weight" type="number" step="0.01" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
+                   </div>
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-600">Agreed Rate (₹)</label>
+                     <input name="rate" type="number" step="0.01" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
+                   </div>
+                   <div className="col-span-2">
+                     <label className="block text-xs font-bold text-slate-400">Total Amount</label>
+                     <div className="mt-1 w-full rounded border border-dashed border-slate-300 p-2 text-sm bg-slate-100 text-slate-400 font-mono italic">
+                       Auto-calculated
+                     </div>
+                   </div>
+                </div>
+              </fieldset>
+
+               {/* Row 4: Terms */}
+              <div className="grid grid-cols-4 gap-4 bg-slate-100 p-4 rounded-lg border border-slate-200">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-slate-600">Delivery Term</label>
+                  <input name="deliveryTerm" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" placeholder="Ex-Godown, F.O.R..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600">Term (Valid From)</label>
+                  <input name="validFrom" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600">Till (Valid To)</label>
+                  <input name="validTo" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-4 border-t border-slate-100">
+                 <button type="reset" className="px-6 py-2 border border-slate-300 text-slate-600 font-bold rounded hover:bg-slate-50 transition">Clear Form</button>
+                 <button type="submit" className="px-8 py-2 bg-blue-700 text-white font-bold rounded shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-95 transition-all">
+                   Save Sauda Entry
+                 </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Ledger / History Sidebar */}
+          <div className="lg:col-span-4 bg-white shadow-md border border-slate-200 rounded-xl flex flex-col items-stretch max-h-[85vh]">
+            <div className="bg-slate-50 border-b border-slate-200 p-4 shrink-0">
+               <h2 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                 <Archive className="w-6 h-6 text-slate-600" /> Ledger - Recent Contracts
+               </h2>
+            </div>
+            <div className="overflow-y-auto flex-1 p-2 space-y-2 bg-slate-100">
+               {recentContracts.length === 0 ? (
+                 <div className="p-8 text-center text-slate-400">
+                    <p>No records found.</p>
+                 </div>
+               ) : recentContracts.map(c => (
+                 <div key={c.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex flex-col gap-2 hover:border-blue-400 transition-colors">
+                    <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                       <div>
+                         <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 border border-blue-200 rounded">#{c.saudaNo}</span>
+                         {c.saudaBook && <span className="ml-2 text-[10px] text-slate-400 uppercase">{c.saudaBook}</span>}
+                       </div>
+                       <span className="text-xs font-mono text-slate-500">{c.saudaDate?.split(' ')[0] || "N/A"}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                       <div>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold">Seller</p>
+                          <p className="font-semibold text-slate-800 line-clamp-1">{c.sellerName}</p>
+                       </div>
+                       <div>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold text-right">Buyer</p>
+                          <p className="font-semibold text-slate-800 text-right line-clamp-1">{c.buyerName}</p>
+                       </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-50">
+                       <p className="text-xs font-bold text-slate-700">{c.commodity}</p>
+                       <p className="text-xs font-mono font-medium text-emerald-700 text-right">₹{c.amount?.toFixed(2) || '0.00'}</p>
+                    </div>
+                    <div className="mt-2 text-right">
+                       <a href={`/api/pdf/contract/${c.saudaNo}`} target="_blank" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded transition">
+                         <Printer className="w-3.5 h-3.5" /> PRINT PDF
+                       </a>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+          
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
