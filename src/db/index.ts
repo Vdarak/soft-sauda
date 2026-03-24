@@ -1,10 +1,8 @@
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from './schema';
 
-const client = createClient({
-  url: process.env.DATABASE_URL || 'file:./softsauda.db',
-});
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres';
 
-// Disable prefetch/server mode since we are directly querying a local file
+const client = postgres(connectionString);
 export const db = drizzle(client, { schema });

@@ -5,8 +5,8 @@ dotenv.config({ path: '.env.local' });
 export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
-  dialect: 'sqlite',
+  dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'file:./softsauda.db',
+    url: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres',
   },
 });

@@ -1,8 +1,8 @@
-import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
+import { pgTable, serial, integer, text, real, timestamp } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const contracts = sqliteTable("contracts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const contracts = pgTable("contracts", {
+  id: serial("id").primaryKey(),
   saudaNo: integer("sauda_no").unique().notNull(), // The user-facing contract ID
   saudaBook: text("sauda_book"),
   saudaDate: text("sauda_date").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -35,23 +35,23 @@ export const contracts = sqliteTable("contracts", {
   validTo: text("valid_to"),
   cForm: text("cform"), // Flag/field for C-Form
 
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const deliveries = sqliteTable("deliveries", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const deliveries = pgTable("deliveries", {
+  id: serial("id").primaryKey(),
   contractId: integer("contract_id").references(() => contracts.id).notNull(),
   dispatchDate: text("dispatch_date").default(sql`CURRENT_TIMESTAMP`).notNull(),
   truckNo: text("truck_no"),
   quantity: real("quantity"),
   weight: real("weight"),
   freightAdvance: real("freight_advance"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const bills = sqliteTable("bills", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const bills = pgTable("bills", {
+  id: serial("id").primaryKey(),
   deliveryId: integer("delivery_id").references(() => deliveries.id),
   contractId: integer("contract_id").references(() => contracts.id).notNull(),
   billNo: text("bill_no").unique(),
@@ -61,11 +61,11 @@ export const bills = sqliteTable("bills", {
   deductions: real("deductions").default(0.00),
   balanceAmount: real("balance_amount"),
   creditDays: integer("credit_days"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const payments = sqliteTable("payments", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
   billId: integer("bill_id").references(() => bills.id),
   paymentDate: text("payment_date").default(sql`CURRENT_TIMESTAMP`).notNull(),
   instrumentType: text("instrument_type"),
@@ -75,16 +75,16 @@ export const payments = sqliteTable("payments", {
   depositedBank: text("deposited_bank"),
   courierTracking: text("courier_tracking"),
   voucherType: text("voucher_type"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const ledger = sqliteTable("ledger", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const ledger = pgTable("ledger", {
+  id: serial("id").primaryKey(),
   transactionDate: text("transaction_date").default(sql`CURRENT_TIMESTAMP`).notNull(),
   voucherRef: integer("voucher_ref"),
   narration: text("narration"),
   accountId: text("account_id").notNull(),
   debit: real("debit").default(0.00),
   credit: real("credit").default(0.00),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
