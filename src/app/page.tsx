@@ -176,6 +176,8 @@ export default async function Home() {
                        const dropdown = document.getElementById(dropdownId);
                        if (!input || !dropdown) return;
                        
+                       let activeIndex = -1;
+
                        document.addEventListener('click', (e) => {
                           if (e.target !== input && !dropdown.contains(e.target)) {
                              dropdown.classList.add('hidden');
@@ -184,7 +186,41 @@ export default async function Home() {
 
                        input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
 
+                       input.addEventListener('keydown', function(e) {
+                          if (dropdown.classList.contains('hidden')) return;
+                          
+                          const items = dropdown.querySelectorAll('.autocomplete-item');
+                          if (items.length === 0) return;
+
+                          if (e.key === 'ArrowDown') {
+                             e.preventDefault();
+                             activeIndex = (activeIndex + 1) % items.length;
+                             updateHighlight(items);
+                          } else if (e.key === 'ArrowUp') {
+                             e.preventDefault();
+                             activeIndex = (activeIndex - 1 + items.length) % items.length;
+                             updateHighlight(items);
+                          } else if (e.key === 'Enter') {
+                             e.preventDefault();
+                             const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+                             if (items[targetIndex]) items[targetIndex].click();
+                          }
+                       });
+
+                       function updateHighlight(items) {
+                          items.forEach((item, idx) => {
+                             if (idx === activeIndex) {
+                                item.classList.add('bg-blue-100');
+                                item.classList.remove('hover:bg-slate-50');
+                             } else {
+                                item.classList.remove('bg-blue-100');
+                                item.classList.add('hover:bg-slate-50');
+                             }
+                          });
+                       }
+
                        input.addEventListener('input', function(e) {
+                          activeIndex = -1;
                           const val = e.target.value.toLowerCase();
                           if (!val || partiesDict[e.target.value]) { // Hide if empty OR exact match selected
                              dropdown.classList.add('hidden');
@@ -198,14 +234,14 @@ export default async function Home() {
                           }
                           
                           dropdown.innerHTML = matches.map(p => 
-                            \`<div class="px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 text-slate-700 font-medium border-b border-slate-100 last:border-0 hover:text-blue-600 transition-colors" data-name="\${p.name.replace(/"/g, '&quot;')}">
+                            \`<div class="autocomplete-item px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 text-slate-700 font-medium border-b border-slate-100 last:border-0 hover:text-blue-600 transition-colors" data-name="\${p.name.replace(/"/g, '&quot;')}">
                                \${p.name} 
                                \${p.gstin ? \`<span class="text-[10px] text-slate-400 font-mono ml-2 border border-slate-200 px-1 rounded">\${p.gstin}</span>\` : ''}
                              </div>\`
                           ).join('');
                           dropdown.classList.remove('hidden');
                           
-                          dropdown.querySelectorAll('div').forEach(item => {
+                          dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
                              item.addEventListener('click', function() {
                                 input.value = this.getAttribute('data-name');
                                 dropdown.classList.add('hidden');
