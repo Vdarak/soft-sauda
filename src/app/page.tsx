@@ -50,11 +50,7 @@ export default async function Home() {
                </h2>
             </div>
             
-            <form action={createContract} className="p-6 space-y-6 flex-1 bg-white">
-              <datalist id="partyNamesList">
-                {availableParties.map(p => <option key={p.id} value={p.name} />)}
-              </datalist>
-
+            <form action={createContract} className="p-6 space-y-6 flex-1 bg-white relative">
               {/* Row 1: Identifiers */}
               <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
                 <div>
@@ -78,9 +74,10 @@ export default async function Home() {
                   <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Seller Details</legend>
                   <div className="space-y-4 pt-2">
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-2">
+                      <div className="col-span-2 relative">
                         <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required list="partyNamesList" name="sellerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                        <input required name="sellerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                        <div id="sellerNameDropdown" className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600">Broker</label>
@@ -109,9 +106,10 @@ export default async function Home() {
                   <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Buyer Details</legend>
                   <div className="space-y-4 pt-2">
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-2">
+                      <div className="col-span-2 relative">
                         <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required list="partyNamesList" name="buyerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
+                        <input required name="buyerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
+                        <div id="buyerNameDropdown" className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600">Broker</label>
@@ -167,11 +165,59 @@ export default async function Home() {
                    </div>
                 </div>
                 
-                {/* Extremely performant inline vanilla JS for UI updates without React state */}
+                {/* Extremely performant inline vanilla JS for Custom Styled Dropdown UI without React state */}
                 <script dangerouslySetInnerHTML={{ __html: `
                   if (typeof document !== 'undefined') {
+                    const parties = ${JSON.stringify(availableParties)};
                     const partiesDict = ${JSON.stringify(availableParties.reduce((a, p) => { a[p.name] = p; return a; }, {}))};
                     
+                    function setupAutocomplete(inputName, dropdownId) {
+                       const input = document.querySelector(\`input[name="\${inputName}"]\`);
+                       const dropdown = document.getElementById(dropdownId);
+                       if (!input || !dropdown) return;
+                       
+                       document.addEventListener('click', (e) => {
+                          if (e.target !== input && !dropdown.contains(e.target)) {
+                             dropdown.classList.add('hidden');
+                          }
+                       });
+
+                       input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
+
+                       input.addEventListener('input', function(e) {
+                          const val = e.target.value.toLowerCase();
+                          if (!val || partiesDict[e.target.value]) { // Hide if empty OR exact match selected
+                             dropdown.classList.add('hidden');
+                             return;
+                          }
+                          
+                          const matches = parties.filter(p => p.name.toLowerCase().includes(val)).slice(0, 10);
+                          if (matches.length === 0) {
+                             dropdown.classList.add('hidden');
+                             return;
+                          }
+                          
+                          dropdown.innerHTML = matches.map(p => 
+                            \`<div class="px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 text-slate-700 font-medium border-b border-slate-100 last:border-0 hover:text-blue-600 transition-colors" data-name="\${p.name.replace(/"/g, '&quot;')}">
+                               \${p.name} 
+                               \${p.gstin ? \`<span class="text-[10px] text-slate-400 font-mono ml-2 border border-slate-200 px-1 rounded">\${p.gstin}</span>\` : ''}
+                             </div>\`
+                          ).join('');
+                          dropdown.classList.remove('hidden');
+                          
+                          dropdown.querySelectorAll('div').forEach(item => {
+                             item.addEventListener('click', function() {
+                                input.value = this.getAttribute('data-name');
+                                dropdown.classList.add('hidden');
+                                input.dispatchEvent(new Event('input', { bubbles: true })); // Trigger autofill check
+                             });
+                          });
+                       });
+                    }
+
+                    setupAutocomplete('sellerName', 'sellerNameDropdown');
+                    setupAutocomplete('buyerName', 'buyerNameDropdown');
+
                     document.addEventListener('input', function(e) {
                       const form = e.target.closest('form');
                       if (!form) return;
@@ -188,7 +234,7 @@ export default async function Home() {
                          }
                       }
                       
-                      // Auto-complete Party Data
+                      // Auto-complete Party Data Fill-in
                       if (e.target.name === 'sellerName' || e.target.name === 'buyerName') {
                          const prefix = e.target.name === 'sellerName' ? 'seller' : 'buyer';
                          const party = partiesDict[e.target.value];
