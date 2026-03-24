@@ -4,6 +4,8 @@ import { desc } from 'drizzle-orm';
 import { createJournalEntry } from '../actions/ledger';
 import { BookOpen, TableProperties } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function LedgerPage() {
   let recentEntries: any[] = [];
   

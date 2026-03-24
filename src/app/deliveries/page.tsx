@@ -4,6 +4,8 @@ import { desc, eq } from 'drizzle-orm';
 import { createDelivery } from '../actions/delivery';
 import { Truck, ClipboardList } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DeliveriesPage() {
   let recentDeliveries: any[] = [];
   let availableContracts: any[] = [];

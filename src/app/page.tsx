@@ -4,6 +4,8 @@ import { createContract } from './actions/contract';
 import { desc } from 'drizzle-orm';
 import { PenLine, Archive, Printer } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   let recentContracts: any[] = [];
   let dbError = false;
@@ -155,11 +157,30 @@ export default async function Home() {
                    </div>
                    <div className="col-span-2">
                      <label className="block text-xs font-bold text-slate-400">Total Amount</label>
-                     <div className="mt-1 w-full rounded border border-dashed border-slate-300 p-2 text-sm bg-slate-100 text-slate-400 font-mono italic">
-                       Auto-calculated
-                     </div>
+                     <input readOnly id="calcAmount" className="mt-1 w-full rounded border border-dashed border-slate-300 p-2 text-sm bg-slate-100 text-slate-600 font-mono italic outline-none" placeholder="Auto-calculated" />
                    </div>
                 </div>
+                
+                {/* Extremely performant inline vanilla JS for UI updates without React state */}
+                <script dangerouslySetInnerHTML={{ __html: `
+                  if (typeof document !== 'undefined') {
+                    document.addEventListener('input', function(e) {
+                      if (e.target.name === 'weight' || e.target.name === 'rate') {
+                        const form = e.target.closest('form');
+                        if (form) {
+                           const weight = parseFloat(form.weight.value) || 0;
+                           const rate = parseFloat(form.rate.value) || 0;
+                           const display = form.querySelector('#calcAmount');
+                           if (display && weight > 0 && rate > 0) {
+                             display.value = '₹ ' + (weight * rate).toFixed(2);
+                           } else if (display) {
+                             display.value = '';
+                           }
+                        }
+                      }
+                    });
+                  }
+                `}} />
               </fieldset>
 
                {/* Row 4: Terms */}

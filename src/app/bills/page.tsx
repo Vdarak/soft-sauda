@@ -4,6 +4,8 @@ import { desc, eq } from 'drizzle-orm';
 import { createBill } from '../actions/bill';
 import { Receipt, ClipboardList } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function BillsPage() {
   let recentBills: any[] = [];
   let availableContracts: any[] = [];

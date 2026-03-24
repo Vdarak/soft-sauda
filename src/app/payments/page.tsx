@@ -4,6 +4,8 @@ import { desc, eq } from 'drizzle-orm';
 import { createPayment } from '../actions/payment';
 import { CreditCard, ClipboardList } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function PaymentsPage() {
   let recentPayments: any[] = [];
   let availableBills: any[] = [];
