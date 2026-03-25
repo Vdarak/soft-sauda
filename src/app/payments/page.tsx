@@ -1,8 +1,9 @@
 import { db } from '@/db';
-import { bills, payments, contracts } from '@/db/schema';
+import { bills, payments, parties, paymentAllocations } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { createPayment } from '../actions/payment';
 import { CreditCard, ClipboardList } from 'lucide-react';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,29 +12,28 @@ export default async function PaymentsPage() {
   let availableBills: any[] = [];
   
   try {
-    recentPayments = await db.select({
-      id: payments.id,
-      paymentDate: payments.paymentDate,
-      instrumentType: payments.instrumentType,
-      instrumentNo: payments.instrumentNo,
-      amount: payments.amount,
-      depositedBank: payments.depositedBank,
-      billNo: bills.billNo,
-      buyerName: contracts.buyerName,
-    }).from(payments)
-      .leftJoin(bills, eq(payments.billId, bills.id))
-      .leftJoin(contracts, eq(bills.contractId, contracts.id))
-      .orderBy(desc(payments.id))
-      .limit(15);
+    const rawPayments = await db.select().from(payments).orderBy(desc(payments.id)).limit(30);
+    for (const p of rawPayments) {
+      const partyName = p.partyId
+        ? (await db.select({ name: parties.name }).from(parties).where(eq(parties.id, p.partyId)).limit(1))[0]?.name || 'UNKNOWN'
+        : 'UNKNOWN';
+
+      const alloc = await db.select().from(paymentAllocations).where(eq(paymentAllocations.paymentId, p.id)).limit(1);
+      let billNo: string | null = null;
+      if (alloc.length > 0) {
+        billNo = (await db.select({ billNo: bills.billNo }).from(bills).where(eq(bills.id, alloc[0].billId)).limit(1))[0]?.billNo || null;
+      }
+
+      recentPayments.push({ ...p, partyName, billNo });
+    }
       
     availableBills = await db.select({
       id: bills.id,
       billNo: bills.billNo,
       balanceAmount: bills.balanceAmount,
-      buyerName: contracts.buyerName,
+      partyName: parties.name,
     }).from(bills)
-      .leftJoin(contracts, eq(bills.contractId, contracts.id))
-      .where(eq(bills.balanceAmount, bills.balanceAmount)) // Just getting bills, would add > 0 filter normally
+      .leftJoin(parties, eq(bills.partyId, parties.id))
       .orderBy(desc(bills.id)).limit(100);
       
   } catch (err) {
@@ -64,7 +64,7 @@ export default async function PaymentsPage() {
                    <option value="">-- Select Pending Bill --</option>
                    {availableBills.map(b => (
                       <option key={b.id} value={b.id}>
-                         {b.billNo} | Bal: ₹{b.balanceAmount} | {b.buyerName}
+                         {b.billNo} | Bal: ₹{b.balanceAmount} | {b.partyName}
                       </option>
                    ))}
                 </select>
@@ -126,26 +126,30 @@ export default async function PaymentsPage() {
                     <th className="px-4 py-3 text-left font-bold text-slate-600 uppercase text-xs">Instrument</th>
                     <th className="px-4 py-3 text-left font-bold text-slate-600 uppercase text-xs">Bank</th>
                     <th className="px-4 py-3 text-right font-bold text-purple-700 uppercase text-xs">Amount</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600 uppercase text-xs">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {recentPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">No payments logged yet.</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">No payments logged yet.</td>
                     </tr>
                   ) : recentPayments.map(p => (
                     <tr key={p.id} className="hover:bg-purple-50/50 transition-colors border-l-2 border-transparent hover:border-purple-400">
-                      <td className="px-4 py-3 font-mono text-slate-500 text-xs">{p.paymentDate?.split(' ')[0]}</td>
+                      <td className="px-4 py-3 font-mono text-slate-500 text-xs">{p.paymentDate?.toISOString().split('T')[0]}</td>
                       <td className="px-4 py-3 text-xs">
-                         <span className="font-bold text-slate-800">{p.billNo}</span>
-                         <span className="ml-2 text-slate-500">{p.buyerName}</span>
+                         <span className="font-bold text-slate-800">{p.billNo || 'Advance'}</span>
+                         <span className="ml-2 text-slate-500">{p.partyName}</span>
                       </td>
                       <td className="px-4 py-3 text-xs">
                          <div className="font-bold">{p.instrumentType}</div>
                          {p.instrumentNo && <div className="text-slate-500 font-mono">{p.instrumentNo}</div>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{p.depositedBank}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-purple-700">₹{p.amount?.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-purple-700">₹{Number(p.amount || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Link href={`/payments/${p.id}`} className="text-purple-700 font-bold hover:underline text-xs bg-purple-50 px-3 py-1.5 rounded border border-purple-100">Edit</Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

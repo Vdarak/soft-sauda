@@ -40,18 +40,18 @@ stream
 BT
 /F1 24 Tf
 100 700 Td
-(Soft Sauda - Contract Generation Mock) Tj
+(GCC ERP - Contract Generation Mock) Tj
 0 -30 Td
 /F1 12 Tf
 (Sauda No: ${data.saudaNo}) Tj
 0 -20 Td
-(Seller: ${data.sellerName}) Tj
+(Seller: Verified Party) Tj
 0 -20 Td
-(Buyer: ${data.buyerName}) Tj
+(Buyer: Verified Party) Tj
 0 -20 Td
-(Item: ${data.commodity}) Tj
+(Item: Master Commodity) Tj
 0 -20 Td
-(Amount: Rs. ${data.amount}) Tj
+(Amount: Rs. TBD) Tj
 ET
 endstream
 endobj

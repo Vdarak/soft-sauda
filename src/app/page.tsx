@@ -1,19 +1,20 @@
 import { db } from '@/db';
-import { contracts, parties } from '@/db/schema';
-import { createContract } from './actions/contract';
-import { desc } from 'drizzle-orm';
-import { PenLine, Archive, Printer } from 'lucide-react';
+import { contracts, parties, deliveries } from '@/db/schema';
+import { Box, FileText, Users, Receipt, TrendingUp, Archive, Building2, MapPin } from 'lucide-react';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  let recentContracts: any[] = [];
-  let availableParties: any[] = [];
+  let metrics = { parties: 0, contracts: 0, deliveries: 0 };
   let dbError = false;
-  
+
   try {
-    recentContracts = await db.select().from(contracts).orderBy(desc(contracts.saudaNo)).limit(15);
-    availableParties = await db.select().from(parties).limit(500);
+    // Basic dashboard metrics via count() in Drizzle could be done, or length on explicit fetches for small phases
+    const p = await db.select({ id: parties.id }).from(parties).limit(100);
+    const c = await db.select({ id: contracts.id }).from(contracts).limit(100);
+    const d = await db.select({ id: deliveries.id }).from(deliveries).limit(100);
+    metrics = { parties: p.length, contracts: c.length, deliveries: d.length };
   } catch (err) {
     console.error("DB connection error:", err);
     dbError = true;
@@ -24,344 +25,103 @@ export default async function Home() {
       {dbError && (
         <div className="max-w-7xl mx-auto mb-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800">
           <h3 className="font-bold text-lg">Database Connection Failed</h3>
-          <p className="mt-1">Please ensure SQLite/PostgreSQL is running and configured correctly.</p>
+          <p className="mt-1">Please ensure PostgreSQL is running natively via Neon/Railway or locally with valid credentials mapped securely.</p>
         </div>
       )}
 
-      <div className="max-w-screen-2xl mx-auto space-y-4">
-        {/* Header Ribbon */}
-        <header className="bg-blue-900 border-b border-blue-800 p-4 rounded-xl shadow flex justify-between items-center text-white">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Soft Sauda</h1>
-            <p className="text-blue-200 text-xs">Enterprise Trading & Logistics ERP</p>
+      <div className="max-w-screen-2xl mx-auto space-y-8">
+        {/* Modern ERP Dashboard Header */}
+        <header className="bg-gradient-to-r from-blue-900 to-indigo-900 border-b border-blue-800 p-6 rounded-2xl shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center text-white gap-4 relative overflow-hidden">
+          <div className="absolute bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+          <div className="relative z-10 flex items-center gap-4 rounded-2xl p-4 pr-6">
+            <img src="/gcc-logo.svg" alt="GCC Logo" className="h-16 w-auto" />
+            <div className="hidden sm:block">
+              <h1 className="text-3xl font-black tracking-tight text-white">GCC ERP</h1>
+              <p className="text-brand-100 text-sm font-medium mt-1 uppercase tracking-wider">Enterprise Trading & Logistics Platform</p>
+            </div>
           </div>
-          <div className="flex gap-4">
-             <div className="px-3 py-1 bg-blue-800 rounded-md text-xs font-mono font-medium border border-blue-700">Financial Year: 2026-27</div>
-             <div className="px-3 py-1 bg-emerald-600 rounded-md text-xs font-bold shadow-inner">SYSTEM ONLINE</div>
+          <div className="relative z-10 flex gap-4 w-full md:w-auto">
+            <div className="px-4 py-2 bg-blue-950/50 backdrop-blur rounded-lg text-xs font-mono font-bold border border-blue-800 flex items-center shadow-inner">FY: 2026-27</div>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-12 gap-6">
-          {/* Main Data Entry Form */}
-          <div className="lg:col-span-8 bg-white shadow-md border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-            <div className="bg-slate-50 border-b border-slate-200 p-4">
-               <h2 className="text-lg font-bold flex items-center gap-2 text-slate-900">
-                 <PenLine className="w-6 h-6 text-blue-600" /> Draft New Trade Contract (Sauda)
-               </h2>
+        {/* Modular Navigation Grid */}
+        <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+          <Link href="/parties" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 hover:border-indigo-300 transition-all flex flex-col justify-between min-h-[160px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">
+                <Users className="w-8 h-8" />
+              </div>
+              <span className="text-3xl font-black text-slate-200 group-hover:text-indigo-100 transition-colors">{metrics.parties}</span>
             </div>
-            
-            <form action={createContract} className="p-6 space-y-6 flex-1 bg-white relative">
-              {/* Row 1: Identifiers */}
-              <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda No *</label>
-                  <input required name="saudaNo" type="number" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="1042" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda Date</label>
-                  <input name="saudaDate" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase">Sauda Book</label>
-                  <input name="saudaBook" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Main Book" />
-                </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Party Directory</h3>
+              <p className="text-slate-500 mt-1">Manage network accounts & master data</p>
+            </div>
+          </Link>
+
+          <Link href="/commodities" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 hover:border-indigo-300 transition-all flex flex-col justify-between min-h-[160px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">
+                <Box className="w-8 h-8" />
               </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Commodity Master</h3>
+              <p className="text-slate-500 mt-1 line-clamp-2">Manage tradable products and HSN codes</p>
+            </div>
+          </Link>
 
-              {/* Row 2: Parties */}
-              <div className="grid grid-cols-2 gap-6">
-                {/* Seller Group */}
-                <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 relative">
-                  <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Seller Details</legend>
-                  <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-2 relative">
-                        <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required name="sellerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                        <div id="sellerNameDropdown" className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600">Broker</label>
-                        <input name="sellerBroker" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">GSTIN</label>
-                        <input name="sellerGstin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy TIN</label>
-                        <input name="sellerTin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy CST</label>
-                        <input name="sellerCst" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                    </div>
-                  </div>
-                </fieldset>
-
-                {/* Buyer Group */}
-                <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 relative">
-                  <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Buyer Details</legend>
-                  <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-2 relative">
-                        <label className="block text-xs font-bold text-slate-600">Company Name *</label>
-                        <input required name="buyerName" type="text" autoComplete="off" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
-                        <div id="buyerNameDropdown" className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600">Broker</label>
-                        <input name="buyerBroker" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-emerald-500" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">GSTIN</label>
-                        <input name="buyerGstin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy TIN</label>
-                        <input name="buyerTin" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Legacy CST</label>
-                        <input name="buyerCst" type="text" className="mt-1 w-full rounded border-slate-300 p-1.5 text-xs bg-white border outline-none" />
-                      </div>
-                    </div>
-                  </div>
-                </fieldset>
+          <Link href="/contracts" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all flex flex-col justify-between min-h-[160px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+                <FileText className="w-8 h-8" />
               </div>
+              <span className="text-3xl font-black text-slate-200 group-hover:text-blue-100 transition-colors">{metrics.contracts}</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Sauda Register</h3>
+              <p className="text-slate-500 mt-1">Draft executing contracts and trade pricing</p>
+            </div>
+          </Link>
 
-              {/* Row 3: Trade & Pricing */}
-              <fieldset className="border border-slate-200 rounded-md p-4 bg-slate-50/50 mt-4 relative">
-                <legend className="px-2 text-xs font-bold text-slate-400 uppercase tracking-widest bg-white rounded border border-slate-200 ml-2">Trade Execution</legend>
-                <div className="grid-cols-6 grid gap-4 pt-2">
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-600">Commodity *</label>
-                     <input required name="commodity" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" />
-                   </div>
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-600">Brand/Grade</label>
-                     <input name="brand" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" />
-                   </div>
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-600">Packaging</label>
-                     <input name="packaging" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 50kg Gunny" />
-                   </div>
-                   
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-600">Total Qty (Weight)</label>
-                     <input name="weight" type="number" step="0.01" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
-                   </div>
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-600">Agreed Rate (₹)</label>
-                     <input name="rate" type="number" step="0.01" className="mt-1 w-full rounded border-slate-300 p-2 text-sm bg-white border outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
-                   </div>
-                   <div className="col-span-2">
-                     <label className="block text-xs font-bold text-slate-400">Total Amount</label>
-                     <input readOnly id="calcAmount" className="mt-1 w-full rounded border border-dashed border-slate-300 p-2 text-sm bg-slate-100 text-slate-600 font-mono italic outline-none" placeholder="Auto-calculated" />
-                   </div>
-                </div>
-                
-                {/* Extremely performant inline vanilla JS for Custom Styled Dropdown UI without React state */}
-                <script dangerouslySetInnerHTML={{ __html: `
-                  if (typeof document !== 'undefined') {
-                    const parties = ${JSON.stringify(availableParties)};
-                    const partiesDict = ${JSON.stringify(availableParties.reduce((a, p) => { a[p.name] = p; return a; }, {}))};
-                    
-                    function setupAutocomplete(inputName, dropdownId) {
-                       const input = document.querySelector(\`input[name="\${inputName}"]\`);
-                       const dropdown = document.getElementById(dropdownId);
-                       if (!input || !dropdown) return;
-                       
-                       let activeIndex = -1;
-
-                       document.addEventListener('click', (e) => {
-                          if (e.target !== input && !dropdown.contains(e.target)) {
-                             dropdown.classList.add('hidden');
-                          }
-                       });
-
-                       input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
-
-                       input.addEventListener('keydown', function(e) {
-                          if (dropdown.classList.contains('hidden')) return;
-                          
-                          const items = dropdown.querySelectorAll('.autocomplete-item');
-                          if (items.length === 0) return;
-
-                          if (e.key === 'ArrowDown') {
-                             e.preventDefault();
-                             activeIndex = (activeIndex + 1) % items.length;
-                             updateHighlight(items);
-                          } else if (e.key === 'ArrowUp') {
-                             e.preventDefault();
-                             activeIndex = (activeIndex - 1 + items.length) % items.length;
-                             updateHighlight(items);
-                          } else if (e.key === 'Enter') {
-                             e.preventDefault();
-                             const targetIndex = activeIndex >= 0 ? activeIndex : 0;
-                             if (items[targetIndex]) items[targetIndex].click();
-                          }
-                       });
-
-                       function updateHighlight(items) {
-                          items.forEach((item, idx) => {
-                             if (idx === activeIndex) {
-                                item.classList.add('bg-blue-100');
-                                item.classList.remove('hover:bg-slate-50');
-                             } else {
-                                item.classList.remove('bg-blue-100');
-                                item.classList.add('hover:bg-slate-50');
-                             }
-                          });
-                       }
-
-                       input.addEventListener('input', function(e) {
-                          activeIndex = -1;
-                          const val = e.target.value.toLowerCase();
-                          if (!val || partiesDict[e.target.value]) { // Hide if empty OR exact match selected
-                             dropdown.classList.add('hidden');
-                             return;
-                          }
-                          
-                          const matches = parties.filter(p => p.name.toLowerCase().includes(val)).slice(0, 10);
-                          if (matches.length === 0) {
-                             dropdown.classList.add('hidden');
-                             return;
-                          }
-                          
-                          dropdown.innerHTML = matches.map(p => 
-                            \`<div class="autocomplete-item px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 text-slate-700 font-medium border-b border-slate-100 last:border-0 hover:text-blue-600 transition-colors" data-name="\${p.name.replace(/"/g, '&quot;')}">
-                               \${p.name} 
-                               \${p.gstin ? \`<span class="text-[10px] text-slate-400 font-mono ml-2 border border-slate-200 px-1 rounded">\${p.gstin}</span>\` : ''}
-                             </div>\`
-                          ).join('');
-                          dropdown.classList.remove('hidden');
-                          
-                          dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-                             item.addEventListener('click', function() {
-                                input.value = this.getAttribute('data-name');
-                                dropdown.classList.add('hidden');
-                                input.dispatchEvent(new Event('input', { bubbles: true })); // Trigger autofill check
-                             });
-                          });
-                       });
-                    }
-
-                    setupAutocomplete('sellerName', 'sellerNameDropdown');
-                    setupAutocomplete('buyerName', 'buyerNameDropdown');
-
-                    document.addEventListener('input', function(e) {
-                      const form = e.target.closest('form');
-                      if (!form) return;
-
-                      // Auto-calculate Amount
-                      if (e.target.name === 'weight' || e.target.name === 'rate') {
-                         const weight = parseFloat(form.weight.value) || 0;
-                         const rate = parseFloat(form.rate.value) || 0;
-                         const display = form.querySelector('#calcAmount');
-                         if (display && weight > 0 && rate > 0) {
-                           display.value = '₹ ' + (weight * rate).toFixed(2);
-                         } else if (display) {
-                           display.value = '';
-                         }
-                      }
-                      
-                      // Auto-complete Party Data Fill-in
-                      if (e.target.name === 'sellerName' || e.target.name === 'buyerName') {
-                         const prefix = e.target.name === 'sellerName' ? 'seller' : 'buyer';
-                         const party = partiesDict[e.target.value];
-                         if (party) {
-                            if(form[prefix + 'Broker']) form[prefix + 'Broker'].value = party.broker || '';
-                            if(form[prefix + 'Gstin']) form[prefix + 'Gstin'].value = party.gstin || '';
-                            if(form[prefix + 'Tin']) form[prefix + 'Tin'].value = party.tin || '';
-                            if(form[prefix + 'Cst']) form[prefix + 'Cst'].value = party.cst || '';
-                            e.target.style.borderWidth = '2px';
-                            e.target.style.borderColor = '#10b981'; // highlight green match
-                         } else {
-                            e.target.style.borderWidth = '';
-                            e.target.style.borderColor = '';
-                         }
-                      }
-                    });
-                  }
-                `}} />
-              </fieldset>
-
-               {/* Row 4: Terms */}
-              <div className="grid grid-cols-4 gap-4 bg-slate-100 p-4 rounded-lg border border-slate-200">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-600">Delivery Term</label>
-                  <input name="deliveryTerm" type="text" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" placeholder="Ex-Godown, F.O.R..." />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600">Term (Valid From)</label>
-                  <input name="validFrom" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600">Till (Valid To)</label>
-                  <input name="validTo" type="date" className="mt-1 w-full rounded border-slate-300 p-2 text-xs bg-white border outline-none" />
-                </div>
+          <Link href="/deliveries" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[160px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+                <Box className="w-8 h-8" />
               </div>
+              <span className="text-3xl font-black text-slate-200 group-hover:text-emerald-100 transition-colors">{metrics.deliveries}</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Dispatch Logic</h3>
+              <p className="text-slate-500 mt-1">Weighbridges, tracking, & logistics transit</p>
+            </div>
+          </Link>
 
-              <div className="pt-4 flex justify-end gap-4 border-t border-slate-100">
-                 <button type="reset" className="px-6 py-2 border border-slate-300 text-slate-600 font-bold rounded hover:bg-slate-50 transition">Clear Form</button>
-                 <button type="submit" className="px-8 py-2 bg-blue-700 text-white font-bold rounded shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-95 transition-all">
-                   Save Sauda Entry
-                 </button>
+          <Link href="/bills" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 hover:border-orange-300 transition-all flex flex-col justify-between min-h-[160px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
+                <Receipt className="w-8 h-8" />
               </div>
-            </form>
+              <span className="text-3xl font-black text-slate-200 group-hover:text-orange-100 transition-colors">-</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Financial Ledger</h3>
+              <p className="text-slate-500 mt-1">Bills, automatic deductions, & receipts</p>
+            </div>
+          </Link>
+
+        </section>
+
+        {/* Global Summary Log Stream Placeholder */}
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex items-center justify-center text-slate-400 h-64 border-dashed">
+          <div className="flex flex-col items-center gap-2">
+            <Archive className="w-8 h-8 text-slate-300" />
+            <p className="font-medium text-slate-500">Analytics and System Graph Will Generate Here</p>
           </div>
+        </section>
 
-          {/* Ledger / History Sidebar */}
-          <div className="lg:col-span-4 bg-white shadow-md border border-slate-200 rounded-xl flex flex-col items-stretch max-h-[85vh]">
-            <div className="bg-slate-50 border-b border-slate-200 p-4 shrink-0">
-               <h2 className="text-lg font-bold flex items-center gap-2 text-slate-900">
-                 <Archive className="w-6 h-6 text-slate-600" /> Ledger - Recent Contracts
-               </h2>
-            </div>
-            <div className="overflow-y-auto flex-1 p-2 space-y-2 bg-slate-100">
-               {recentContracts.length === 0 ? (
-                 <div className="p-8 text-center text-slate-400">
-                    <p>No records found.</p>
-                 </div>
-               ) : recentContracts.map(c => (
-                 <div key={c.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex flex-col gap-2 hover:border-blue-400 transition-colors">
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                       <div>
-                         <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 border border-blue-200 rounded">#{c.saudaNo}</span>
-                         {c.saudaBook && <span className="ml-2 text-[10px] text-slate-400 uppercase">{c.saudaBook}</span>}
-                       </div>
-                       <span className="text-xs font-mono text-slate-500">{c.saudaDate?.split(' ')[0] || "N/A"}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                       <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">Seller</p>
-                          <p className="font-semibold text-slate-800 line-clamp-1">{c.sellerName}</p>
-                       </div>
-                       <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold text-right">Buyer</p>
-                          <p className="font-semibold text-slate-800 text-right line-clamp-1">{c.buyerName}</p>
-                       </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-1 border-t border-slate-50">
-                       <p className="text-xs font-bold text-slate-700">{c.commodity}</p>
-                       <p className="text-xs font-mono font-medium text-emerald-700 text-right">₹{c.amount?.toFixed(2) || '0.00'}</p>
-                    </div>
-                    <div className="mt-2 text-right">
-                       <a href={`/api/pdf/contract/${c.saudaNo}`} target="_blank" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded transition">
-                         <Printer className="w-3.5 h-3.5" /> PRINT PDF
-                       </a>
-                    </div>
-                 </div>
-               ))}
-            </div>
-          </div>
-          
-        </div>
       </div>
     </main>
   );

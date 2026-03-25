@@ -3,6 +3,7 @@ import { ledger } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { createJournalEntry } from '../actions/ledger';
 import { BookOpen, TableProperties } from 'lucide-react';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,23 +89,27 @@ export default async function LedgerPage() {
                     <th className="px-4 py-3 text-left font-bold text-slate-600 uppercase text-xs">Account & Narration</th>
                     <th className="px-4 py-3 text-right font-bold text-red-600 uppercase text-xs">Debit (Dr)</th>
                     <th className="px-4 py-3 text-right font-bold text-emerald-600 uppercase text-xs">Credit (Cr)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600 uppercase text-xs">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {recentEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">No journal entries posted.</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">No journal entries posted.</td>
                     </tr>
                   ) : recentEntries.map(e => (
                     <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-slate-500 text-xs">{e.transactionDate?.split(' ')[0]}</td>
-                      <td className="px-4 py-3 font-mono text-slate-400 text-xs">{e.voucherRef || '-'}</td>
+                      <td className="px-4 py-3 font-mono text-slate-500 text-xs">{e.transactionDate ? new Date(e.transactionDate).toISOString().split('T')[0] : '-'}</td>
+                      <td className="px-4 py-3 font-mono text-slate-400 text-xs">{e.sourceId || '-'}</td>
                       <td className="px-4 py-3">
                          <div className="font-bold text-slate-800">{e.accountId}</div>
                          <div className="text-slate-500 text-xs mt-1 italic">{e.narration}</div>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-red-700">{e.debit > 0 ? `₹${e.debit.toFixed(2)}` : ''}</td>
-                      <td className="px-4 py-3 text-right font-mono text-emerald-700">{e.credit > 0 ? `₹${e.credit.toFixed(2)}` : ''}</td>
+                      <td className="px-4 py-3 text-right font-mono text-red-700">{Number(e.debit) > 0 ? `₹${Number(e.debit).toFixed(2)}` : ''}</td>
+                      <td className="px-4 py-3 text-right font-mono text-emerald-700">{Number(e.credit) > 0 ? `₹${Number(e.credit).toFixed(2)}` : ''}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Link href={`/ledger/${e.id}`} className="text-slate-700 font-bold hover:underline text-xs bg-slate-100 px-3 py-1.5 rounded border border-slate-200">Edit</Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
