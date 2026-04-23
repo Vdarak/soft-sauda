@@ -18,11 +18,17 @@ export const dynamic = 'force-dynamic';
 const ROUTES_TO_WARM = [
   '/api/dashboard',
   '/api/parties',
+  '/api/parties/0',
   '/api/commodities',
+  '/api/commodities/0',
   '/api/contracts',
+  '/api/contracts/0',
   '/api/deliveries',
+  '/api/deliveries/0',
   '/api/bills',
+  '/api/bills/0',
   '/api/payments',
+  '/api/payments/0',
   '/api/ledger',
 ];
 

@@ -4,12 +4,16 @@
 import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
-export async function renderCommodityList() {
+export async function renderCommodityList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
 
   try {
-    const data = await api.get('/commodities');
+    const data = await api.get(`/commodities?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+
     const rows = data.map(c => `
       <tr>
         <td><div style="font-weight:600">${escapeHtml(c.name)}</div>${c.shortName ? `<div style="font-size:0.6875rem;color:var(--muted-foreground)">${escapeHtml(c.shortName)}</div>` : ''}</td>
@@ -38,7 +42,8 @@ export async function renderCommodityList() {
           { label: '', align: 'right' },
         ],
         rows,
-        emptyMessage: 'No commodities found.'
+        emptyMessage: 'No commodities found.',
+        pagination: { page, hasMore, route: '/commodities' }
       })}
     `;
   } catch (err) {

@@ -5,12 +5,16 @@ import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, esc
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
-export async function renderDeliveryList() {
+export async function renderDeliveryList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
 
   try {
-    const data = await api.get('/deliveries');
+    const data = await api.get(`/deliveries?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+
     const rows = data.map(d => `
       <tr>
         <td>${formatDate(d.dispatchDate)}</td>
@@ -31,7 +35,8 @@ export async function renderDeliveryList() {
       ${DataTable({
         id: 'deliveries-table', title: 'Delivery Register', count: data.length,
         headers: [{ label: 'Date' }, { label: 'Truck No.' }, { label: 'Transporter' }, { label: 'Status', align: 'center' }, { label: 'Weight', align: 'right' }, { label: '', align: 'right' }],
-        rows
+        rows,
+        pagination: { page, hasMore, route: '/deliveries' }
       })}
     `;
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Deliveries' })}<div class="alert danger">${err.message}</div>`; }

@@ -51,6 +51,7 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
       fn: async () => {
         const data = await db.select().from(parties).orderBy(desc(parties.id)).limit(50);
         cacheSet('parties:list:1:50', data, TTL);
+        data.forEach(p => cacheSet(`parties:${p.id}`, p, TTL));
       },
     },
     // ── Commodities list ──
@@ -59,6 +60,7 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
       fn: async () => {
         const data = await db.select().from(commodities).orderBy(desc(commodities.id)).limit(50);
         cacheSet('commodities:list:1:50', data, TTL);
+        data.forEach(c => cacheSet(`commodities:${c.id}`, c, TTL));
       },
     },
     // ── Contracts list (with JOINs) ──
@@ -95,17 +97,21 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
 
         const enriched = rawContracts.map(c => {
           const cParties = partyMap[c.id] || [];
-          return {
+          const detailItem = {
             id: c.id, saudaNo: c.saudaNo, saudaBook: c.saudaBook, saudaDate: c.saudaDate,
             status: c.status, deliveryTerm: c.deliveryTerm, customRemarks: c.customRemarks,
             createdAt: c.createdAt,
-            sellerName: cParties.find(p => p.role === 'SELLER')?.name || 'Unknown',
-            buyerName: cParties.find(p => p.role === 'BUYER')?.name || 'Unknown',
+            sellerName: cParties.find(p => p.role === 'SELLER')?.name || null,
+            buyerName: cParties.find(p => p.role === 'BUYER')?.name || null,
             sellerBroker: cParties.find(p => p.role === 'SELLER_BROKER')?.name || null,
             buyerBroker: cParties.find(p => p.role === 'BUYER_BROKER')?.name || null,
             commodityName: c.commodityName || 'Unknown',
             amount: c.amount || '0', weight: c.weight || '0', rate: c.rate || '0',
+            parties: cParties,
+            lines: [{ commodityName: c.commodityName || 'Unknown', amount: c.amount, weightQuintals: c.weight, rate: c.rate }]
           };
+          cacheSet(`contracts:${c.id}`, detailItem, TTL);
+          return detailItem;
         });
         cacheSet('contracts:list:1:50', enriched, TTL);
       },
@@ -123,6 +129,21 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
           .from(bills)
           .leftJoin(parties, eq(parties.id, bills.partyId))
           .orderBy(desc(bills.id)).limit(50);
+        
+        const billIds = data.map(b => b.id);
+        let bLinesMap: Record<number, any[]> = {};
+        if (billIds.length > 0) {
+          const allLines = await db.select().from(billLines)
+            .where(sql`${billLines.billId} IN (${sql.join(billIds.map(id => sql`${id}`), sql`, `)})`);
+          for (const line of allLines) {
+            if (!bLinesMap[line.billId]) bLinesMap[line.billId] = [];
+            bLinesMap[line.billId].push(line);
+          }
+        }
+        
+        data.forEach(b => {
+           cacheSet(`bills:${b.id}`, { ...b, lines: bLinesMap[b.id] || [] }, TTL);
+        });
         cacheSet('bills:list:1:50', data, TTL);
       },
     },
@@ -150,7 +171,11 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
             linesMap[line.deliveryId].push(line);
           }
         }
-        const enriched = rawDeliveries.map(d => ({ ...d, lines: linesMap[d.id] || [] }));
+        const enriched = rawDeliveries.map(d => {
+          const detail = { ...d, lines: linesMap[d.id] || [] };
+          cacheSet(`deliveries:${d.id}`, detail, TTL);
+          return detail;
+        });
         cacheSet('deliveries:list:1:50', enriched, TTL);
       },
     },
@@ -178,7 +203,11 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
             allocMap[alloc.paymentId].push(alloc);
           }
         }
-        const enriched = rawPayments.map(p => ({ ...p, allocations: allocMap[p.id] || [] }));
+        const enriched = rawPayments.map(p => {
+          const detail = { ...p, allocations: allocMap[p.id] || [] };
+          cacheSet(`payments:${p.id}`, detail, TTL);
+          return detail;
+        });
         cacheSet('payments:list:1:50', enriched, TTL);
       },
     },

@@ -5,11 +5,16 @@ import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, esc
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
-export async function renderBillList() {
+export async function renderBillList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
+
   try {
-    const data = await api.get('/bills');
+    const data = await api.get(`/bills?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+    
     const rows = data.map(b => `
       <tr>
         <td><span style="font-weight:700">${escapeHtml(b.billNo)}</span><div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(b.billDate)}</div></td>
@@ -24,7 +29,9 @@ export async function renderBillList() {
       ${PageHeader({ title: 'Bills', subtitle: 'Invoice register', actions: `<a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>` })}
       ${DataTable({ id: 'bills-table', title: 'Bill Register', count: data.length,
         headers: [{ label: 'Bill No.' }, { label: 'Party' }, { label: 'Basis' }, { label: 'Amount', align: 'right' }, { label: 'Balance', align: 'right' }, { label: '', align: 'right' }],
-        rows })}
+        rows,
+        pagination: { page, hasMore, route: '/bills' }
+      })}
     `;
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Bills' })}<div class="alert danger">${err.message}</div>`; }
 }

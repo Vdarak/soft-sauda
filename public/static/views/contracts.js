@@ -5,12 +5,17 @@ import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, esc
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp, attachCommodityAutocomp } from '../lib/autocomplete.js';
 
-export async function renderContractList() {
+export async function renderContractList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
 
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
+
   try {
-    const data = await api.get('/contracts');
+    const data = await api.get(`/contracts?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+    
     const rows = data.map(c => `
       <tr>
         <td>
@@ -53,6 +58,7 @@ export async function renderContractList() {
           { label: '', align: 'right' },
         ],
         rows,
+        pagination: { page, hasMore, route: '/contracts' }
       })}
     `;
   } catch (err) {

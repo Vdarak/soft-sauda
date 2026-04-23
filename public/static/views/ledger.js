@@ -8,11 +8,16 @@ import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
-export async function renderLedgerList() {
+export async function renderLedgerList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
+
   try {
-    const data = await api.get('/ledger');
+    const data = await api.get(`/ledger?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+    
     const rows = data.map(e => `
       <tr>
         <td>${formatDate(e.transactionDate)}</td>
@@ -28,7 +33,9 @@ export async function renderLedgerList() {
       ${PageHeader({ title: 'General Ledger', subtitle: 'Financial journal entries', actions: `<a href="/ledger/new" data-route><button class="primary">${Icons.plus} Journal Entry</button></a>` })}
       ${DataTable({ id: 'ledger-table', title: 'Ledger Entries', count: data.length,
         headers: [{ label: 'Date' }, { label: 'Account' }, { label: 'Source' }, { label: 'Narration' }, { label: 'Debit', align: 'right' }, { label: 'Credit', align: 'right' }, { label: '', align: 'right' }],
-        rows })}
+        rows,
+        pagination: { page, hasMore, route: '/ledger' }
+      })}
     `;
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Ledger' })}<div class="alert danger">${err.message}</div>`; }
 }

@@ -41,7 +41,19 @@ export function StatsCard({ icon, value, label, desc, href }) {
 }
 
 /* ── Data Table Component ── */
-export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No data found.' }) {
+export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No data found.', pagination = null }) {
+  let paginationHtml = '';
+  if (pagination) {
+    const { page, hasMore, route } = pagination;
+    paginationHtml = `<div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:1rem;border-top:1px solid var(--border)">
+      <div style="font-size:0.875rem;color:var(--muted-foreground)">Page ${page}</div>
+      <div style="display:flex;gap:0.5rem">
+        <a ${page > 1 ? `href="${route}?page=${page - 1}" data-route` : ''}><button class="small" ${page <= 1 ? 'disabled' : ''}>${Icons.arrowLeft} Prev</button></a>
+        <a ${hasMore ? `href="${route}?page=${page + 1}" data-route` : ''}><button class="small" ${!hasMore ? 'disabled' : ''}>Next <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:0.25rem"><path d="m9 18 6-6-6-6"/></svg></button></a>
+      </div>
+    </div>`;
+  }
+
   return `<div class="table-container">
     ${title ? `<div class="table-header">
       <h2>${escapeHtml(title)}${count !== undefined ? ` (${count})` : ''}</h2>
@@ -58,6 +70,7 @@ export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No 
         </tbody>
       </table>
     </div>
+    ${paginationHtml}
   </div>`;
 }
 

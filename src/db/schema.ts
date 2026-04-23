@@ -35,7 +35,9 @@ export const parties = pgTable("parties", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
-});
+}, (t) => ({
+  nameTrgmIdx: index("idx_parties_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`)
+}));
 
 export const partyRoles = pgTable("party_roles", {
   id: serial("id").primaryKey(),
@@ -96,7 +98,9 @@ export const commodities = pgTable("commodities", {
   shortName: text("short_name"),
   unit: text("unit"),
   hsnCode: text("hsn_code"),
-});
+}, (t) => ({
+  nameTrgmIdx: index("idx_commodities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`)
+}));
 
 export const commodityPackaging = pgTable("commodity_packaging", {
   id: serial("id").primaryKey(),

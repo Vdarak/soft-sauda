@@ -5,12 +5,15 @@ import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, esc
 import * as api from '../lib/api.js';
 
 /** Render party list */
-export async function renderPartyList() {
+export async function renderPartyList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
 
   try {
-    const data = await api.get('/parties');
+    const data = await api.get(`/parties?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
 
     const rows = data.map(p => `
       <tr>
@@ -47,7 +50,8 @@ export async function renderPartyList() {
           { label: '', align: 'right' },
         ],
         rows,
-        emptyMessage: 'No parties registered yet. <a href="/parties/new" data-route>Add your first party</a>.'
+        emptyMessage: 'No parties registered yet. <a href="/parties/new" data-route>Add your first party</a>.',
+        pagination: { page, hasMore, route: '/parties' }
       })}
     `;
   } catch (err) {

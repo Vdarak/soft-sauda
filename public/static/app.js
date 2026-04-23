@@ -58,37 +58,37 @@ function initRouter() {
   r.on('/login',              () => renderLogin());
 
   // Parties
-  r.on('/parties',            requireAuth(() => renderPartyList()));
+  r.on('/parties',            requireAuth((ctx) => renderPartyList(ctx)));
   r.on('/parties/new',        requireAuth(() => renderPartyForm()));
   r.on('/parties/{id}',       requireAuth((ctx) => renderPartyForm(ctx.params.id)));
 
   // Commodities
-  r.on('/commodities',        requireAuth(() => renderCommodityList()));
+  r.on('/commodities',        requireAuth((ctx) => renderCommodityList(ctx)));
   r.on('/commodities/new',    requireAuth(() => renderCommodityForm()));
   r.on('/commodities/{id}',   requireAuth((ctx) => renderCommodityForm(ctx.params.id)));
 
   // Contracts
-  r.on('/contracts',          requireAuth(() => renderContractList()));
+  r.on('/contracts',          requireAuth((ctx) => renderContractList(ctx)));
   r.on('/contracts/new',      requireAuth(() => renderContractForm()));
   r.on('/contracts/{id}',     requireAuth((ctx) => renderContractForm(ctx.params.id)));
 
   // Deliveries
-  r.on('/deliveries',         requireAuth(() => renderDeliveryList()));
+  r.on('/deliveries',         requireAuth((ctx) => renderDeliveryList(ctx)));
   r.on('/deliveries/new',     requireAuth(() => renderDeliveryForm()));
   r.on('/deliveries/{id}',    requireAuth((ctx) => renderDeliveryForm(ctx.params.id)));
 
   // Bills
-  r.on('/bills',              requireAuth(() => renderBillList()));
+  r.on('/bills',              requireAuth((ctx) => renderBillList(ctx)));
   r.on('/bills/new',          requireAuth(() => renderBillForm()));
   r.on('/bills/{id}',         requireAuth((ctx) => renderBillForm(ctx.params.id)));
 
   // Payments
-  r.on('/payments',           requireAuth(() => renderPaymentList()));
+  r.on('/payments',           requireAuth((ctx) => renderPaymentList(ctx)));
   r.on('/payments/new',       requireAuth(() => renderPaymentForm()));
   r.on('/payments/{id}',      requireAuth((ctx) => renderPaymentForm(ctx.params.id)));
 
   // Ledger
-  r.on('/ledger',             requireAuth(() => renderLedgerList()));
+  r.on('/ledger',             requireAuth((ctx) => renderLedgerList(ctx)));
   r.on('/ledger/new',         requireAuth(() => renderLedgerForm()));
   r.on('/ledger/{id}',        requireAuth((ctx) => renderLedgerForm(ctx.params.id)));
 
@@ -163,4 +163,18 @@ document.addEventListener('DOMContentLoaded', () => {
   if (isAuthenticated()) {
     triggerWarmup();
   }
+
+  // Frontend Pre-fetching: When user hovers over a link, silently fetch the API endpoint
+  // to mask network latency and ensure the view renders instantly on click.
+  document.addEventListener('mouseover', (e) => {
+    const link = e.target.closest('a[data-route]');
+    if (link && link.href) {
+      const url = new URL(link.href);
+      if (url.pathname !== '/login' && !url.pathname.endsWith('/new')) {
+        const apiPath = `/api${url.pathname}`;
+        // Trigger a background GET to warm up the cache
+        fetch(apiPath, { headers: { 'Authorization': `Bearer ${localStorage.getItem('ss_token')}` } }).catch(() => {});
+      }
+    }
+  });
 });

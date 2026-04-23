@@ -8,11 +8,16 @@ import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
-export async function renderPaymentList() {
+export async function renderPaymentList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
+  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const limit = 50;
+
   try {
-    const data = await api.get('/payments');
+    const data = await api.get(`/payments?page=${page}&limit=${limit}`);
+    const hasMore = data.length === limit;
+
     const rows = data.map(p => `
       <tr>
         <td>${formatDate(p.paymentDate)}</td>
@@ -27,7 +32,9 @@ export async function renderPaymentList() {
       ${PageHeader({ title: 'Payments', subtitle: 'Payment register', actions: `<a href="/payments/new" data-route><button class="primary">${Icons.plus} New Payment</button></a>` })}
       ${DataTable({ id: 'payments-table', title: 'Payments', count: data.length,
         headers: [{ label: 'Date' }, { label: 'Party' }, { label: 'Method' }, { label: 'Ref No.' }, { label: 'Amount', align: 'right' }, { label: '', align: 'right' }],
-        rows })}
+        rows,
+        pagination: { page, hasMore, route: '/payments' }
+      })}
     `;
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Payments' })}<div class="alert danger">${err.message}</div>`; }
 }
