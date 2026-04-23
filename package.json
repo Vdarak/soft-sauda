@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@knadh/autocomp": "^1.2.0",
+    "@knadh/oat": "^0.6.1",
+    "@knadh/tinyrouter": "^1.2.0",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "jose": "^6.2.2",

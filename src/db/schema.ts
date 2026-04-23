@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, pgEnum, uniqueIndex, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, pgEnum, uniqueIndex, index, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // ==========================================
@@ -42,7 +42,8 @@ export const partyRoles = pgTable("party_roles", {
   partyId: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
   role: partyRoleEnum("role").notNull(),
 }, (t) => ({
-  uniqueRole: uniqueIndex("unq_party_role").on(t.partyId, t.role)
+  uniqueRole: uniqueIndex("unq_party_role").on(t.partyId, t.role),
+  idxPartyId: index("idx_party_roles_party_id").on(t.partyId),
 }));
 
 export const partyTaxIds = pgTable("party_tax_ids", {
@@ -50,7 +51,9 @@ export const partyTaxIds = pgTable("party_tax_ids", {
   partyId: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
   taxType: taxIdTypeEnum("tax_type").notNull(),
   taxValue: text("tax_value").notNull(),
-});
+}, (t) => ({
+  idxPartyId: index("idx_party_tax_ids_party_id").on(t.partyId),
+}));
 
 export const partyDeliveryAddresses = pgTable("party_delivery_addresses", {
   id: serial("id").primaryKey(),
@@ -137,7 +140,10 @@ export const contractParties = pgTable("contract_parties", {
   contractId: integer("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
   partyId: integer("party_id").references(() => parties.id).notNull(),
   role: partyRoleEnum("role").notNull(), 
-});
+}, (t) => ({
+  idxContractId: index("idx_contract_parties_contract_id").on(t.contractId),
+  idxPartyId: index("idx_contract_parties_party_id").on(t.partyId),
+}));
 
 export const contractLines = pgTable("contract_lines", {
   id: serial("id").primaryKey(),
@@ -149,7 +155,10 @@ export const contractLines = pgTable("contract_lines", {
   weightQuintals: numeric("weight_quintals", { precision: 15, scale: 3 }).notNull(),
   rate: numeric("rate", { precision: 15, scale: 2 }).notNull(),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
-});
+}, (t) => ({
+  idxContractId: index("idx_contract_lines_contract_id").on(t.contractId),
+  idxCommodityId: index("idx_contract_lines_commodity_id").on(t.commodityId),
+}));
 
 // ==========================================
 // 4. DELIVERIES DOMAIN
@@ -169,7 +178,10 @@ export const deliveryLines = pgTable("delivery_lines", {
   contractLineId: integer("contract_line_id").references(() => contractLines.id).notNull(),
   dispatchedBags: numeric("dispatched_bags", { precision: 15, scale: 2 }),
   dispatchedWeight: numeric("dispatched_weight", { precision: 15, scale: 3 }).notNull(),
-});
+}, (t) => ({
+  idxDeliveryId: index("idx_delivery_lines_delivery_id").on(t.deliveryId),
+  idxContractLineId: index("idx_delivery_lines_contract_line_id").on(t.contractLineId),
+}));
 
 export const deliveryCharges = pgTable("delivery_charges", {
   id: serial("id").primaryKey(),
@@ -200,7 +212,9 @@ export const billLines = pgTable("bill_lines", {
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   referenceType: text("reference_type"), // 'DELIVERY', 'CONTRACT', 'CHARGE'
   referenceId: integer("reference_id"),
-});
+}, (t) => ({
+  idxBillId: index("idx_bill_lines_bill_id").on(t.billId),
+}));
 
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
@@ -218,7 +232,10 @@ export const paymentAllocations = pgTable("payment_allocations", {
   paymentId: integer("payment_id").references(() => payments.id, { onDelete: "cascade" }).notNull(),
   billId: integer("bill_id").references(() => bills.id).notNull(),
   allocatedAmount: numeric("allocated_amount", { precision: 15, scale: 2 }).notNull(),
-});
+}, (t) => ({
+  idxPaymentId: index("idx_payment_alloc_payment_id").on(t.paymentId),
+  idxBillId: index("idx_payment_alloc_bill_id").on(t.billId),
+}));
 
 // ==========================================
 // 6. LEDGER DOMAIN
@@ -233,4 +250,8 @@ export const ledger = pgTable("ledger", {
   credit: numeric("credit", { precision: 15, scale: 2 }).default('0.00'),
   narration: text("narration"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxAccountId: index("idx_ledger_account_id").on(t.accountId),
+  idxSourceType: index("idx_ledger_source_type").on(t.sourceType),
+  idxTransDate: index("idx_ledger_transaction_date").on(t.transactionDate),
+}));

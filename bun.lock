@@ -5,6 +5,9 @@
     "": {
       "name": "soft-sauda-web",
       "dependencies": {
+        "@knadh/autocomp": "^1.2.0",
+        "@knadh/oat": "^0.6.1",
+        "@knadh/tinyrouter": "^1.2.0",
         "dotenv": "^17.3.1",
         "drizzle-orm": "^0.45.1",
         "jose": "^6.2.2",
@@ -212,6 +215,12 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@knadh/autocomp": ["@knadh/autocomp@1.2.0", "", {}, "sha512-RnhmlWDhEXdCmkaRPRivvB8VBTLLMlF2r4BPeNDgqCqyYW6ELlK+WjsVebfFdLjqAgVOf9LoZbUUSETKmobKRA=="],
+
+    "@knadh/oat": ["@knadh/oat@0.6.1", "", {}, "sha512-EfGcO5dNQMd0mITBf88Az6W6nyu+Q6xWHEGxvahxd/sLT1l+6wtOI6LQyjubpEuXGBc7EAXHwjt3ed/v6q4ALA=="],
+
+    "@knadh/tinyrouter": ["@knadh/tinyrouter@1.2.0", "", {}, "sha512-ZCZbNGUgkQqk0WFnT5K8YJHZE0Bo27L/SaYzldeRamPWAoLtOBhWJvlflnjALMRZlVqE5HcUC7jD6tWo+Tbx5Q=="],
 
     "@libsql/client": ["@libsql/client@0.17.2", "", { "dependencies": { "@libsql/core": "^0.17.2", "@libsql/hrana-client": "^0.9.0", "js-base64": "^3.7.5", "libsql": "^0.5.28", "promise-limit": "^2.7.0" } }, "sha512-0aw0S3iQMHvOxfRt5j1atoCCPMT3gjsB2PS8/uxSM1DcDn39xqz6RlgSMxtP8I3JsxIXAFuw7S41baLEw0Zi+Q=="],
 
