@@ -13,7 +13,7 @@
 import { db } from '@/db';
 import {
   parties, commodities, contracts, contractParties, contractLines,
-  deliveries, deliveryLines, bills, payments, paymentAllocations, ledger,
+  deliveries, deliveryLines, bills, billLines, payments, paymentAllocations, ledger,
 } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { cacheSet, cacheHas, DEFAULT_TTL } from '@/lib/cache';
