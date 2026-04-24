@@ -16,9 +16,8 @@ export function renderLogin() {
     <div class="login-page">
       <div class="login-card">
         <div class="logo">
-          <img src="/static/logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
+          <img src="/gcc-logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
           <h1>Soft Sauda</h1>
-          <p>Commodity Trading ERP</p>
         </div>
 
         <form id="login-form">
