@@ -43,7 +43,7 @@ export async function renderPaymentForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
   let payment = {};
-  if (isEdit) { app.innerHTML = Spinner(); try { payment = await api.get(`/payments/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
+  if (isEdit) { try { payment = await api.get(`/payments/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
 
   app.innerHTML = `
     ${PageHeader({ title: isEdit ? 'Edit Payment' : 'New Payment', backHref: '/payments' })}

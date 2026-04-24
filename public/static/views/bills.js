@@ -40,7 +40,7 @@ export async function renderBillForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
   let bill = {};
-  if (isEdit) { app.innerHTML = Spinner(); try { bill = await api.get(`/bills/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
+  if (isEdit) { try { bill = await api.get(`/bills/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
 
   app.innerHTML = `
     ${PageHeader({ title: isEdit ? `Edit Bill: ${bill.billNo}` : 'New Bill', backHref: '/bills' })}

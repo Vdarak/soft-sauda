@@ -7,11 +7,11 @@
  */
 
 import { autocomp } from '../vendor/autocomp.js';
+import { clientCache } from './api.js';
 
 /**
  * Attach party name autocomplete to an input field.
- * @param {string} inputId — the DOM id of the input element
- * @param {Function} [onSelectCb] — optional callback after selection
+ * Filters strictly from the unified payload RAM cache (0 network latency).
  */
 export function attachPartyAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -20,9 +20,11 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
   autocomp(el, {
     onQuery: async (val) => {
       try {
-        const res = await fetch(`/api/search/parties?q=${encodeURIComponent(val)}`);
-        const items = await res.json();
-        return items.map(i => i.value);
+        const parties = clientCache.get('/parties?page=1&limit=50') || [];
+        const lowerVal = val.toLowerCase();
+        return parties
+          .filter(p => p.name.toLowerCase().includes(lowerVal))
+          .map(p => p.name);
       } catch {
         return [];
       }
@@ -37,8 +39,7 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
 
 /**
  * Attach commodity name autocomplete to an input field.
- * @param {string} inputId — the DOM id of the input element
- * @param {Function} [onSelectCb] — optional callback after selection
+ * Filters strictly from the unified payload RAM cache (0 network latency).
  */
 export function attachCommodityAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -47,9 +48,11 @@ export function attachCommodityAutocomp(inputId, onSelectCb) {
   autocomp(el, {
     onQuery: async (val) => {
       try {
-        const res = await fetch(`/api/search/commodities?q=${encodeURIComponent(val)}`);
-        const items = await res.json();
-        return items.map(i => i.value);
+        const commodities = clientCache.get('/commodities?page=1&limit=50') || [];
+        const lowerVal = val.toLowerCase();
+        return commodities
+          .filter(c => c.name.toLowerCase().includes(lowerVal))
+          .map(c => c.name);
       } catch {
         return [];
       }

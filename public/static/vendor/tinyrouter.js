@@ -54,26 +54,26 @@ class Router {
         return this;
     }
 
-    // Bind navigation to elements with the configured attribute.
+    // Bind navigation using event delegation so it works for dynamically created elements.
     bind(parent) {
         const attrib = this.options.selectorAttrib;
         if (!attrib) {
             return;
         }
 
-        parent.querySelectorAll(`[${attrib}]`).forEach(el => {
-            let path = el.dataset[attrib] ? el.dataset[attrib] : el.getAttribute('href');
-
-            // If there's no path or the element was already handled, skip it.
-            if (!path || el.dataset['router']) {
-                return;
+        parent.addEventListener('click', (e) => {
+            // Find the closest ancestor (or the clicked element itself) with the attribute.
+            const el = e.target.closest(`[${attrib}]`);
+            if (el) {
+                // Ignore if it's opening in a new tab
+                if (e.ctrlKey || e.metaKey || el.target === '_blank') return;
+                
+                let path = el.dataset[attrib] ? el.dataset[attrib] : el.getAttribute('href');
+                if (path) {
+                    e.preventDefault();
+                    this.navigate(path);
+                }
             }
-            el.dataset['router'] = true;
-
-            el.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.navigate(path);
-            });
         });
     }
 

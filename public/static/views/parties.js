@@ -66,7 +66,6 @@ export async function renderPartyForm(id) {
   let party = {};
 
   if (isEdit) {
-    app.innerHTML = Spinner();
     try {
       party = await api.get(`/parties/${id}`);
     } catch (err) {

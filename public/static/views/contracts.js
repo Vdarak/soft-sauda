@@ -72,7 +72,6 @@ export async function renderContractForm(id) {
   let contract = {};
 
   if (isEdit) {
-    app.innerHTML = Spinner();
     try { contract = await api.get(`/contracts/${id}`); } catch (err) {
       app.innerHTML = `<div class="alert danger">${err.message}</div>`;
       return;

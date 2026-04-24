@@ -163,18 +163,4 @@ document.addEventListener('DOMContentLoaded', () => {
   if (isAuthenticated()) {
     triggerWarmup();
   }
-
-  // Frontend Pre-fetching: When user hovers over a link, silently fetch the API endpoint
-  // to mask network latency and ensure the view renders instantly on click.
-  document.addEventListener('mouseover', (e) => {
-    const link = e.target.closest('a[data-route]');
-    if (link && link.href) {
-      const url = new URL(link.href);
-      if (url.pathname !== '/login' && !url.pathname.endsWith('/new')) {
-        const apiPath = `/api${url.pathname}`;
-        // Trigger a background GET to warm up the cache
-        fetch(apiPath, { headers: { 'Authorization': `Bearer ${localStorage.getItem('ss_token')}` } }).catch(() => {});
-      }
-    }
-  });
 });

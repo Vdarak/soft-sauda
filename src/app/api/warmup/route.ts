@@ -36,7 +36,6 @@ export async function GET(req: Request) {
   try {
     const t0 = Date.now();
 
-    // Phase 1: Populate the data cache (parallel DB queries)
     const cacheResult = await warmCache();
     const dataDone = Date.now() - t0;
 
@@ -48,23 +47,19 @@ export async function GET(req: Request) {
       try {
         await fetch(`${origin}${route}`, {
           headers: { 'x-warmup': '1' }, // marker so logs are clear
-        });
-        return { route, ok: true };
-      } catch {
-        return { route, ok: false };
-      }
+        }).catch(() => {});
+      } catch { }
     });
 
-    const routeResults = await Promise.all(routePromises);
-    const totalMs = Date.now() - t0;
-
-    console.log(`[warmup] Data: ${dataDone}ms | Routes: ${totalMs - dataDone}ms | Total: ${totalMs}ms`);
-
+    // We don't need to await the Turbopack route compilation, it can happen in the background.
+    // We just return the unified payload immediately!
+    
+    const timeMs = Date.now() - t0;
+    
     return ok({
-      ...cacheResult,
-      routesWarmed: routeResults.filter(r => r.ok).map(r => r.route),
-      elapsedMs: totalMs,
-      dataMs: dataDone,
+      success: true,
+      payload: cacheResult.payload,
+      stats: { warmed: cacheResult.warmed.length, skipped: cacheResult.skipped.length, timeMs, dataDone }
     });
   } catch (err) {
     console.error('GET /api/warmup error:', err);

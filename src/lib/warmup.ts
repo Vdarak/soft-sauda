@@ -16,12 +16,13 @@ import {
   deliveries, deliveryLines, bills, billLines, payments, paymentAllocations, ledger,
 } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
-import { cacheSet, cacheHas, DEFAULT_TTL } from '@/lib/cache';
+import { cacheSet, cacheHas, cacheGet, DEFAULT_TTL } from '@/lib/cache';
 
 /** Run all warmup queries in parallel. Safe to call multiple times. */
-export async function warmCache(): Promise<{ warmed: string[]; skipped: string[] }> {
+export async function warmCache(): Promise<{ payload: Record<string, any>, warmed: string[]; skipped: string[] }> {
   const warmed: string[] = [];
   const skipped: string[] = [];
+  const payload: Record<string, any> = {};
   const TTL = DEFAULT_TTL;
 
   const tasks: Array<{ key: string; fn: () => Promise<void> }> = [
@@ -232,18 +233,26 @@ export async function warmCache(): Promise<{ warmed: string[]; skipped: string[]
 
   // Run all queries in parallel, skip any already cached
   const promises = tasks.map(async (task) => {
-    if (cacheHas(task.key)) {
+    if (!cacheHas(task.key)) {
+      try {
+        await task.fn();
+        warmed.push(task.key);
+      } catch (err) {
+        console.error(`Warmup failed for ${task.key}:`, err);
+      }
+    } else {
       skipped.push(task.key);
-      return;
     }
-    try {
-      await task.fn();
-      warmed.push(task.key);
-    } catch (err) {
-      console.error(`Warmup failed for ${task.key}:`, err);
-    }
+    
+    // Map cache keys to their frontend API path counterparts to build the payload
+    let apiPath = task.key;
+    if (apiPath.includes(':list:1:50:all')) apiPath = `/${apiPath.split(':')[0]}?page=1&limit=50`;
+    else if (apiPath.includes(':list:1:50')) apiPath = `/${apiPath.split(':')[0]}?page=1&limit=50`;
+    else if (apiPath === 'dashboard:metrics') apiPath = '/dashboard';
+    
+    payload[apiPath] = cacheGet(task.key);
   });
 
   await Promise.all(promises);
-  return { warmed, skipped };
+  return { payload, warmed, skipped };
 }

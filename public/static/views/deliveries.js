@@ -47,7 +47,6 @@ export async function renderDeliveryForm(id) {
   const isEdit = !!id;
   let delivery = {};
   if (isEdit) {
-    app.innerHTML = Spinner();
     try { delivery = await api.get(`/deliveries/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; }
   }
 

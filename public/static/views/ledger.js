@@ -44,7 +44,7 @@ export async function renderLedgerForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
   let entry = {};
-  if (isEdit) { app.innerHTML = Spinner(); try { entry = await api.get(`/ledger/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
+  if (isEdit) { try { entry = await api.get(`/ledger/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
 
   app.innerHTML = `
     ${PageHeader({ title: isEdit ? 'Edit Entry' : 'New Journal Entry', backHref: '/ledger' })}

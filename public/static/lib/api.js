@@ -39,8 +39,15 @@ function headers(contentType = 'application/json') {
   return h;
 }
 
+export const clientCache = new Map();
+
 /** Generic fetch helper */
 async function request(method, path, body = null) {
+  // If GET and cached, return instantly
+  if (method === 'GET' && clientCache.has(path)) {
+    return clientCache.get(path);
+  }
+
   const opts = { method, headers: headers() };
   if (body && method !== 'GET') {
     opts.body = JSON.stringify(body);
@@ -51,6 +58,21 @@ async function request(method, path, body = null) {
 
   if (!res.ok) {
     throw new Error(data.error || `Request failed: ${res.status}`);
+  }
+
+  // Cache population: If this is a list response, cache every child item!
+  if (method === 'GET') {
+    if (Array.isArray(data)) {
+      const basePath = path.split('?')[0]; // e.g. "/contracts"
+      data.forEach(item => {
+        if (item && item.id) {
+          clientCache.set(`${basePath}/${item.id}`, item);
+        }
+      });
+    } else if (path.includes('/') && !path.includes('?')) {
+       // Also cache standard specific GETs (like /contracts/5) if randomly hit
+       clientCache.set(path, data);
+    }
   }
 
   return data;
@@ -76,21 +98,55 @@ export async function del(path) {
   return request('DELETE', path);
 }
 
-/** Login — authenticates and stores token, then pre-warms the cache */
+/** Login — authenticates and stores token, then fetches unified payload */
 export async function login(username, password) {
   const data = await post('/auth/login', { username, password });
   setToken(data.token);
   localStorage.setItem('ss_user', data.username);
-  // Fire-and-forget: tell server to pre-cache all data
-  triggerWarmup();
+  // Await the giant payload so the dashboard redirect happens after cache is seeded
+  await triggerWarmup();
   return data;
 }
 
 /** 
- * Fire-and-forget cache warmup. Called after login and on page load.
- * The server pre-fetches all list data in parallel so subsequent
- * API calls hit the cache and respond instantly.
+ * Fetches the Giant Synchronous Payload.
+ * Populates both list and detail routes in the client cache instantly.
  */
-export function triggerWarmup() {
-  fetch('/api/warmup').catch(() => {});
+export async function triggerWarmup() {
+  try {
+    // 1. Check if we already downloaded the mega payload in this session
+    let payload = null;
+    const cachedPayload = sessionStorage.getItem('gcc_mega_payload');
+    
+    if (cachedPayload) {
+      payload = JSON.parse(cachedPayload);
+    } else {
+      // 2. Otherwise fetch it and save to session storage
+      const res = await fetch('/api/warmup', { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.payload) {
+        payload = data.payload;
+        sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
+      }
+    }
+
+    // 3. Inject payload into RAM map
+    if (payload) {
+      for (const [route, arrayData] of Object.entries(payload)) {
+        clientCache.set(route, arrayData);
+        if (Array.isArray(arrayData)) {
+          const basePath = route.split('?')[0];
+          arrayData.forEach(item => {
+            if (item && item.id) {
+              clientCache.set(`${basePath}/${item.id}`, item);
+            }
+          });
+        }
+      }
+      console.log('[GCC Cache] Unified Payload Loaded:', clientCache.size, 'entries instantly available.');
+    }
+  } catch (err) {
+    console.error('Warmup failed:', err);
+  }
 }

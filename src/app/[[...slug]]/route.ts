@@ -15,8 +15,9 @@ const HTML_SHELL = `<!DOCTYPE html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>Soft Sauda — Commodity Trading ERP</title>
+  <title>GCC — Ganesh Canvassing Company</title>
   <meta name="description" content="Professional commodity trading and brokerage management system">
+  <link rel="icon" href="/gcc-logo.svg" type="image/png">
 
   <!-- Oat.ink CSS -->
   <link rel="stylesheet" href="/static/vendor/oat.min.css">
@@ -30,11 +31,8 @@ const HTML_SHELL = `<!DOCTYPE html>
 <body>
   <!-- Sidebar Navigation -->
   <nav class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div>
-        <div class="title">Soft Sauda</div>
-        <div class="subtitle">Commodity Trading ERP</div>
-      </div>
+    <div class="sidebar-header" style="justify-content:center;padding:1.5rem 1rem">
+      <img src="/gcc-logo.svg" alt="GCC Logo" style="max-height: 48px; border-radius: 6px;">
     </div>
 
     <div class="sidebar-nav">

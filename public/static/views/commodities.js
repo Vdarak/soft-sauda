@@ -57,7 +57,6 @@ export async function renderCommodityForm(id) {
   let commodity = { packaging: [], specifications: [] };
 
   if (isEdit) {
-    app.innerHTML = Spinner();
     try { commodity = await api.get(`/commodities/${id}`); } catch (err) {
       app.innerHTML = `<div class="alert danger">${err.message}</div>`;
       return;
