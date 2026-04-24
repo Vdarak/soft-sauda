@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     
     for (const tbl of tables) {
       const res = await db.execute(sql.raw(`SELECT COUNT(id) as c, MAX(id) as m FROM ${tbl}`));
-      const row = res.rows[0] as { c: string | number, m: string | number | null };
+      const row = (res as any[])[0] as { c: string | number, m: string | number | null };
       hashString += `${tbl}:${row.c}-${row.m || 0}|`;
     }
 
