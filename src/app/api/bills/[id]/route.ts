@@ -105,3 +105,17 @@ export async function PUT(req: NextRequest, context: Params) {
     return serverError('Failed to update bill');
   }
 }
+
+export async function DELETE(req: NextRequest, context: Params) {
+  try {
+    const { id: idStr } = await context.params;
+    const id = parseInt(idStr, 10);
+    if (isNaN(id)) return badRequest('Invalid ID');
+    await db.delete(bills).where(eq(bills.id, id));
+    cacheInvalidate('bills');
+    return ok({ success: true, id });
+  } catch (err) {
+    console.error('DELETE /api/bills/[id] error:', err);
+    return serverError('Failed to delete');
+  }
+}

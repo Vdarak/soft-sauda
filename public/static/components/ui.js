@@ -144,6 +144,52 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/* ── Instant Table Search & Highlight ── */
+export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb) {
+  const input = document.getElementById(inputId);
+  const tbody = typeof tbodyElementOrId === 'string' ? document.getElementById(tbodyElementOrId) : tbodyElementOrId;
+  if (!input || !tbody) return;
+
+  input.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    
+    if (!q) {
+      tbody.innerHTML = renderRowsCb(data).join('');
+      return;
+    }
+
+    // 1. Filter data natively
+    const filtered = data.filter(item => {
+      // Deep search all string/number values
+      return Object.values(item).some(val => 
+        val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+      );
+    });
+
+    // 2. Re-render rows
+    tbody.innerHTML = renderRowsCb(filtered).join('');
+
+    // 3. Safely highlight text nodes only (prevent HTML tag corruption)
+    if (filtered.length > 0) {
+      const walker = document.createTreeWalker(tbody, NodeFilter.SHOW_TEXT, null, false);
+      const nodesToReplace = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.nodeValue.toLowerCase().includes(q)) {
+          nodesToReplace.push(node);
+        }
+      }
+
+      const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      nodesToReplace.forEach(n => {
+        const span = document.createElement('span');
+        span.innerHTML = escapeHtml(n.nodeValue).replace(regex, '<mark>$1</mark>');
+        n.parentNode.replaceChild(span, n);
+      });
+    }
+  });
+}
+
 /* ── Date formatting ── */
 export function formatDate(dateStr) {
   if (!dateStr) return '-';

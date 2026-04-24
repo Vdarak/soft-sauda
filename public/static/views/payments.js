@@ -18,24 +18,44 @@ export async function renderPaymentList(ctx) {
     const data = await api.get(`/payments?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
 
-    const rows = data.map(p => `
+    const renderRows = (items) => items.map(c => `
       <tr>
-        <td>${formatDate(p.paymentDate)}</td>
-        <td style="font-weight:600">${escapeHtml(p.partyName || '-')}</td>
-        <td>${escapeHtml(p.instrumentType || '-')}</td>
-        <td>${escapeHtml(p.instrumentNo || '-')}</td>
-        <td style="text-align:right" class="mono">${formatCurrency(p.amount)}</td>
-        <td style="text-align:right"><a href="/payments/${p.id}" data-route><button class="small">${Icons.edit} Edit</button></a></td>
+        <td>
+          <div style="font-weight:600">${c.receiptNo || '-'}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(c.paymentDate)}</div>
+        </td>
+        <td>
+          <div style="font-weight:600">${escapeHtml(c.partyName || '')}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Type: ${c.paymentType}</div>
+        </td>
+        <td>${escapeHtml(c.bankName || 'Cash')}</td>
+        <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
+        <td style="text-align:right">
+          <a href="/payments/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        </td>
       </tr>
     `);
+
     app.innerHTML = `
-      ${PageHeader({ title: 'Payments', subtitle: 'Payment register', actions: `<a href="/payments/new" data-route><button class="primary">${Icons.plus} New Payment</button></a>` })}
-      ${DataTable({ id: 'payments-table', title: 'Payments', count: data.length,
-        headers: [{ label: 'Date' }, { label: 'Party' }, { label: 'Method' }, { label: 'Ref No.' }, { label: 'Amount', align: 'right' }, { label: '', align: 'right' }],
-        rows,
+      ${PageHeader({ title: 'Payments', actions: `<a href="/payments/new" data-route><button class="primary">${Icons.plus} New Receipt</button></a>` })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-payments" placeholder="Search payments..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
+      ${DataTable({
+        id: 'payments-table',
+        count: data.length,
+        headers: [ { label: 'Receipt & Date' }, { label: 'Party' }, { label: 'Bank' }, { label: 'Amount', align: 'right' }, { label: '', align: 'right' } ],
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/payments' }
       })}
     `;
+    
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-payments', document.querySelector('#payments-table tbody'), data, renderRows);
+    });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Payments' })}<div class="alert danger">${err.message}</div>`; }
 }
 
@@ -60,6 +80,7 @@ export async function renderPaymentForm(id) {
         </div>
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
+          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
           <a href="/payments" data-route><button type="button">Cancel</button></a>
         </div>
       </form>
@@ -71,6 +92,11 @@ export async function renderPaymentForm(id) {
 
   document.getElementById('payment-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
     const fd = collectFormData('payment-form');
     // Remove the search-only field
     delete fd.partySearch;
@@ -78,7 +104,33 @@ export async function renderPaymentForm(id) {
     try {
       if (isEdit) { await api.put(`/payments/${id}`, fd); showToast('Payment updated'); }
       else { await api.post('/payments', fd); showToast('Payment recorded & bill balance updated'); }
+      
+      await api.get('/payments?page=1&limit=50', { forceRefresh: true });
       window.history.pushState({}, '', '/payments'); window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
+      showToast(err.message, 'error');
+    }
   });
+
+  if (isEdit) {
+    document.getElementById('btn-delete').addEventListener('click', async (e) => {
+      if (!confirm('Are you sure you want to delete this payment?')) return;
+      const btn = e.target.closest('button');
+      const ogHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      try {
+        await api.del(`/payments/${id}`);
+        await api.get('/payments?page=1&limit=50', { forceRefresh: true });
+        window.history.pushState({}, '', '/payments');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+        alert(err.message);
+      }
+    });
+  }
 }

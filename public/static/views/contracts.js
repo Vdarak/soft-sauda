@@ -16,7 +16,7 @@ export async function renderContractList(ctx) {
     const data = await api.get(`/contracts?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
     
-    const rows = data.map(c => `
+    const renderRows = (items) => items.map(c => `
       <tr>
         <td>
           <span class="badge badge-active">#${c.saudaNo}</span>
@@ -45,6 +45,12 @@ export async function renderContractList(ctx) {
         subtitle: 'View and manage trade contracts',
         actions: `<a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
       })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-contracts" placeholder="Search contracts..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
       ${DataTable({
         id: 'contracts-table',
         title: 'Contracts',
@@ -57,10 +63,15 @@ export async function renderContractList(ctx) {
           { label: 'Status', align: 'center' },
           { label: '', align: 'right' },
         ],
-        rows,
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/contracts' }
       })}
     `;
+    
+    // Attach Instant RAM Search
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows);
+    });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Contracts' })}<div class="alert danger">${err.message}</div>`;
   }

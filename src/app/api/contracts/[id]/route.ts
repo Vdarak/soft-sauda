@@ -144,3 +144,17 @@ export async function PUT(req: NextRequest, context: Params) {
     return serverError('Failed to update contract');
   }
 }
+
+export async function DELETE(req: NextRequest, context: Params) {
+  try {
+    const { id: idStr } = await context.params;
+    const id = parseInt(idStr, 10);
+    if (isNaN(id)) return badRequest('Invalid ID');
+    await db.delete(contracts).where(eq(contracts.id, id));
+    cacheInvalidate('contracts');
+    return ok({ success: true, id });
+  } catch (err) {
+    console.error('DELETE /api/contracts/[id] error:', err);
+    return serverError('Failed to delete');
+  }
+}

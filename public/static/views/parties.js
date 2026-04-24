@@ -15,16 +15,14 @@ export async function renderPartyList(ctx) {
     const data = await api.get(`/parties?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
 
-    const rows = data.map(p => `
+    const renderRows = (items) => items.map(p => `
       <tr>
         <td>
           <div style="font-weight:600">${escapeHtml(p.name)}</div>
-          ${p.designation ? `<div style="font-size:0.6875rem;color:var(--muted-foreground)">${escapeHtml(p.designation)}</div>` : ''}
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${escapeHtml(p.city || p.place || 'No location')}</div>
         </td>
-        <td>${escapeHtml(p.place || '-')}</td>
-        <td>${escapeHtml(p.phone || '-')}</td>
-        <td style="text-align:right" class="mono">${p.creditLimit ? `₹ ${Number(p.creditLimit).toLocaleString('en-IN')}` : '-'}</td>
-        <td style="text-align:center">${Badge(p.isActive !== false ? 'Active' : 'Inactive', p.isActive !== false ? 'active' : 'inactive')}</td>
+        <td>${escapeHtml(p.contactName || p.phone || '-')}</td>
+        <td>${Badge(p.isActive ? 'Active' : 'Inactive', p.isActive ? 'active' : 'inactive')}</td>
         <td style="text-align:right">
           <a href="/parties/${p.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
         </td>
@@ -32,28 +30,25 @@ export async function renderPartyList(ctx) {
     `);
 
     app.innerHTML = `
-      ${PageHeader({
-        title: 'Party Directory',
-        subtitle: 'Manage companies, clients, and brokers',
-        actions: `<a href="/parties/new" data-route><button class="primary">${Icons.plus} New Party</button></a>`
-      })}
+      ${PageHeader({ title: 'Party Master', actions: `<a href="/parties/new" data-route><button class="primary">${Icons.plus} New Party</button></a>` })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-parties" placeholder="Search parties..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
       ${DataTable({
         id: 'parties-table',
-        title: 'Registered Parties',
         count: data.length,
-        headers: [
-          { label: 'Party Name' },
-          { label: 'Location' },
-          { label: 'Contact' },
-          { label: 'Credit Limit', align: 'right' },
-          { label: 'Status', align: 'center' },
-          { label: '', align: 'right' },
-        ],
-        rows,
-        emptyMessage: 'No parties registered yet. <a href="/parties/new" data-route>Add your first party</a>.',
+        headers: [ { label: 'Party Details' }, { label: 'Contact' }, { label: 'Status' }, { label: '', align: 'right' } ],
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/parties' }
       })}
     `;
+    
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-parties', document.querySelector('#parties-table tbody'), data, renderRows);
+    });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Parties' })}<div class="alert danger">${err.message}</div>`;
   }
@@ -124,6 +119,7 @@ export async function renderPartyForm(id) {
 
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update Party' : 'Create Party'}</button>
+          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
           <a href="/parties" data-route><button type="button">Cancel</button></a>
         </div>
       </form>
@@ -133,6 +129,11 @@ export async function renderPartyForm(id) {
   // Bind form submit
   document.getElementById('party-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
     const formData = collectFormData('party-form');
 
     try {
@@ -143,10 +144,34 @@ export async function renderPartyForm(id) {
         await api.post('/parties', formData);
         showToast('Party created successfully');
       }
+      
+      await api.get('/parties?page=1&limit=50', { forceRefresh: true });
       window.history.pushState({}, '', '/parties');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
       showToast(err.message, 'error');
     }
   });
+
+  if (isEdit) {
+    document.getElementById('btn-delete').addEventListener('click', async (e) => {
+      if (!confirm('Are you sure you want to delete this party?')) return;
+      const btn = e.target.closest('button');
+      const ogHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      try {
+        await api.del(`/parties/${id}`);
+        await api.get('/parties?page=1&limit=50', { forceRefresh: true });
+        window.history.pushState({}, '', '/parties');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+        alert(err.message);
+      }
+    });
+  }
 }

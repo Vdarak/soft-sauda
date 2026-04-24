@@ -41,10 +41,33 @@ function headers(contentType = 'application/json') {
 
 export const clientCache = new Map();
 
+// Hydrate from sessionStorage to prevent re-fetching on F5 (Refresh)
+try {
+  const cacheTime = sessionStorage.getItem('ss_cache_time');
+  // 15 minute cache expiry
+  if (cacheTime && (Date.now() - parseInt(cacheTime)) < 15 * 60 * 1000) {
+    const cachedData = sessionStorage.getItem('ss_mega_payload');
+    if (cachedData) {
+      const arr = JSON.parse(cachedData);
+      arr.forEach(([k, v]) => clientCache.set(k, v));
+    }
+  } else {
+    sessionStorage.removeItem('ss_mega_payload');
+    sessionStorage.removeItem('ss_cache_time');
+  }
+} catch(e) {}
+
+function persistCache() {
+  try {
+    sessionStorage.setItem('ss_mega_payload', JSON.stringify(Array.from(clientCache.entries())));
+    sessionStorage.setItem('ss_cache_time', Date.now().toString());
+  } catch(e) {}
+}
+
 /** Generic fetch helper */
-async function request(method, path, body = null) {
+async function request(method, path, body = null, options = {}) {
   // If GET and cached, return instantly
-  if (method === 'GET' && clientCache.has(path)) {
+  if (method === 'GET' && clientCache.has(path) && !options.forceRefresh) {
     return clientCache.get(path);
   }
 
@@ -62,6 +85,7 @@ async function request(method, path, body = null) {
 
   // Cache population: If this is a list response, cache every child item!
   if (method === 'GET') {
+    clientCache.set(path, data);
     if (Array.isArray(data)) {
       const basePath = path.split('?')[0]; // e.g. "/contracts"
       data.forEach(item => {
@@ -73,14 +97,15 @@ async function request(method, path, body = null) {
        // Also cache standard specific GETs (like /contracts/5) if randomly hit
        clientCache.set(path, data);
     }
+    persistCache();
   }
 
   return data;
 }
 
 /** GET request */
-export async function get(path) {
-  return request('GET', path);
+export async function get(path, options = {}) {
+  return request('GET', path, null, options);
 }
 
 /** POST request */
@@ -97,6 +122,7 @@ export async function put(path, body) {
 export async function del(path) {
   return request('DELETE', path);
 }
+
 
 /** Login — authenticates and stores token, then fetches unified payload */
 export async function login(username, password) {

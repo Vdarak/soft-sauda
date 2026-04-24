@@ -15,24 +15,43 @@ export async function renderBillList(ctx) {
     const data = await api.get(`/bills?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
     
-    const rows = data.map(b => `
+    const renderRows = (items) => items.map(c => `
       <tr>
-        <td><span style="font-weight:700">${escapeHtml(b.billNo)}</span><div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(b.billDate)}</div></td>
-        <td>${escapeHtml(b.partyName || '-')}</td>
-        <td>${escapeHtml(b.basis || '-')}</td>
-        <td style="text-align:right" class="mono">${formatCurrency(b.totalAmount)}</td>
-        <td style="text-align:right;font-weight:700;color:${Number(b.balanceAmount) > 0 ? 'var(--warning)' : 'var(--success)'}" class="mono">${formatCurrency(b.balanceAmount)}</td>
-        <td style="text-align:right"><a href="/bills/${b.id}" data-route><button class="small">${Icons.edit} Edit</button></a></td>
+        <td>
+          <div style="font-weight:600">${c.billNo}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(c.billDate)}</div>
+        </td>
+        <td>
+          <div style="font-weight:600">${escapeHtml(c.partyName)}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Basis: ${c.billBasis}</div>
+        </td>
+        <td style="text-align:right" class="mono">${formatCurrency(c.totalAmount)}</td>
+        <td style="text-align:right">
+          <a href="/bills/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        </td>
       </tr>
     `);
+
     app.innerHTML = `
-      ${PageHeader({ title: 'Bills', subtitle: 'Invoice register', actions: `<a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>` })}
-      ${DataTable({ id: 'bills-table', title: 'Bill Register', count: data.length,
-        headers: [{ label: 'Bill No.' }, { label: 'Party' }, { label: 'Basis' }, { label: 'Amount', align: 'right' }, { label: 'Balance', align: 'right' }, { label: '', align: 'right' }],
-        rows,
+      ${PageHeader({ title: 'Bills', actions: `<a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>` })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-bills" placeholder="Search bills..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
+      ${DataTable({
+        id: 'bills-table',
+        count: data.length,
+        headers: [ { label: 'Bill No & Date' }, { label: 'Party & Basis' }, { label: 'Amount', align: 'right' }, { label: '', align: 'right' } ],
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/bills' }
       })}
     `;
+    
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-bills', document.querySelector('#bills-table tbody'), data, renderRows);
+    });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Bills' })}<div class="alert danger">${err.message}</div>`; }
 }
 
@@ -57,6 +76,7 @@ export async function renderBillForm(id) {
         </div>
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
+          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
           <a href="/bills" data-route><button type="button">Cancel</button></a>
         </div>
       </form>
@@ -68,11 +88,42 @@ export async function renderBillForm(id) {
 
   document.getElementById('bill-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
     const fd = collectFormData('bill-form');
     try {
       if (isEdit) { await api.put(`/bills/${id}`, fd); showToast('Bill updated'); }
       else { await api.post('/bills', fd); showToast('Bill created & posted to ledger'); }
+      
+      await api.get('/bills?page=1&limit=50', { forceRefresh: true });
       window.history.pushState({}, '', '/bills'); window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
+      showToast(err.message, 'error');
+    }
   });
+
+  if (isEdit) {
+    document.getElementById('btn-delete').addEventListener('click', async (e) => {
+      if (!confirm('Are you sure you want to delete this bill?')) return;
+      const btn = e.target.closest('button');
+      const ogHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      try {
+        await api.del(`/bills/${id}`);
+        await api.get('/bills?page=1&limit=50', { forceRefresh: true });
+        window.history.pushState({}, '', '/bills');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+        alert(err.message);
+      }
+    });
+  }
 }

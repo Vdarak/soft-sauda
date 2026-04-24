@@ -14,9 +14,12 @@ export async function renderCommodityList(ctx) {
     const data = await api.get(`/commodities?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
 
-    const rows = data.map(c => `
+    const renderRows = (items) => items.map(c => `
       <tr>
-        <td><div style="font-weight:600">${escapeHtml(c.name)}</div>${c.shortName ? `<div style="font-size:0.6875rem;color:var(--muted-foreground)">${escapeHtml(c.shortName)}</div>` : ''}</td>
+        <td>
+          <div style="font-weight:600">${escapeHtml(c.name)}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${escapeHtml(c.shortName || '-')}</div>
+        </td>
         <td>${escapeHtml(c.hsnCode || '-')}</td>
         <td>${escapeHtml(c.unit || '-')}</td>
         <td style="text-align:right">
@@ -26,26 +29,25 @@ export async function renderCommodityList(ctx) {
     `);
 
     app.innerHTML = `
-      ${PageHeader({
-        title: 'Commodities',
-        subtitle: 'Manage commodity master data',
-        actions: `<a href="/commodities/new" data-route><button class="primary">${Icons.plus} New Commodity</button></a>`
-      })}
+      ${PageHeader({ title: 'Commodity Master', actions: `<a href="/commodities/new" data-route><button class="primary">${Icons.plus} New Commodity</button></a>` })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-commodities" placeholder="Search commodities..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
       ${DataTable({
         id: 'commodities-table',
-        title: 'Commodity Register',
         count: data.length,
-        headers: [
-          { label: 'Name' },
-          { label: 'HSN Code' },
-          { label: 'Unit' },
-          { label: '', align: 'right' },
-        ],
-        rows,
-        emptyMessage: 'No commodities found.',
+        headers: [ { label: 'Commodity Name' }, { label: 'HSN Code' }, { label: 'Unit' }, { label: '', align: 'right' } ],
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/commodities' }
       })}
     `;
+    
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-commodities', document.querySelector('#commodities-table tbody'), data, renderRows);
+    });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Commodities' })}<div class="alert danger">${err.message}</div>`;
   }
@@ -119,6 +121,7 @@ export async function renderCommodityForm(id) {
 
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Commodity</button>
+          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
           <a href="/commodities" data-route><button type="button">Cancel</button></a>
         </div>
       </form>
@@ -162,6 +165,11 @@ export async function renderCommodityForm(id) {
 
   document.getElementById('commodity-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
     const fd = collectFormData('commodity-form');
     fd.packaging = packagingRows;
     fd.specifications = specsRows;
@@ -169,8 +177,34 @@ export async function renderCommodityForm(id) {
     try {
       if (isEdit) { await api.put(`/commodities/${id}`, fd); showToast('Commodity updated'); }
       else { await api.post('/commodities', fd); showToast('Commodity created'); }
+      
+      await api.get('/commodities?page=1&limit=50', { forceRefresh: true });
       window.history.pushState({}, '', '/commodities');
       window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
+      showToast(err.message, 'error');
+    }
   });
+
+  if (isEdit) {
+    document.getElementById('btn-delete').addEventListener('click', async (e) => {
+      if (!confirm('Are you sure you want to delete this commodity?')) return;
+      const btn = e.target.closest('button');
+      const ogHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      try {
+        await api.del(`/commodities/${id}`);
+        await api.get('/commodities?page=1&limit=50', { forceRefresh: true });
+        window.history.pushState({}, '', '/commodities');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+        alert(err.message);
+      }
+    });
+  }
 }

@@ -95,3 +95,17 @@ export async function PUT(req: NextRequest, context: Params) {
     return serverError('Failed to update delivery');
   }
 }
+
+export async function DELETE(req: NextRequest, context: Params) {
+  try {
+    const { id: idStr } = await context.params;
+    const id = parseInt(idStr, 10);
+    if (isNaN(id)) return badRequest('Invalid ID');
+    await db.delete(deliveries).where(eq(deliveries.id, id));
+    cacheInvalidate('deliveries');
+    return ok({ success: true, id });
+  } catch (err) {
+    console.error('DELETE /api/deliveries/[id] error:', err);
+    return serverError('Failed to delete');
+  }
+}

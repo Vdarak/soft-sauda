@@ -18,25 +18,42 @@ export async function renderLedgerList(ctx) {
     const data = await api.get(`/ledger?page=${page}&limit=${limit}`);
     const hasMore = data.length === limit;
     
-    const rows = data.map(e => `
+    const renderRows = (items) => items.map(c => `
       <tr>
-        <td>${formatDate(e.transactionDate)}</td>
-        <td style="font-weight:600">${escapeHtml(e.accountName || '-')}</td>
-        <td>${escapeHtml(e.sourceType || '-')}</td>
-        <td>${escapeHtml(e.narration || '-')}</td>
-        <td style="text-align:right;color:var(--danger)" class="mono">${Number(e.debit) > 0 ? formatCurrency(e.debit) : '-'}</td>
-        <td style="text-align:right;color:var(--success)" class="mono">${Number(e.credit) > 0 ? formatCurrency(e.credit) : '-'}</td>
-        <td style="text-align:right"><a href="/ledger/${e.id}" data-route><button class="small">${Icons.edit} Edit</button></a></td>
+        <td>${formatDate(c.voucherDate)}</td>
+        <td>
+          <div style="font-weight:600">${escapeHtml(c.accountName || '')}</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Ref: ${c.refNo || '-'}</div>
+        </td>
+        <td>${escapeHtml(c.particulars || '')}</td>
+        <td style="text-align:right" class="mono">${c.drCr === 'Dr' ? formatCurrency(c.amount) : '-'}</td>
+        <td style="text-align:right" class="mono">${c.drCr === 'Cr' ? formatCurrency(c.amount) : '-'}</td>
+        <td style="text-align:right">
+          <a href="/ledger/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        </td>
       </tr>
     `);
+
     app.innerHTML = `
-      ${PageHeader({ title: 'General Ledger', subtitle: 'Financial journal entries', actions: `<a href="/ledger/new" data-route><button class="primary">${Icons.plus} Journal Entry</button></a>` })}
-      ${DataTable({ id: 'ledger-table', title: 'Ledger Entries', count: data.length,
-        headers: [{ label: 'Date' }, { label: 'Account' }, { label: 'Source' }, { label: 'Narration' }, { label: 'Debit', align: 'right' }, { label: 'Credit', align: 'right' }, { label: '', align: 'right' }],
-        rows,
+      ${PageHeader({ title: 'Ledger', actions: `<a href="/ledger/new" data-route><button class="primary">${Icons.plus} New Entry</button></a>` })}
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
+        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
+          <input type="text" id="search-ledger" placeholder="Search ledger entries..." style="padding-left:2rem; width:100%">
+          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+        </div>
+      </div>
+      ${DataTable({
+        id: 'ledger-table',
+        count: data.length,
+        headers: [ { label: 'Date' }, { label: 'Account' }, { label: 'Particulars' }, { label: 'Debit', align: 'right' }, { label: 'Credit', align: 'right' }, { label: '', align: 'right' } ],
+        rows: renderRows(data),
         pagination: { page, hasMore, route: '/ledger' }
       })}
     `;
+    
+    import('../components/ui.js').then(ui => {
+      ui.attachTableSearch('search-ledger', document.querySelector('#ledger-table tbody'), data, renderRows);
+    });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Ledger' })}<div class="alert danger">${err.message}</div>`; }
 }
 
@@ -61,6 +78,7 @@ export async function renderLedgerForm(id) {
         </div>
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Entry</button>
+          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
           <a href="/ledger" data-route><button type="button">Cancel</button></a>
         </div>
       </form>
@@ -87,6 +105,11 @@ export async function renderLedgerForm(id) {
 
   document.getElementById('ledger-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
     const fd = collectFormData('ledger-form');
     // Use the resolved accountId from the hidden input
     fd.accountId = document.getElementById('accountId').value || fd.accountId;
@@ -94,6 +117,8 @@ export async function renderLedgerForm(id) {
     delete fd.accountName;
 
     if (!fd.accountId) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
       showToast('Please select a valid party account', 'error');
       return;
     }
@@ -101,7 +126,33 @@ export async function renderLedgerForm(id) {
     try {
       if (isEdit) { await api.put(`/ledger/${id}`, fd); showToast('Entry updated'); }
       else { await api.post('/ledger', fd); showToast('Journal entry created'); }
+      
+      await api.get('/ledger?page=1&limit=50', { forceRefresh: true });
       window.history.pushState({}, '', '/ledger'); window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
+      showToast(err.message, 'error');
+    }
   });
+
+  if (isEdit) {
+    document.getElementById('btn-delete').addEventListener('click', async (e) => {
+      if (!confirm('Are you sure you want to delete this ledger entry?')) return;
+      const btn = e.target.closest('button');
+      const ogHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      try {
+        await api.del(`/ledger/${id}`);
+        await api.get('/ledger?page=1&limit=50', { forceRefresh: true });
+        window.history.pushState({}, '', '/ledger');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+        alert(err.message);
+      }
+    });
+  }
 }

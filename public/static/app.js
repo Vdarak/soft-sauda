@@ -161,6 +161,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // If already logged in (e.g. page refresh), warm the server cache
   if (isAuthenticated()) {
-    triggerWarmup();
+    triggerWarmup().then(() => {
+      // Start background polling
+      let currentChecksum = null;
+      setInterval(async () => {
+        if (!isAuthenticated()) return;
+        try {
+          const res = await fetch('/api/status');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (currentChecksum && data.checksum !== currentChecksum) {
+            console.log('Background sync: data changed. Refreshing cache silently...');
+            await triggerWarmup();
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
+          currentChecksum = data.checksum;
+        } catch (err) { /* ignore network blips */ }
+      }, 15000);
+    });
   }
 });

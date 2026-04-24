@@ -59,27 +59,35 @@ export async function POST(req: NextRequest) {
 
       // Insert packaging rows
       if (body.packaging && Array.isArray(body.packaging) && body.packaging.length > 0) {
-        const packInserts = body.packaging.map((p: any) => ({
-          commodityId: commId,
-          packingWeight: (p.packingWeight || '0').toString(),
-          packingType: p.packingType || 'Default',
-          sellerBrokerageRate: p.sellerBrokerageRate?.toString() || null,
-          sellerBrokerageType: p.sellerBrokerageType || null,
-          buyerBrokerageRate: p.buyerBrokerageRate?.toString() || null,
-          buyerBrokerageType: p.buyerBrokerageType || null,
-        }));
+        const packInserts = body.packaging.map((p: any) => {
+          const w = parseFloat(p.packingWeight);
+          const sbr = parseFloat(p.sellerBrokerageRate);
+          const bbr = parseFloat(p.buyerBrokerageRate);
+          return {
+            commodityId: commId,
+            packingWeight: isNaN(w) ? '0' : w.toString(),
+            packingType: p.packingType || 'Default',
+            sellerBrokerageRate: isNaN(sbr) ? null : sbr.toString(),
+            sellerBrokerageType: p.sellerBrokerageType || null,
+            buyerBrokerageRate: isNaN(bbr) ? null : bbr.toString(),
+            buyerBrokerageType: p.buyerBrokerageType || null,
+          };
+        });
         await tx.insert(commodityPackaging).values(packInserts);
       }
 
       // Insert specifications rows
       if (body.specifications && Array.isArray(body.specifications) && body.specifications.length > 0) {
-        const specInserts = body.specifications.map((s: any) => ({
-          commodityId: commId,
-          specification: s.specification || 'Default',
-          specValue: s.specValue?.toString() || null,
-          minMax: s.minMax || null,
-          remarks: s.remarks || null,
-        }));
+        const specInserts = body.specifications.map((s: any) => {
+          const val = parseFloat(s.specValue);
+          return {
+            commodityId: commId,
+            specification: s.specification || 'Default',
+            specValue: isNaN(val) ? null : val.toString(),
+            minMax: s.minMax || null,
+            remarks: s.remarks || null,
+          };
+        });
         await tx.insert(commoditySpecifications).values(specInserts);
       }
 
@@ -93,6 +101,6 @@ export async function POST(req: NextRequest) {
     if (err.message?.includes('unique')) {
       return badRequest('A commodity with this name already exists');
     }
-    return serverError('Failed to create commodity');
+    return serverError(`Failed to create commodity: ${err.message}`);
   }
 }
