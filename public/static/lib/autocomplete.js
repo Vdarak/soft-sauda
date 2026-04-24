@@ -7,11 +7,11 @@
  */
 
 import { autocomp } from '../vendor/autocomp.js';
-import { clientCache } from './api.js';
+import { get } from './api.js';
 
 /**
  * Attach party name autocomplete to an input field.
- * Filters strictly from the unified payload RAM cache (0 network latency).
+ * Queries the backend for exact matches across the full DB.
  */
 export function attachPartyAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -20,11 +20,10 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
   autocomp(el, {
     onQuery: async (val) => {
       try {
-        const parties = clientCache.get('/parties?page=1&limit=50') || [];
-        const lowerVal = val.toLowerCase();
-        return parties
-          .filter(p => p.name.toLowerCase().includes(lowerVal))
-          .map(p => p.name);
+        if (!val || val.trim() === '') return [];
+        // fetch directly from API (bypasses limit cache)
+        const parties = await get(`/parties?q=${encodeURIComponent(val)}`);
+        return parties.map(p => p.name);
       } catch {
         return [];
       }
@@ -39,7 +38,7 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
 
 /**
  * Attach commodity name autocomplete to an input field.
- * Filters strictly from the unified payload RAM cache (0 network latency).
+ * Queries the backend for exact matches across the full DB.
  */
 export function attachCommodityAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -48,11 +47,9 @@ export function attachCommodityAutocomp(inputId, onSelectCb) {
   autocomp(el, {
     onQuery: async (val) => {
       try {
-        const commodities = clientCache.get('/commodities?page=1&limit=50') || [];
-        const lowerVal = val.toLowerCase();
-        return commodities
-          .filter(c => c.name.toLowerCase().includes(lowerVal))
-          .map(c => c.name);
+        if (!val || val.trim() === '') return [];
+        const commodities = await get(`/commodities?q=${encodeURIComponent(val)}`);
+        return commodities.map(c => c.name);
       } catch {
         return [];
       }

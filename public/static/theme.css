@@ -373,7 +373,7 @@ table td {
 /* ── Toast container ── */
 .toast-container {
   position: fixed;
-  bottom: 1.5rem;
+  top: 1.5rem;
   right: 1.5rem;
   z-index: 100;
   display: flex;
@@ -509,3 +509,30 @@ body[data-page="login"] .main-content {
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
+
+/* ── Action Buttons ── */
+button.primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid var(--primary);
+}
+button.primary:hover {
+  filter: brightness(1.1);
+}
+button.secondary {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+}
+button.secondary:hover {
+  background-color: var(--muted);
+}
+button.danger {
+  background-color: var(--danger);
+  color: var(--danger-foreground);
+  border: 1px solid var(--danger);
+}
+button.danger:hover {
+  filter: brightness(1.1);
+}
+

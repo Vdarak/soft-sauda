@@ -15,10 +15,59 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
+    // ── Search Mode ──
+    if (q) {
+      const searchPattern = `%${q}%`;
+      const { or, ilike } = require('drizzle-orm');
+      const rawPayments = await db.select({
+        id: payments.id,
+        partyId: payments.partyId,
+        paymentDate: payments.paymentDate,
+        instrumentType: payments.instrumentType,
+        instrumentNo: payments.instrumentNo,
+        amount: payments.amount,
+        depositedBank: payments.depositedBank,
+        createdAt: payments.createdAt,
+        partyName: parties.name,
+      })
+        .from(payments)
+        .leftJoin(parties, eq(parties.id, payments.partyId))
+        .where(
+          or(
+            ilike(parties.name, searchPattern),
+            ilike(payments.instrumentNo, searchPattern),
+            ilike(payments.depositedBank, searchPattern)
+          )
+        )
+        .orderBy(desc(payments.id))
+        .limit(100);
+
+      const paymentIds = rawPayments.map(p => p.id);
+      let allocMap: Record<number, any[]> = {};
+
+      if (paymentIds.length > 0) {
+        const allAllocs = await db.select().from(paymentAllocations)
+          .where(sql`${paymentAllocations.paymentId} IN (${sql.join(paymentIds.map(id => sql`${id}`), sql`, `)})`);
+
+        for (const alloc of allAllocs) {
+          if (!allocMap[alloc.paymentId]) allocMap[alloc.paymentId] = [];
+          allocMap[alloc.paymentId].push(alloc);
+        }
+      }
+
+      const enriched = rawPayments.map(p => ({
+        ...p,
+        allocations: allocMap[p.id] || [],
+      }));
+      return ok(enriched);
+    }
+
+    // ── Standard Paginated Mode ──
     const cacheKey = `payments:list:${page}:${limit}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);

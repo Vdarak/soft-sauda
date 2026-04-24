@@ -24,10 +24,56 @@ async function resolveParty(name: string | null | undefined): Promise<number | n
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
+    // ── Search Mode ──
+    if (q) {
+      const searchPattern = `%${q}%`;
+      const { or, ilike } = require('drizzle-orm');
+      const rawDeliveries = await db.select({
+        id: deliveries.id,
+        dispatchDate: deliveries.dispatchDate,
+        truckNo: deliveries.truckNo,
+        transporterId: deliveries.transporterId,
+        status: deliveries.status,
+        createdAt: deliveries.createdAt,
+        transporterName: parties.name,
+      })
+        .from(deliveries)
+        .leftJoin(parties, eq(parties.id, deliveries.transporterId))
+        .where(
+          or(
+            ilike(deliveries.truckNo, searchPattern),
+            ilike(parties.name, searchPattern)
+          )
+        )
+        .orderBy(desc(deliveries.id))
+        .limit(100);
+
+      const deliveryIds = rawDeliveries.map(d => d.id);
+      let linesMap: Record<number, any[]> = {};
+
+      if (deliveryIds.length > 0) {
+        const allLines = await db.select().from(deliveryLines)
+          .where(sql`${deliveryLines.deliveryId} IN (${sql.join(deliveryIds.map(id => sql`${id}`), sql`, `)})`);
+
+        for (const line of allLines) {
+          if (!linesMap[line.deliveryId]) linesMap[line.deliveryId] = [];
+          linesMap[line.deliveryId].push(line);
+        }
+      }
+
+      const formatted = rawDeliveries.map(d => ({
+        ...d,
+        lines: linesMap[d.id] || []
+      }));
+      return ok(formatted);
+    }
+
+    // ── Standard Paginated Mode ──
     const cacheKey = `deliveries:list:${page}:${limit}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);

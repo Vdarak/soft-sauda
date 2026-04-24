@@ -24,15 +24,45 @@ async function resolveParty(name: string | null | undefined): Promise<number | n
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
+    // ── Search Mode ──
+    if (q) {
+      const searchPattern = `%${q}%`;
+      const { or, ilike } = require('drizzle-orm');
+      const data = await db.select({
+        id: bills.id,
+        billNo: bills.billNo,
+        billDate: bills.billDate,
+        partyId: bills.partyId,
+        basis: bills.basis,
+        totalAmount: bills.totalAmount,
+        balanceAmount: bills.balanceAmount,
+        creditDays: bills.creditDays,
+        createdAt: bills.createdAt,
+        partyName: parties.name,
+      })
+        .from(bills)
+        .leftJoin(parties, eq(parties.id, bills.partyId))
+        .where(
+          or(
+            ilike(bills.billNo, searchPattern),
+            ilike(parties.name, searchPattern)
+          )
+        )
+        .orderBy(desc(bills.id))
+        .limit(100);
+      return ok(data);
+    }
+
+    // ── Standard Paginated Mode ──
     const cacheKey = `bills:list:${page}:${limit}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);
 
-    // ── Single JOIN query instead of N+1 ──
     const data = await db.select({
       id: bills.id,
       billNo: bills.billNo,

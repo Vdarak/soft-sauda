@@ -24,6 +24,35 @@ export async function GET(req: NextRequest) {
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);
 
+    const q = searchParams.get('q');
+    if (q) {
+      const searchPattern = `%${q}%`;
+      const { or, ilike } = require('drizzle-orm');
+      let query = db.select({
+        id: ledger.id,
+        transactionDate: ledger.transactionDate,
+        accountId: ledger.accountId,
+        sourceType: ledger.sourceType,
+        sourceId: ledger.sourceId,
+        debit: ledger.debit,
+        credit: ledger.credit,
+        narration: ledger.narration,
+        createdAt: ledger.createdAt,
+        accountName: parties.name,
+      })
+        .from(ledger)
+        .leftJoin(parties, eq(parties.id, ledger.accountId))
+        .where(
+          or(
+            ilike(parties.name, searchPattern),
+            ilike(ledger.narration, searchPattern)
+          )
+        );
+      
+      const data = await query.orderBy(desc(ledger.id)).limit(100);
+      return ok(data);
+    }
+
     // ── Single JOIN query instead of N+1 ──
     let query = db.select({
       id: ledger.id,

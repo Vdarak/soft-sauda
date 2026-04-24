@@ -9,7 +9,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging } from '@/db/schema';
-import { desc, eq, and, ilike, sql } from 'drizzle-orm';
+import { desc, eq, and, ilike, sql, or, exists } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
 
@@ -51,10 +51,87 @@ async function resolvePackaging(commodityId: number, packName: string | null | u
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
+    // ── Search Mode ──
+    if (q) {
+      const searchPattern = `%${q}%`;
+      const rawContracts = await db.select({
+        id: contracts.id,
+        saudaNo: contracts.saudaNo,
+        saudaBook: contracts.saudaBook,
+        saudaDate: contracts.saudaDate,
+        status: contracts.status,
+        deliveryTerm: contracts.deliveryTerm,
+        customRemarks: contracts.customRemarks,
+        createdAt: contracts.createdAt,
+        // Line data
+        amount: contractLines.amount,
+        weight: contractLines.weightQuintals,
+        rate: contractLines.rate,
+        // Commodity name
+        commodityName: commodities.name,
+      })
+        .from(contracts)
+        .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
+        .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
+        .where(
+          or(
+            sql`CAST(${contracts.saudaNo} AS TEXT) ILIKE ${searchPattern}`,
+            ilike(contracts.saudaBook, searchPattern),
+            ilike(contracts.deliveryTerm, searchPattern),
+            ilike(contracts.customRemarks, searchPattern),
+            ilike(commodities.name, searchPattern),
+            exists(
+              db.select().from(contractParties)
+                .leftJoin(parties, eq(contractParties.partyId, parties.id))
+                .where(
+                  and(
+                    eq(contractParties.contractId, contracts.id),
+                    ilike(parties.name, searchPattern)
+                  )
+                )
+            )
+          )
+        )
+        .orderBy(desc(contracts.id))
+        .limit(100);
+
+      // Batch fetch party associations
+      const contractIds = [...new Set(rawContracts.map(c => c.id))];
+      let partyMap: Record<number, { role: string; name: string | null }[]> = {};
+      if (contractIds.length > 0) {
+        const allPartyRows = await db.select({
+          contractId: contractParties.contractId,
+          role: contractParties.role,
+          name: parties.name,
+        })
+          .from(contractParties)
+          .leftJoin(parties, eq(contractParties.partyId, parties.id))
+          .where(sql`${contractParties.contractId} IN (${sql.join(contractIds.map(id => sql`${id}`), sql`, `)})`);
+
+        allPartyRows.forEach(row => {
+          if (!partyMap[row.contractId]) partyMap[row.contractId] = [];
+          partyMap[row.contractId].push({ role: row.role, name: row.name });
+        });
+      }
+
+      const formatted = rawContracts.map(row => {
+        const partiesForContract = partyMap[row.id] || [];
+        return {
+          ...row,
+          sellerName: partiesForContract.find(p => p.role === 'SELLER')?.name || 'Unknown',
+          buyerName: partiesForContract.find(p => p.role === 'BUYER')?.name || 'Unknown',
+          brokerName: partiesForContract.find(p => p.role === 'BROKER')?.name || null,
+        };
+      });
+      return ok(formatted);
+    }
+
+    // ── Standard Paginated Mode ──
     const cacheKey = `contracts:list:${page}:${limit}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);
@@ -129,7 +206,8 @@ export async function GET(req: NextRequest) {
 
     cacheSet(cacheKey, enriched, 60);
     return ok(enriched);
-  } catch (err) {
+  } catch (err: any) {
+    require('fs').writeFileSync('/tmp/err.log', String(err.stack || err));
     console.error('GET /api/contracts error:', err);
     return serverError('Failed to fetch contracts');
   }

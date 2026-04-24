@@ -4,6 +4,8 @@
  */
 
 /* ── SVG Icons (inline, no framework needed) ── */
+import { get } from '../lib/api.js';
+
 export const Icons = {
   fileText:    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
   users:       '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -145,32 +147,60 @@ export function escapeHtml(str) {
 }
 
 /* ── Instant Table Search & Highlight ── */
-export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb) {
+export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb, apiPath = null) {
   const input = document.getElementById(inputId);
   const tbody = typeof tbodyElementOrId === 'string' ? document.getElementById(tbodyElementOrId) : tbodyElementOrId;
   if (!input || !tbody) return;
 
+  let debounceTimer;
+  let activeQuery = '';   // tracks current query to detect stale async results
+
   input.addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
+    activeQuery = q;      // always update immediately
+    
+    clearTimeout(debounceTimer);
     
     if (!q) {
       tbody.innerHTML = renderRowsCb(data).join('');
       return;
     }
 
-    // 1. Filter data natively
-    const filtered = data.filter(item => {
-      // Deep search all string/number values
-      return Object.values(item).some(val => 
-        val !== null && val !== undefined && String(val).toLowerCase().includes(q)
-      );
-    });
+    debounceTimer = setTimeout(async () => {
+      const myQuery = q;  // snapshot for this debounce cycle
 
-    // 2. Re-render rows
-    tbody.innerHTML = renderRowsCb(filtered).join('');
+      // Show loading state
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem"><span class="spinner" style="width:24px;height:24px;border-color:var(--primary);border-top-color:transparent"></span></td></tr>`;
+      
+      let filtered = [];
+      if (apiPath) {
+        try {
+          filtered = await get(`${apiPath}?q=${encodeURIComponent(q)}`);
+        } catch (err) {
+          if (activeQuery !== myQuery) return;  // query changed, discard
+          tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--danger)">Search failed</td></tr>`;
+          return;
+        }
+      } else {
+        // Fallback to local filtering
+        filtered = data.filter(item => {
+          return Object.values(item).some(val => 
+            val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+          );
+        });
+      }
 
-    // 3. Safely highlight text nodes only (prevent HTML tag corruption)
-    if (filtered.length > 0) {
+      // If the user changed/cleared the query while we were awaiting, bail out
+      if (activeQuery !== myQuery) return;
+
+      if (filtered.length === 0) {
+         tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No entries found</td></tr>`;
+         return;
+      }
+
+      tbody.innerHTML = renderRowsCb(filtered).join('');
+
+      // Safely highlight text nodes only
       const walker = document.createTreeWalker(tbody, NodeFilter.SHOW_TEXT, null, false);
       const nodesToReplace = [];
       let node;
@@ -180,13 +210,13 @@ export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb)
         }
       }
 
-      const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
       nodesToReplace.forEach(n => {
         const span = document.createElement('span');
-        span.innerHTML = escapeHtml(n.nodeValue).replace(regex, '<mark>$1</mark>');
+        const regex = new RegExp(`(${q.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+        span.innerHTML = n.nodeValue.replace(regex, '<mark>$1</mark>');
         n.parentNode.replaceChild(span, n);
       });
-    }
+    }, 300);
   });
 }
 

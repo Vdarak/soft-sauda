@@ -30,23 +30,28 @@ export async function renderCommodityList(ctx) {
 
     app.innerHTML = `
       ${PageHeader({ title: 'Commodity Master', actions: `<a href="/commodities/new" data-route><button class="primary">${Icons.plus} New Commodity</button></a>` })}
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
-          <input type="text" id="search-commodities" placeholder="Search commodities..." style="padding-left:2rem; width:100%">
-          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
+        <div class="form-group" style="margin:0; flex:1; position:relative">
+          <input type="text" id="search-commodities" placeholder="Search commodities..." style="padding-left:2.5rem; width:100%">
+          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
         </div>
       </div>
       ${DataTable({
         id: 'commodities-table',
         count: data.length,
-        headers: [ { label: 'Commodity Name' }, { label: 'HSN Code' }, { label: 'Unit' }, { label: '', align: 'right' } ],
-        rows: renderRows(data),
-        pagination: { page, hasMore, route: '/commodities' }
+        headers: [ { label: 'Commodity Name' }, { label: 'HSN Code' }, { label: 'Unit' }, { label: '', style: 'text-align:right' } ],
+        rows: renderRows(data)
       })}
     `;
+
+    if (hasMore) {
+      const loadMore = document.createElement('div');
+      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/commodities?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
+      app.appendChild(loadMore);
+    }
     
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-commodities', document.querySelector('#commodities-table tbody'), data, renderRows);
+      ui.attachTableSearch('search-commodities', document.querySelector('#commodities-table tbody'), data, renderRows, '/commodities');
     });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Commodities' })}<div class="alert danger">${err.message}</div>`;
@@ -122,7 +127,7 @@ export async function renderCommodityForm(id) {
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Commodity</button>
           ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-          <a href="/commodities" data-route><button type="button">Cancel</button></a>
+          <a href="/commodities" data-route><button type="button" class="secondary">Cancel</button></a>
         </div>
       </form>
     </div>

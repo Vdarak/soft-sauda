@@ -35,23 +35,28 @@ export async function renderDeliveryList(ctx) {
 
     app.innerHTML = `
       ${PageHeader({ title: 'Deliveries', actions: `<a href="/deliveries/new" data-route><button class="primary">${Icons.plus} New Delivery</button></a>` })}
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
-          <input type="text" id="search-deliveries" placeholder="Search deliveries..." style="padding-left:2rem; width:100%">
-          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
+        <div class="form-group" style="margin:0; flex:1; position:relative">
+          <input type="text" id="search-deliveries" placeholder="Search deliveries..." style="padding-left:2.5rem; width:100%">
+          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
         </div>
       </div>
       ${DataTable({
         id: 'deliveries-table',
         count: data.length,
-        headers: [ { label: 'Reference' }, { label: 'Date' }, { label: 'Transport' }, { label: 'Status', align: 'center' }, { label: '', align: 'right' } ],
-        rows: renderRows(data),
-        pagination: { page, hasMore, route: '/deliveries' }
+        headers: [ { label: 'Reference' }, { label: 'Date' }, { label: 'Transport' }, { label: 'Status', style: 'text-align:center' }, { label: '', style: 'text-align:right' } ],
+        rows: renderRows(data)
       })}
     `;
+
+    if (hasMore) {
+      const loadMore = document.createElement('div');
+      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/deliveries?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
+      app.appendChild(loadMore);
+    }
     
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-deliveries', document.querySelector('#deliveries-table tbody'), data, renderRows);
+      ui.attachTableSearch('search-deliveries', document.querySelector('#deliveries-table tbody'), data, renderRows, '/deliveries');
     });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Deliveries' })}<div class="alert danger">${err.message}</div>`; }
 }
@@ -80,7 +85,7 @@ export async function renderDeliveryForm(id) {
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Delivery</button>
           ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-          <a href="/deliveries" data-route><button type="button">Cancel</button></a>
+          <a href="/deliveries" data-route><button type="button" class="secondary">Cancel</button></a>
         </div>
       </form>
     </div>

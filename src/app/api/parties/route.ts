@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
 
     if (q) {
       query = query.where(ilike(parties.name, `%${q}%`)) as typeof query;
+      const data = await query.orderBy(desc(parties.id)).limit(100);
+      return ok(data);
     }
 
     const data = await query

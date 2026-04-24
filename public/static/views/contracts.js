@@ -45,10 +45,10 @@ export async function renderContractList(ctx) {
         subtitle: 'View and manage trade contracts',
         actions: `<a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
       })}
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-        <div class="form-group" style="margin:0; flex:1; max-width:300px; position:relative">
-          <input type="text" id="search-contracts" placeholder="Search contracts..." style="padding-left:2rem; width:100%">
-          <div style="position:absolute; left:0.6rem; top:0.5rem; color:var(--muted-foreground)">${Icons.search}</div>
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
+        <div class="form-group" style="margin:0; flex:1; position:relative">
+          <input type="text" id="search-contracts" placeholder="Search contracts..." style="padding-left:2.5rem; width:100%">
+          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
         </div>
       </div>
       ${DataTable({
@@ -59,18 +59,23 @@ export async function renderContractList(ctx) {
           { label: 'Sauda Details' },
           { label: 'Trade Parties' },
           { label: 'Commodity' },
-          { label: 'Value', align: 'right' },
-          { label: 'Status', align: 'center' },
-          { label: '', align: 'right' },
+          { label: 'Amount', style: 'text-align:right' },
+          { label: 'Status', style: 'text-align:center' },
+          { label: 'Actions', style: 'text-align:right; width: 100px' }
         ],
-        rows: renderRows(data),
-        pagination: { page, hasMore, route: '/contracts' }
+        rows: renderRows(data)
       })}
     `;
-    
-    // Attach Instant RAM Search
+
+    if (hasMore) {
+      const loadMore = document.createElement('div');
+      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/contracts?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
+      app.appendChild(loadMore);
+    }
+
+    // Attach search engine with API path for hybrid querying
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows);
+      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows, '/contracts');
     });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Contracts' })}<div class="alert danger">${err.message}</div>`;
@@ -127,7 +132,7 @@ export async function renderContractForm(id) {
 
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Sauda</button>
-          <a href="/contracts" data-route><button type="button">Cancel</button></a>
+          <a href="/contracts" data-route><button type="button" class="secondary">Cancel</button></a>
         </div>
       </form>
     </div>

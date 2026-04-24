@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
     let query = db.select().from(commodities);
     if (q) {
       query = query.where(ilike(commodities.name, `%${q}%`)) as typeof query;
+      const data = await query.orderBy(desc(commodities.id)).limit(100);
+      return ok(data);
     }
 
     const data = await query.orderBy(desc(commodities.id)).limit(limit).offset(offset);
