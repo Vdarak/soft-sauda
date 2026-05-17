@@ -19,7 +19,7 @@ interface CacheEntry<T> {
 /** Default TTL: 10 minutes (in seconds) */
 export const DEFAULT_TTL = 600;
 
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 20000;
 const store = new Map<string, CacheEntry<unknown>>();
 
 /** Get a cached value. Returns null if expired or missing. */

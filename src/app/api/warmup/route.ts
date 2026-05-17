@@ -30,6 +30,10 @@ const ROUTES_TO_WARM = [
   '/api/payments',
   '/api/payments/0',
   '/api/ledger',
+  '/api/cities',
+  '/api/search/parties',
+  '/api/search/commodities',
+  '/api/search/packaging',
 ];
 
 export async function GET(req: Request) {

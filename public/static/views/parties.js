@@ -30,7 +30,7 @@ export async function renderPartyList(ctx) {
     `);
 
     app.innerHTML = `
-      ${PageHeader({ title: 'Party Master', actions: `<a href="/parties/new" data-route><button class="primary">${Icons.plus} New Party</button></a>` })}
+      ${PageHeader({ title: 'Party Master', actions: `<button class="secondary" id="export-parties-btn" style="margin-right:0.5rem">📥 Export Excel</button><a href="/parties/new" data-route><button class="primary">${Icons.plus} New Party</button></a>` })}
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
           <input type="text" id="search-parties" placeholder="Search parties..." style="padding-left:2.5rem; width:100%">
@@ -53,6 +53,11 @@ export async function renderPartyList(ctx) {
     
     import('../components/ui.js').then(ui => {
       ui.attachTableSearch('search-parties', document.querySelector('#parties-table tbody'), data, renderRows, '/parties');
+    });
+
+    // Export button handler
+    document.getElementById('export-parties-btn')?.addEventListener('click', () => {
+      import('../components/ui.js').then(ui => ui.exportToExcel('/parties/export', 'parties'));
     });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Parties' })}<div class="alert danger">${err.message}</div>`;

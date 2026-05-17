@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging } from '@/db/schema';
+import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, partyTaxIds } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -67,6 +67,19 @@ export async function GET(req: NextRequest, context: Params) {
       enrichedLines.push({ ...line, commodityName: comm[0]?.name || 'Unknown' });
     }
 
+    // Fetch party tax IDs for buyer/seller (WS8: Party GST on Documents)
+    const buyerParty = partiesRows.find(p => p.role === 'BUYER');
+    const sellerParty = partiesRows.find(p => p.role === 'SELLER');
+    let buyerGstin = null, sellerGstin = null;
+    if (buyerParty?.partyId) {
+      const taxRows = await db.select().from(partyTaxIds).where(eq(partyTaxIds.partyId, buyerParty.partyId));
+      buyerGstin = taxRows.find((t: any) => t.taxType === 'GSTIN')?.taxValue || null;
+    }
+    if (sellerParty?.partyId) {
+      const taxRows = await db.select().from(partyTaxIds).where(eq(partyTaxIds.partyId, sellerParty.partyId));
+      sellerGstin = taxRows.find((t: any) => t.taxType === 'GSTIN')?.taxValue || null;
+    }
+
     const result = {
       ...contract[0],
       parties: partiesRows,
@@ -75,6 +88,8 @@ export async function GET(req: NextRequest, context: Params) {
       buyerName: partiesRows.find(p => p.role === 'BUYER')?.name || null,
       sellerBroker: partiesRows.find(p => p.role === 'SELLER_BROKER')?.name || null,
       buyerBroker: partiesRows.find(p => p.role === 'BUYER_BROKER')?.name || null,
+      buyerGstin,
+      sellerGstin,
     };
 
     cacheSet(cacheKey, result, 120);
@@ -100,6 +115,9 @@ export async function PUT(req: NextRequest, context: Params) {
         saudaBook: body.saudaBook || 'Main Book',
         saudaDate: body.saudaDate ? new Date(body.saudaDate) : new Date(),
         deliveryTerm: body.deliveryTerm || null,
+        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : 'DISCOUNT',
+        paymentPercent: body.paymentPercent || null,
+        paymentDays: body.paymentDays ? parseInt(body.paymentDays, 10) : null,
         customRemarks: body.remarks || null,
         updatedAt: new Date(),
       }).where(eq(contracts.id, id));
@@ -130,6 +148,7 @@ export async function PUT(req: NextRequest, context: Params) {
         commodityId,
         packagingId,
         brand: body.brand || null,
+        numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
         weightQuintals: weight.toString(),
         rate: rate.toString(),
         amount: (weight * rate).toString(),

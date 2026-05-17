@@ -41,7 +41,7 @@ export async function GET(req: NextRequest, context: Params) {
       transporterName = t[0]?.name || null;
     }
 
-    const result = { ...delivery[0], transporterName, lines };
+    const result = { ...delivery[0], transporterName, billNo: delivery[0].billNo, lines };
     cacheSet(cacheKey, result, 120);
     return ok(result);
   } catch (err) {
@@ -65,6 +65,7 @@ export async function PUT(req: NextRequest, context: Params) {
       await tx.update(deliveries).set({
         dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
         truckNo: body.truckNo || null,
+        billNo: body.billNo || null,
         transporterId,
       }).where(eq(deliveries.id, id));
 

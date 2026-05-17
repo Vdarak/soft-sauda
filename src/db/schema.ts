@@ -9,6 +9,7 @@ export const taxIdTypeEnum = pgEnum('tax_id_type', ['GSTIN', 'VAT_TIN', 'CST_TIN
 export const contractStatusEnum = pgEnum('contract_status', ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED']);
 export const deliveryStatusEnum = pgEnum('delivery_status', ['PENDING', 'DISPATCHED', 'DELIVERED', 'CANCELLED']);
 export const billBasisEnum = pgEnum('bill_basis', ['CONTRACT', 'DELIVERY', 'DIRECT', 'DALALI']);
+export const paymentTermTypeEnum = pgEnum('payment_term_type', ['DISCOUNT', 'CREDIT']);
 
 // ==========================================
 // 1. PARTIES DOMAIN
@@ -22,6 +23,7 @@ export const parties = pgTable("parties", {
   place: text("place"),
   stateName: text("state_name"),
   pinCode: text("pin_code"),
+  cityId: integer("city_id"),  // FK to cities table (added in City Master)
   // Credit & Communication Fields
   creditLimit: numeric("credit_limit", { precision: 15, scale: 2 }),
   phone: text("phone"),
@@ -132,6 +134,10 @@ export const contracts = pgTable("contracts", {
   saudaDate: timestamp("sauda_date").defaultNow().notNull(),
   status: contractStatusEnum("status").default('ACTIVE').notNull(),
   deliveryTerm: text("delivery_term"),
+  // Payment terms (WS1)
+  paymentTermType: paymentTermTypeEnum("payment_term_type").default('DISCOUNT'),
+  paymentPercent: numeric("payment_percent", { precision: 5, scale: 2 }),
+  paymentDays: integer("payment_days"),
   customRemarks: text("custom_remarks"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -155,6 +161,7 @@ export const contractLines = pgTable("contract_lines", {
   commodityId: integer("commodity_id").references(() => commodities.id).notNull(),
   packagingId: integer("packaging_id").references(() => commodityPackaging.id),
   brand: text("brand"),
+  numberOfLorries: integer("number_of_lorries"),  // WS3: expected number of trucks
   quantityBags: numeric("quantity_bags", { precision: 15, scale: 2 }),
   weightQuintals: numeric("weight_quintals", { precision: 15, scale: 3 }).notNull(),
   rate: numeric("rate", { precision: 15, scale: 2 }).notNull(),
@@ -171,6 +178,7 @@ export const deliveries = pgTable("deliveries", {
   id: serial("id").primaryKey(),
   dispatchDate: timestamp("dispatch_date").defaultNow().notNull(),
   truckNo: text("truck_no"),
+  billNo: text("bill_no"),  // WS2: seller's bill number accompanying the truck
   transporterId: integer("transporter_id").references(() => parties.id),
   status: deliveryStatusEnum("status").default('PENDING').notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -258,4 +266,29 @@ export const ledger = pgTable("ledger", {
   idxAccountId: index("idx_ledger_account_id").on(t.accountId),
   idxSourceType: index("idx_ledger_source_type").on(t.sourceType),
   idxTransDate: index("idx_ledger_transaction_date").on(t.transactionDate),
+}));
+
+// ==========================================
+// 7. LOCATION MASTERS (City / District / State)
+// ==========================================
+export const states = pgTable("states", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+});
+
+export const districts = pgTable("districts", {
+  id: serial("id").primaryKey(),
+  stateId: integer("state_id").references(() => states.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+}, (t) => ({
+  unqDistrictState: uniqueIndex("unq_district_state").on(t.stateId, t.name),
+}));
+
+export const cities = pgTable("cities", {
+  id: serial("id").primaryKey(),
+  districtId: integer("district_id").references(() => districts.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  pincode: text("pincode"),
+}, (t) => ({
+  nameTrgmIdx: index("idx_cities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
 }));

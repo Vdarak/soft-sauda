@@ -8,7 +8,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging } from '@/db/schema';
+import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, deliveries, deliveryLines } from '@/db/schema';
 import { desc, eq, and, ilike, sql, or, exists } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
+    const statusFilter = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
@@ -132,33 +133,45 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Standard Paginated Mode ──
-    const cacheKey = `contracts:list:${page}:${limit}`;
+    const cacheKey = `contracts:list:${page}:${limit}:${statusFilter || 'ALL'}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(cached);
 
+    // Build WHERE conditions for status filtering
+    const whereConditions: any[] = [];
+    if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'DELIVERY_PENDING') {
+      whereConditions.push(eq(contracts.status, statusFilter as any));
+    }
+
     // ── Single query: fetch contracts with first line item + commodity name ──
-    const rawContracts = await db.select({
+    let query = db.select({
       id: contracts.id,
       saudaNo: contracts.saudaNo,
       saudaBook: contracts.saudaBook,
       saudaDate: contracts.saudaDate,
       status: contracts.status,
       deliveryTerm: contracts.deliveryTerm,
+      paymentTermType: contracts.paymentTermType,
+      paymentPercent: contracts.paymentPercent,
+      paymentDays: contracts.paymentDays,
       customRemarks: contracts.customRemarks,
       createdAt: contracts.createdAt,
       // Line data
+      contractLineId: contractLines.id,
       amount: contractLines.amount,
       weight: contractLines.weightQuintals,
       rate: contractLines.rate,
+      numberOfLorries: contractLines.numberOfLorries,
       // Commodity name
       commodityName: commodities.name,
     })
       .from(contracts)
       .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
-      .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
-      .orderBy(desc(contracts.saudaNo))
-      .limit(limit)
-      .offset(offset);
+      .leftJoin(commodities, eq(commodities.id, contractLines.commodityId));
+
+    const rawContracts = whereConditions.length > 0
+      ? await query.where(and(...whereConditions)).orderBy(desc(contracts.saudaNo)).limit(limit).offset(offset)
+      : await query.orderBy(desc(contracts.saudaNo)).limit(limit).offset(offset);
 
     // ── Batch fetch all party associations for these contracts ──
     const contractIds = [...new Set(rawContracts.map(c => c.id))];
@@ -181,9 +194,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Batch fetch delivery counts per contract line ──
+    const contractLineIds = rawContracts.map(c => c.contractLineId).filter(Boolean) as number[];
+    let deliveryCountMap: Record<number, { dispatched: number; delivered: number; pending: number; total: number }> = {};
+    if (contractLineIds.length > 0) {
+      const deliveryCounts = await db.select({
+        contractLineId: deliveryLines.contractLineId,
+        status: deliveries.status,
+        count: sql<number>`count(*)`,
+      })
+        .from(deliveryLines)
+        .leftJoin(deliveries, eq(deliveries.id, deliveryLines.deliveryId))
+        .where(sql`${deliveryLines.contractLineId} IN (${sql.join(contractLineIds.map(id => sql`${id}`), sql`, `)})`)
+        .groupBy(deliveryLines.contractLineId, deliveries.status);
+
+      for (const row of deliveryCounts) {
+        if (!deliveryCountMap[row.contractLineId]) deliveryCountMap[row.contractLineId] = { dispatched: 0, delivered: 0, pending: 0, total: 0 };
+        const cnt = Number(row.count);
+        deliveryCountMap[row.contractLineId].total += cnt;
+        if (row.status === 'DISPATCHED') deliveryCountMap[row.contractLineId].dispatched += cnt;
+        else if (row.status === 'DELIVERED') deliveryCountMap[row.contractLineId].delivered += cnt;
+        else if (row.status === 'PENDING') deliveryCountMap[row.contractLineId].pending += cnt;
+      }
+    }
+
     // ── Assemble the enriched result ──
     const enriched = rawContracts.map(c => {
       const cParties = partyMap[c.id] || [];
+      const dCounts = c.contractLineId ? deliveryCountMap[c.contractLineId] : null;
+      const expectedLorries = c.numberOfLorries || 0;
+      const totalDelivered = dCounts ? (dCounts.dispatched + dCounts.delivered) : 0;
       return {
         id: c.id,
         saudaNo: c.saudaNo,
@@ -191,6 +231,9 @@ export async function GET(req: NextRequest) {
         saudaDate: c.saudaDate,
         status: c.status,
         deliveryTerm: c.deliveryTerm,
+        paymentTermType: c.paymentTermType,
+        paymentPercent: c.paymentPercent,
+        paymentDays: c.paymentDays,
         customRemarks: c.customRemarks,
         createdAt: c.createdAt,
         sellerName: cParties.find(p => p.role === 'SELLER')?.name || 'Unknown',
@@ -201,6 +244,10 @@ export async function GET(req: NextRequest) {
         amount: c.amount || '0',
         weight: c.weight || '0',
         rate: c.rate || '0',
+        numberOfLorries: expectedLorries,
+        dispatchedCount: dCounts?.dispatched || 0,
+        deliveredCount: dCounts?.delivered || 0,
+        pendingCount: expectedLorries > 0 ? Math.max(0, expectedLorries - totalDelivered) : (dCounts ? 0 : 0),
       };
     });
 
@@ -236,6 +283,9 @@ export async function POST(req: NextRequest) {
         saudaBook: body.saudaBook || 'Main Book',
         saudaDate: body.saudaDate ? new Date(body.saudaDate) : new Date(),
         deliveryTerm: body.deliveryTerm || null,
+        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : 'DISCOUNT',
+        paymentPercent: body.paymentPercent || null,
+        paymentDays: body.paymentDays ? parseInt(body.paymentDays, 10) : null,
         status: 'ACTIVE',
         customRemarks: body.remarks || null,
       }).returning();
@@ -254,6 +304,7 @@ export async function POST(req: NextRequest) {
         commodityId,
         packagingId,
         brand: body.brand || null,
+        numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
         weightQuintals: weight.toString(),
         rate: rate.toString(),
         amount: (weight * rate).toString(),

@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { deliveries, deliveryLines, parties } from '@/db/schema';
+import { deliveries, deliveryLines, parties, contractLines, contracts } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       id: deliveries.id,
       dispatchDate: deliveries.dispatchDate,
       truckNo: deliveries.truckNo,
+      billNo: deliveries.billNo,
       transporterId: deliveries.transporterId,
       status: deliveries.status,
       createdAt: deliveries.createdAt,
@@ -113,6 +114,29 @@ export async function GET(req: NextRequest) {
       lines: linesMap[d.id] || [],
     }));
 
+    // Enrich with contract saudaNo and saudaDate for each delivery line
+    for (const d of enriched) {
+      for (const line of d.lines) {
+        if (line.contractLineId) {
+          const clRow = await db.select({ contractId: contractLines.contractId })
+            .from(contractLines).where(eq(contractLines.id, line.contractLineId)).limit(1);
+          if (clRow.length > 0) {
+            const cRow = await db.select({ saudaNo: contracts.saudaNo, saudaDate: contracts.saudaDate })
+              .from(contracts).where(eq(contracts.id, clRow[0].contractId)).limit(1);
+            if (cRow.length > 0) {
+              (line as any).saudaNo = cRow[0].saudaNo;
+              (line as any).saudaDate = cRow[0].saudaDate;
+            }
+          }
+        }
+      }
+      // Expose first line's saudaNo/saudaDate at top level for convenience
+      const firstLine = d.lines[0] as any;
+      (d as any).saudaNo = firstLine?.saudaNo || null;
+      (d as any).saudaDate = firstLine?.saudaDate || null;
+      (d as any).dispatchNo = d.id;
+    }
+
     cacheSet(cacheKey, enriched, 30);
     return ok(enriched);
   } catch (err) {
@@ -133,6 +157,7 @@ export async function POST(req: NextRequest) {
     const [delivery] = await db.insert(deliveries).values({
       dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
       truckNo: body.truckNo || null,
+      billNo: body.billNo || null,
       transporterId,
       status: 'DISPATCHED',
     }).returning();

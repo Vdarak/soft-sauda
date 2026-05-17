@@ -1,22 +1,49 @@
 /**
- * Cache Warmup — Pre-fetches ALL list data in parallel.
- * 
- * Called on login (fire-and-forget) and via GET /api/warmup.
- * This ensures the first navigation after login is instant because
- * all data is already sitting in the in-memory cache.
- * 
- * Each query populates the same cache keys used by the regular API routes,
- * so when the user navigates to e.g. /contracts, the route handler
- * finds a cache hit and returns immediately without touching the DB.
+ * Cache Warmup — Pre-fetches ALL data in parallel for every navigation section.
+ *
+ * Called on login (awaited) and via GET /api/warmup.
+ * Returns a unified `payload` object that is sent to the client and stored in
+ * sessionStorage + clientCache, making every subsequent page navigation instant
+ * (zero network requests — all data is already in the browser's RAM).
+ *
+ * Each entity is fetched without a row limit so that pagination through the
+ * full dataset (parties, contracts, etc.) is always served from cache.
+ * The `paginateIntoPayload` helper pre-slices the full array into 50-row
+ * page keys that match exactly what the list views request.
  */
 
 import { db } from '@/db';
 import {
   parties, commodities, contracts, contractParties, contractLines,
   deliveries, deliveryLines, bills, billLines, payments, paymentAllocations, ledger,
+  cities, districts, states,
 } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { cacheSet, cacheHas, cacheGet, DEFAULT_TTL } from '@/lib/cache';
+
+const PAGE_SIZE = 50;
+
+/**
+ * Slice `all` into PAGE_SIZE chunks and write each chunk into the payload
+ * under the exact URL key the list views use: `/<entity>?page=N&limit=50`.
+ */
+function paginateIntoPayload(entity: string, all: any[], payload: Record<string, any>): void {
+  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  for (let p = 1; p <= totalPages; p++) {
+    payload[`/${entity}?page=${p}&limit=${PAGE_SIZE}`] = all.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE);
+  }
+}
+
+/**
+ * Populate server-side cache with paginated slices (useful in long-lived processes / dev).
+ * `keySuffix` is appended after the page/limit, e.g. ':all' for ledger.
+ */
+function paginateIntoCache(entity: string, all: any[], ttl: number, keySuffix = ''): void {
+  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  for (let p = 1; p <= totalPages; p++) {
+    cacheSet(`${entity}:list:${p}:${PAGE_SIZE}${keySuffix}`, all.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), ttl);
+  }
+}
 
 /** Run all warmup queries in parallel. Safe to call multiple times. */
 export async function warmCache(): Promise<{ payload: Record<string, any>, warmed: string[]; skipped: string[] }> {
@@ -25,7 +52,9 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
   const payload: Record<string, any> = {};
   const TTL = DEFAULT_TTL;
 
-  const tasks: Array<{ key: string; fn: () => Promise<void> }> = [
+  type Task = { key: string; fn: () => Promise<void>; payloadFn: () => void };
+
+  const tasks: Task[] = [
     // ── Dashboard metrics ──
     {
       key: 'dashboard:metrics',
@@ -36,37 +65,59 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         const [billCount] = await db.select({ count: sql<number>`count(*)` }).from(bills);
         const [paymentCount] = await db.select({ count: sql<number>`count(*)` }).from(payments);
         const [outstanding] = await db.select({ total: sql<string>`COALESCE(SUM(balance_amount::numeric), 0)` }).from(bills);
-        cacheSet('dashboard:metrics', {
+        const metrics = {
           parties: Number(partyCount.count),
           contracts: Number(contractCount.count),
           deliveries: Number(deliveryCount.count),
           bills: Number(billCount.count),
           payments: Number(paymentCount.count),
           outstandingBalance: parseFloat(outstanding.total as string) || 0,
-        }, TTL);
+        };
+        cacheSet('dashboard:metrics', metrics, TTL);
+        payload['/dashboard'] = metrics;
       },
+      payloadFn: () => { payload['/dashboard'] = cacheGet('dashboard:metrics'); },
     },
-    // ── Parties list ──
+
+    // ── Parties — ALL records, pre-paginated ──
     {
-      key: 'parties:list:1:50',
+      key: 'parties:all',
       fn: async () => {
-        const data = await db.select().from(parties).orderBy(desc(parties.id)).limit(50);
-        cacheSet('parties:list:1:50', data, TTL);
-        data.forEach(p => cacheSet(`parties:${p.id}`, p, TTL));
+        const all = await db.select().from(parties).orderBy(desc(parties.id));
+        cacheSet('parties:all', all, TTL);
+        paginateIntoCache('parties', all, TTL);
+        all.forEach(p => cacheSet(`parties:${p.id}`, p, TTL));
+        paginateIntoPayload('parties', all, payload);
+        payload['/parties'] = all; // full list — used by autocomplete local filtering
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('parties:all') || [];
+        paginateIntoPayload('parties', all, payload);
+        payload['/parties'] = all;
       },
     },
-    // ── Commodities list ──
+
+    // ── Commodities — ALL records ──
     {
-      key: 'commodities:list:1:50',
+      key: 'commodities:all',
       fn: async () => {
-        const data = await db.select().from(commodities).orderBy(desc(commodities.id)).limit(50);
-        cacheSet('commodities:list:1:50', data, TTL);
-        data.forEach(c => cacheSet(`commodities:${c.id}`, c, TTL));
+        const all = await db.select().from(commodities).orderBy(desc(commodities.id));
+        cacheSet('commodities:all', all, TTL);
+        paginateIntoCache('commodities', all, TTL);
+        all.forEach(c => cacheSet(`commodities:${c.id}`, c, TTL));
+        paginateIntoPayload('commodities', all, payload);
+        payload['/commodities'] = all; // full list — used by autocomplete local filtering
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('commodities:all') || [];
+        paginateIntoPayload('commodities', all, payload);
+        payload['/commodities'] = all;
       },
     },
-    // ── Contracts list (with JOINs) ──
+
+    // ── Contracts — ALL records (with JOINs) ──
     {
-      key: 'contracts:list:1:50',
+      key: 'contracts:all',
       fn: async () => {
         const rawContracts = await db.select({
           id: contracts.id, saudaNo: contracts.saudaNo, saudaBook: contracts.saudaBook,
@@ -79,7 +130,7 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
           .from(contracts)
           .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
           .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
-          .orderBy(desc(contracts.saudaNo)).limit(50);
+          .orderBy(desc(contracts.saudaNo));
 
         const contractIds = [...new Set(rawContracts.map(c => c.id))];
         let partyMap: Record<number, { role: string; name: string | null }[]> = {};
@@ -98,7 +149,7 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
 
         const enriched = rawContracts.map(c => {
           const cParties = partyMap[c.id] || [];
-          const detailItem = {
+          const item = {
             id: c.id, saudaNo: c.saudaNo, saudaBook: c.saudaBook, saudaDate: c.saudaDate,
             status: c.status, deliveryTerm: c.deliveryTerm, customRemarks: c.customRemarks,
             createdAt: c.createdAt,
@@ -109,17 +160,24 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
             commodityName: c.commodityName || 'Unknown',
             amount: c.amount || '0', weight: c.weight || '0', rate: c.rate || '0',
             parties: cParties,
-            lines: [{ commodityName: c.commodityName || 'Unknown', amount: c.amount, weightQuintals: c.weight, rate: c.rate }]
+            lines: [{ commodityName: c.commodityName || 'Unknown', amount: c.amount, weightQuintals: c.weight, rate: c.rate }],
           };
-          cacheSet(`contracts:${c.id}`, detailItem, TTL);
-          return detailItem;
+          cacheSet(`contracts:${c.id}`, item, TTL);
+          return item;
         });
-        cacheSet('contracts:list:1:50', enriched, TTL);
+        cacheSet('contracts:all', enriched, TTL);
+        paginateIntoCache('contracts', enriched, TTL);
+        paginateIntoPayload('contracts', enriched, payload);
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('contracts:all') || [];
+        paginateIntoPayload('contracts', all, payload);
       },
     },
-    // ── Bills list (with JOIN) ──
+
+    // ── Bills — ALL records (with JOIN + lines) ──
     {
-      key: 'bills:list:1:50',
+      key: 'bills:all',
       fn: async () => {
         const data = await db.select({
           id: bills.id, billNo: bills.billNo, billDate: bills.billDate,
@@ -129,8 +187,8 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         })
           .from(bills)
           .leftJoin(parties, eq(parties.id, bills.partyId))
-          .orderBy(desc(bills.id)).limit(50);
-        
+          .orderBy(desc(bills.id));
+
         const billIds = data.map(b => b.id);
         let bLinesMap: Record<number, any[]> = {};
         if (billIds.length > 0) {
@@ -141,16 +199,20 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
             bLinesMap[line.billId].push(line);
           }
         }
-        
-        data.forEach(b => {
-           cacheSet(`bills:${b.id}`, { ...b, lines: bLinesMap[b.id] || [] }, TTL);
-        });
-        cacheSet('bills:list:1:50', data, TTL);
+        data.forEach(b => { cacheSet(`bills:${b.id}`, { ...b, lines: bLinesMap[b.id] || [] }, TTL); });
+        cacheSet('bills:all', data, TTL);
+        paginateIntoCache('bills', data, TTL);
+        paginateIntoPayload('bills', data, payload);
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('bills:all') || [];
+        paginateIntoPayload('bills', all, payload);
       },
     },
-    // ── Deliveries list (with JOIN) ──
+
+    // ── Deliveries — ALL records (with JOIN + lines) ──
     {
-      key: 'deliveries:list:1:50',
+      key: 'deliveries:all',
       fn: async () => {
         const rawDeliveries = await db.select({
           id: deliveries.id, dispatchDate: deliveries.dispatchDate,
@@ -160,7 +222,7 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         })
           .from(deliveries)
           .leftJoin(parties, eq(parties.id, deliveries.transporterId))
-          .orderBy(desc(deliveries.id)).limit(50);
+          .orderBy(desc(deliveries.id));
 
         const deliveryIds = rawDeliveries.map(d => d.id);
         let linesMap: Record<number, any[]> = {};
@@ -177,12 +239,19 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
           cacheSet(`deliveries:${d.id}`, detail, TTL);
           return detail;
         });
-        cacheSet('deliveries:list:1:50', enriched, TTL);
+        cacheSet('deliveries:all', enriched, TTL);
+        paginateIntoCache('deliveries', enriched, TTL);
+        paginateIntoPayload('deliveries', enriched, payload);
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('deliveries:all') || [];
+        paginateIntoPayload('deliveries', all, payload);
       },
     },
-    // ── Payments list (with JOIN) ──
+
+    // ── Payments — ALL records (with JOIN + allocations) ──
     {
-      key: 'payments:list:1:50',
+      key: 'payments:all',
       fn: async () => {
         const rawPayments = await db.select({
           id: payments.id, partyId: payments.partyId, paymentDate: payments.paymentDate,
@@ -192,7 +261,7 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         })
           .from(payments)
           .leftJoin(parties, eq(parties.id, payments.partyId))
-          .orderBy(desc(payments.id)).limit(50);
+          .orderBy(desc(payments.id));
 
         const paymentIds = rawPayments.map(p => p.id);
         let allocMap: Record<number, any[]> = {};
@@ -209,12 +278,19 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
           cacheSet(`payments:${p.id}`, detail, TTL);
           return detail;
         });
-        cacheSet('payments:list:1:50', enriched, TTL);
+        cacheSet('payments:all', enriched, TTL);
+        paginateIntoCache('payments', enriched, TTL);
+        paginateIntoPayload('payments', enriched, payload);
+      },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('payments:all') || [];
+        paginateIntoPayload('payments', all, payload);
       },
     },
-    // ── Ledger list (with JOIN) ──
+
+    // ── Ledger — ALL records (with account JOIN) ──
     {
-      key: 'ledger:list:1:50:all',
+      key: 'ledger:all',
       fn: async () => {
         const data = await db.select({
           id: ledger.id, transactionDate: ledger.transactionDate,
@@ -225,13 +301,58 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         })
           .from(ledger)
           .leftJoin(parties, eq(parties.id, ledger.accountId))
-          .orderBy(desc(ledger.id)).limit(50);
-        cacheSet('ledger:list:1:50:all', data, TTL);
+          .orderBy(desc(ledger.id));
+
+        // Pre-populate per-account cache slices (for ledger filtered by party)
+        const byAccount: Record<number, any[]> = {};
+        for (const entry of data) {
+          if (entry.accountId) {
+            if (!byAccount[entry.accountId]) byAccount[entry.accountId] = [];
+            byAccount[entry.accountId].push(entry);
+          }
+        }
+        for (const [accountId, entries] of Object.entries(byAccount)) {
+          cacheSet(`ledger:list:1:${PAGE_SIZE}:${accountId}`, entries.slice(0, PAGE_SIZE), TTL);
+        }
+
+        cacheSet('ledger:all', data, TTL);
+        // Ledger route cache key has ':all' suffix when no accountId filter
+        paginateIntoCache('ledger', data, TTL, ':all');
+        paginateIntoPayload('ledger', data, payload);
       },
+      payloadFn: () => {
+        const all = cacheGet<any[]>('ledger:all') || [];
+        paginateIntoPayload('ledger', all, payload);
+      },
+    },
+
+    // ── Cities — full list (with district + state JOIN) ──
+    {
+      key: 'cities:all',
+      fn: async () => {
+        const data = await db.select({
+          id: cities.id,
+          name: cities.name,
+          pincode: cities.pincode,
+          districtId: cities.districtId,
+          districtName: districts.name,
+          stateId: districts.stateId,
+          stateName: states.name,
+        })
+          .from(cities)
+          .leftJoin(districts, eq(districts.id, cities.districtId))
+          .leftJoin(states, eq(states.id, districts.stateId))
+          .orderBy(cities.name);
+        cacheSet('cities:all', data, TTL);
+        payload['/cities'] = data;
+      },
+      payloadFn: () => { payload['/cities'] = cacheGet<any[]>('cities:all') || []; },
     },
   ];
 
-  // Run all queries in parallel, skip any already cached
+  // Run all queries in parallel. Skip tasks whose primary key is already in the
+  // server-side cache (warm server process in dev). For skipped tasks, rebuild
+  // the payload from the cached data so the client still gets a complete payload.
   const promises = tasks.map(async (task) => {
     if (!cacheHas(task.key)) {
       try {
@@ -242,15 +363,8 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
       }
     } else {
       skipped.push(task.key);
+      task.payloadFn();
     }
-    
-    // Map cache keys to their frontend API path counterparts to build the payload
-    let apiPath = task.key;
-    if (apiPath.includes(':list:1:50:all')) apiPath = `/${apiPath.split(':')[0]}?page=1&limit=50`;
-    else if (apiPath.includes(':list:1:50')) apiPath = `/${apiPath.split(':')[0]}?page=1&limit=50`;
-    else if (apiPath === 'dashboard:metrics') apiPath = '/dashboard';
-    
-    payload[apiPath] = cacheGet(task.key);
   });
 
   await Promise.all(promises);

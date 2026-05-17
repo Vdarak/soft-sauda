@@ -1,19 +1,60 @@
 /**
  * Contracts View — Sauda Register List + Create/Edit form
+ * 
+ * WS1: Payment Terms (Discount vs Credit) with dynamic text preview
+ * WS3: Pending Delivery Counts — shows dispatched/pending per contract
+ * WS6: Quick filter bar + Jump to Sauda #
  */
 import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp, attachCommodityAutocomp } from '../lib/autocomplete.js';
 
+/** Build delivery progress badge HTML */
+function deliveryBadge(c) {
+  const lorries = c.numberOfLorries || 0;
+  const dispatched = c.dispatchedCount || 0;
+  const delivered = c.deliveredCount || 0;
+  const total = dispatched + delivered;
+
+  if (lorries === 0 && total === 0) {
+    return Badge(c.status || 'ACTIVE', c.status === 'ACTIVE' ? 'active' : 'draft');
+  }
+
+  if (lorries > 0 && total >= lorries) {
+    return `<span class="badge badge-active" style="font-size:0.6875rem">✓ All ${lorries} Delivered</span>`;
+  }
+
+  let parts = [];
+  if (total > 0) parts.push(`<span class="badge badge-active" style="font-size:0.625rem">${total} Dispatched</span>`);
+  const pending = lorries > 0 ? Math.max(0, lorries - total) : 0;
+  if (pending > 0) parts.push(`<span class="badge badge-draft" style="font-size:0.625rem">${pending} Pending</span>`);
+  if (parts.length === 0) return Badge(c.status || 'ACTIVE', 'active');
+  return parts.join(' ');
+}
+
+/** Build payment term text */
+function paymentTermText(c) {
+  if (!c.paymentDays && !c.paymentPercent) return '';
+  if (c.paymentTermType === 'CREDIT') {
+    return `Credit for ${c.paymentDays || 0} days`;
+  }
+  return `${c.paymentPercent || 0}% discount within ${c.paymentDays || 0} days`;
+}
+
 export async function renderContractList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
 
-  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
+  const params = ctx && ctx.location && ctx.location.search ? new URLSearchParams(ctx.location.search) : new URLSearchParams();
+  const page = parseInt(params.get('page') || '1', 10);
+  const statusFilter = params.get('status') || 'ALL';
   const limit = 50;
 
   try {
-    const data = await api.get(`/contracts?page=${page}&limit=${limit}`);
+    let url = `/contracts?page=${page}&limit=${limit}`;
+    if (statusFilter && statusFilter !== 'ALL') url += `&status=${statusFilter}`;
+
+    const data = await api.get(url);
     const hasMore = data.length === limit;
     
     const renderRows = (items) => items.map(c => `
@@ -29,22 +70,38 @@ export async function renderContractList(ctx) {
         </td>
         <td>
           <div style="font-weight:600">${escapeHtml(c.commodityName)}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${c.weight} Qtls</div>
+          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${c.weight} Qtls${c.numberOfLorries ? ` · ${c.numberOfLorries} Lorries` : ''}</div>
         </td>
         <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
-        <td style="text-align:center">${Badge(c.status || 'ACTIVE', c.status === 'ACTIVE' ? 'active' : 'draft')}</td>
+        <td style="text-align:center">${deliveryBadge(c)}</td>
         <td style="text-align:right">
           <a href="/contracts/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
         </td>
       </tr>
     `);
 
+    // Filter button builder
+    const filterBtn = (label, value) => {
+      const active = statusFilter === value;
+      return `<a href="/contracts?status=${value}" data-route><button class="${active ? 'primary' : 'secondary'}" style="font-size:0.75rem;padding:0.25rem 0.75rem">${label}</button></a>`;
+    };
+
     app.innerHTML = `
       ${PageHeader({
         title: 'Sauda Register',
         subtitle: 'View and manage trade contracts',
-        actions: `<a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
+        actions: `<button class="secondary" id="export-contracts-btn" style="margin-right:0.5rem">📥 Export Excel</button><a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
       })}
+      <div style="margin-bottom:0.75rem;display:flex;gap:0.375rem;flex-wrap:wrap;align-items:center">
+        ${filterBtn('All', 'ALL')}
+        ${filterBtn('Active', 'ACTIVE')}
+        ${filterBtn('Delivery Pending', 'DELIVERY_PENDING')}
+        ${filterBtn('Completed', 'COMPLETED')}
+        <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+          <input type="number" id="goto-sauda" placeholder="Go to Sauda #" style="width:140px;font-size:0.75rem;padding:0.3rem 0.5rem">
+          <button class="small" id="goto-btn">Go</button>
+        </div>
+      </div>
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
           <input type="text" id="search-contracts" placeholder="Search contracts..." style="padding-left:2.5rem; width:100%">
@@ -60,7 +117,7 @@ export async function renderContractList(ctx) {
           { label: 'Trade Parties' },
           { label: 'Commodity' },
           { label: 'Amount', style: 'text-align:right' },
-          { label: 'Status', style: 'text-align:center' },
+          { label: 'Delivery Status', style: 'text-align:center' },
           { label: 'Actions', style: 'text-align:right; width: 100px' }
         ],
         rows: renderRows(data)
@@ -69,13 +126,38 @@ export async function renderContractList(ctx) {
 
     if (hasMore) {
       const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/contracts?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
+      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/contracts?page=${page + 1}&status=${statusFilter}" data-route><button class="secondary">Load More</button></a></div>`;
       app.appendChild(loadMore);
+    }
+
+    // Go to Sauda # handler
+    const gotoBtn = document.getElementById('goto-btn');
+    const gotoInput = document.getElementById('goto-sauda');
+    if (gotoBtn && gotoInput) {
+      const navigateToSauda = () => {
+        const num = gotoInput.value.trim();
+        if (!num) return;
+        // Find contract by saudaNo in current data
+        const found = data.find(c => String(c.saudaNo) === num);
+        if (found) {
+          window.history.pushState({}, '', `/contracts/${found.id}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } else {
+          showToast(`Sauda #${num} not found in current page`, 'error');
+        }
+      };
+      gotoBtn.addEventListener('click', navigateToSauda);
+      gotoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateToSauda(); });
     }
 
     // Attach search engine with API path for hybrid querying
     import('../components/ui.js').then(ui => {
       ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows, '/contracts');
+    });
+
+    // Export button handler
+    document.getElementById('export-contracts-btn')?.addEventListener('click', () => {
+      import('../components/ui.js').then(ui => ui.exportToExcel('/contracts/export', 'sauda_register'));
     });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Contracts' })}<div class="alert danger">${err.message}</div>`;
@@ -95,6 +177,7 @@ export async function renderContractForm(id) {
   }
 
   const line = contract.lines?.[0] || {};
+  const ptType = contract.paymentTermType || 'DISCOUNT';
 
   app.innerHTML = `
     ${PageHeader({
@@ -123,9 +206,30 @@ export async function renderContractForm(id) {
         <div class="form-grid">
           ${FormGroup({ id: 'commodity', label: 'Commodity', value: line.commodityName || '', required: true, placeholder: 'Start typing to search...' })}
           ${FormGroup({ id: 'brand', label: 'Brand', value: line.brand || '' })}
+          ${FormGroup({ id: 'numberOfLorries', label: 'Number of Lorries', value: line.numberOfLorries || '', type: 'number' })}
           ${FormGroup({ id: 'weight', label: 'Weight (Quintals)', value: line.weightQuintals || '', type: 'number' })}
           ${FormGroup({ id: 'rate', label: 'Rate (₹)', value: line.rate || '', type: 'number' })}
         </div>
+
+        <h3 style="margin:1.5rem 0 1rem;font-size:0.875rem">Payment Terms</h3>
+        <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:1rem">
+          <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.875rem">
+            <input type="radio" name="paymentTermType" value="DISCOUNT" ${ptType === 'DISCOUNT' ? 'checked' : ''}>
+            Discount
+          </label>
+          <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.875rem">
+            <input type="radio" name="paymentTermType" value="CREDIT" ${ptType === 'CREDIT' ? 'checked' : ''}>
+            Credit
+          </label>
+        </div>
+        <div class="form-grid" id="payment-fields">
+          <div class="form-group" id="discount-percent-group">
+            <label for="paymentPercent">Discount %</label>
+            <input type="number" id="paymentPercent" name="paymentPercent" value="${contract.paymentPercent || ''}" step="0.01" placeholder="e.g. 3">
+          </div>
+          ${FormGroup({ id: 'paymentDays', label: 'Days', value: contract.paymentDays || '', type: 'number', placeholder: 'e.g. 2' })}
+        </div>
+        <div id="payment-preview" style="margin-top:0.5rem;padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-radius:0.5rem;font-size:0.8125rem;color:var(--primary)"></div>
 
         <h3 style="margin:1.5rem 0 1rem;font-size:0.875rem">Remarks</h3>
         ${FormGroup({ id: 'remarks', label: 'Custom Remarks', value: contract.customRemarks || '', type: 'textarea' })}
@@ -144,6 +248,28 @@ export async function renderContractForm(id) {
   attachPartyAutocomp('sellerBroker');
   attachPartyAutocomp('buyerBroker');
   attachCommodityAutocomp('commodity');
+
+  // Payment Terms — toggle and preview
+  const updatePaymentPreview = () => {
+    const type = document.querySelector('input[name="paymentTermType"]:checked')?.value || 'DISCOUNT';
+    const pct = document.getElementById('paymentPercent')?.value || '';
+    const days = document.getElementById('paymentDays')?.value || '';
+    const preview = document.getElementById('payment-preview');
+    const discountGroup = document.getElementById('discount-percent-group');
+
+    if (type === 'CREDIT') {
+      discountGroup.style.display = 'none';
+      preview.innerHTML = days ? `<strong>Payment Term:</strong> Credit for ${days} days without discount` : '<em>Enter number of days</em>';
+    } else {
+      discountGroup.style.display = '';
+      preview.innerHTML = (pct && days) ? `<strong>Payment Term:</strong> ${pct}% discount within ${days} days` : '<em>Enter discount % and days</em>';
+    }
+  };
+
+  document.querySelectorAll('input[name="paymentTermType"]').forEach(r => r.addEventListener('change', updatePaymentPreview));
+  document.getElementById('paymentPercent')?.addEventListener('input', updatePaymentPreview);
+  document.getElementById('paymentDays')?.addEventListener('input', updatePaymentPreview);
+  updatePaymentPreview(); // Initial render
 
   document.getElementById('contract-form').addEventListener('submit', async (e) => {
     e.preventDefault();

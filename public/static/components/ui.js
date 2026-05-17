@@ -245,3 +245,47 @@ export function collectFormData(formId) {
   }
   return data;
 }
+
+/* ── Full-data Excel/CSV Export ── */
+export async function exportToExcel(apiPath, filename = 'export') {
+  try {
+    showToast('Preparing export...');
+    const data = await get(apiPath);
+    if (!data || data.length === 0) {
+      showToast('No data to export', 'error');
+      return;
+    }
+
+    // Build CSV from array of objects
+    const headers = Object.keys(data[0]);
+    const csvRows = [headers.join(',')];
+
+    for (const row of data) {
+      const values = headers.map(h => {
+        let val = row[h];
+        if (val === null || val === undefined) val = '';
+        val = String(val).replace(/"/g, '""');
+        // Wrap in quotes if contains comma, newline, or quotes
+        if (val.includes(',') || val.includes('\n') || val.includes('"')) {
+          val = `"${val}"`;
+        }
+        return val;
+      });
+      csvRows.push(values.join(','));
+    }
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Export downloaded!');
+  } catch (err) {
+    showToast('Export failed: ' + err.message, 'error');
+  }
+}

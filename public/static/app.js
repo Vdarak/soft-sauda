@@ -17,6 +17,7 @@ import { renderDeliveryList, renderDeliveryForm } from './views/deliveries.js';
 import { renderBillList, renderBillForm } from './views/bills.js';
 import { renderPaymentList, renderPaymentForm } from './views/payments.js';
 import { renderLedgerList, renderLedgerForm } from './views/ledger.js';
+import { renderCityList, renderCityForm } from './views/cities.js';
 import { isAuthenticated, clearAuth, triggerWarmup } from './lib/api.js';
 import { Icons } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
@@ -92,6 +93,10 @@ function initRouter() {
   r.on('/ledger/new',         requireAuth(() => renderLedgerForm()));
   r.on('/ledger/{id}',        requireAuth((ctx) => renderLedgerForm(ctx.params.id)));
 
+  // City Master
+  r.on('/cities',             requireAuth((ctx) => renderCityList(ctx)));
+  r.on('/cities/new',         requireAuth(() => renderCityForm()));
+
   // Start router — binds popstate + [data-route] clicks + handles initial URL
   r.ready();
 
@@ -106,9 +111,9 @@ function initRouter() {
   updateSidebarActive(window.location.pathname);
 }
 
-/* ── Sidebar Active State ── */
+/* ── Topbar Active State ── */
 function updateSidebarActive(path) {
-  document.querySelectorAll('.sidebar-nav a').forEach(a => {
+  document.querySelectorAll('.topbar-nav a').forEach(a => {
     const href = a.getAttribute('href');
     if (href === path || (href !== '/' && path.startsWith(href))) {
       a.classList.add('active');
