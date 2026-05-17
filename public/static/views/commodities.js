@@ -11,8 +11,7 @@ export async function renderCommodityList(ctx) {
   const limit = 50;
 
   try {
-    const data = await api.get(`/commodities?page=${page}&limit=${limit}`);
-    const hasMore = data.length === limit;
+    const data = await api.get('/commodities');
 
     const renderRows = (items) => items.map(c => `
       <tr>
@@ -44,14 +43,8 @@ export async function renderCommodityList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/commodities?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-    
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-commodities', document.querySelector('#commodities-table tbody'), data, renderRows, '/commodities');
+      ui.attachTableSearch('search-commodities', document.querySelector('#commodities-table tbody'), data, renderRows);
     });
   } catch (err) {
     app.innerHTML = `${PageHeader({ title: 'Commodities' })}<div class="alert danger">${err.message}</div>`;

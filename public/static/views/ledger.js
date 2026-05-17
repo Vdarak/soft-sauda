@@ -15,8 +15,7 @@ export async function renderLedgerList(ctx) {
   const limit = 50;
 
   try {
-    const data = await api.get(`/ledger?page=${page}&limit=${limit}`);
-    const hasMore = data.length === limit;
+    const data = await api.get('/ledger');
     
     const renderRows = (items) => items.map(c => `
       <tr>
@@ -50,14 +49,8 @@ export async function renderLedgerList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/ledger?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-    
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-ledger', document.querySelector('#ledger-table tbody'), data, renderRows, '/ledger');
+      ui.attachTableSearch('search-ledger', document.querySelector('#ledger-table tbody'), data, renderRows);
     });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Ledger' })}<div class="alert danger">${err.message}</div>`; }
 }

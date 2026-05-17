@@ -51,11 +51,10 @@ export async function renderContractList(ctx) {
   const limit = 50;
 
   try {
-    let url = `/contracts?page=${page}&limit=${limit}`;
-    if (statusFilter && statusFilter !== 'ALL') url += `&status=${statusFilter}`;
-
-    const data = await api.get(url);
-    const hasMore = data.length === limit;
+    const allContracts = await api.get('/contracts');
+    const data = statusFilter !== 'ALL'
+      ? allContracts.filter(c => c.status === statusFilter)
+      : allContracts;
     
     const renderRows = (items) => items.map(c => `
       <tr>
@@ -124,12 +123,6 @@ export async function renderContractList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/contracts?page=${page + 1}&status=${statusFilter}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-
     // Go to Sauda # handler
     const gotoBtn = document.getElementById('goto-btn');
     const gotoInput = document.getElementById('goto-sauda');
@@ -150,9 +143,9 @@ export async function renderContractList(ctx) {
       gotoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateToSauda(); });
     }
 
-    // Attach search engine with API path for hybrid querying
+    // Attach search engine — fully client-side
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows, '/contracts');
+      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows);
     });
 
     // Export button handler

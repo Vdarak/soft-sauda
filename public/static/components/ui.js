@@ -147,76 +147,51 @@ export function escapeHtml(str) {
 }
 
 /* ── Instant Table Search & Highlight ── */
-export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb, apiPath = null) {
+export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb) {
   const input = document.getElementById(inputId);
   const tbody = typeof tbodyElementOrId === 'string' ? document.getElementById(tbodyElementOrId) : tbodyElementOrId;
   if (!input || !tbody) return;
 
   let debounceTimer;
-  let activeQuery = '';   // tracks current query to detect stale async results
 
   input.addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
-    activeQuery = q;      // always update immediately
-    
+
     clearTimeout(debounceTimer);
-    
+
     if (!q) {
       tbody.innerHTML = renderRowsCb(data).join('');
       return;
     }
 
-    debounceTimer = setTimeout(async () => {
-      const myQuery = q;  // snapshot for this debounce cycle
-
-      // Show loading state
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem"><span class="spinner" style="width:24px;height:24px;border-color:var(--primary);border-top-color:transparent"></span></td></tr>`;
-      
-      let filtered = [];
-      if (apiPath) {
-        try {
-          filtered = await get(`${apiPath}?q=${encodeURIComponent(q)}`);
-        } catch (err) {
-          if (activeQuery !== myQuery) return;  // query changed, discard
-          tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--danger)">Search failed</td></tr>`;
-          return;
-        }
-      } else {
-        // Fallback to local filtering
-        filtered = data.filter(item => {
-          return Object.values(item).some(val => 
-            val !== null && val !== undefined && String(val).toLowerCase().includes(q)
-          );
-        });
-      }
-
-      // If the user changed/cleared the query while we were awaiting, bail out
-      if (activeQuery !== myQuery) return;
+    debounceTimer = setTimeout(() => {
+      const filtered = data.filter(item =>
+        Object.values(item).some(val =>
+          val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+        )
+      );
 
       if (filtered.length === 0) {
-         tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No entries found</td></tr>`;
-         return;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No entries found</td></tr>`;
+        return;
       }
 
       tbody.innerHTML = renderRowsCb(filtered).join('');
 
-      // Safely highlight text nodes only
+      // Highlight matching text nodes
       const walker = document.createTreeWalker(tbody, NodeFilter.SHOW_TEXT, null, false);
       const nodesToReplace = [];
       let node;
       while ((node = walker.nextNode())) {
-        if (node.nodeValue.toLowerCase().includes(q)) {
-          nodesToReplace.push(node);
-        }
+        if (node.nodeValue.toLowerCase().includes(q)) nodesToReplace.push(node);
       }
-
       nodesToReplace.forEach(n => {
         const span = document.createElement('span');
         const regex = new RegExp(`(${q.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
         span.innerHTML = n.nodeValue.replace(regex, '<mark>$1</mark>');
         n.parentNode.replaceChild(span, n);
       });
-    }, 300);
+    }, 80);
   });
 }
 

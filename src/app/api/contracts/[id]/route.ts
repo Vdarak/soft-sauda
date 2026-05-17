@@ -136,23 +136,37 @@ export async function PUT(req: NextRequest, context: Params) {
       if (buyerBrokerId && buyerBrokerId !== sellerBrokerId) partyInserts.push({ contractId: id, partyId: buyerBrokerId, role: 'BUYER_BROKER' as const });
       if (partyInserts.length > 0) await tx.insert(contractParties).values(partyInserts);
 
-      // Wipe & rewrite contract line
-      await tx.delete(contractLines).where(eq(contractLines.contractId, id));
+      // Update contract line in-place (cannot delete while delivery_lines reference it)
       const commodityId = await resolveCommodity(body.commodity || 'Unknown', tx);
       const packagingId = await resolvePackaging(commodityId, body.packaging, tx);
       const weight = parseFloat(body.weight || '0');
       const rate = parseFloat(body.rate || '0');
 
-      await tx.insert(contractLines).values({
-        contractId: id,
-        commodityId,
-        packagingId,
-        brand: body.brand || null,
-        numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
-        weightQuintals: weight.toString(),
-        rate: rate.toString(),
-        amount: (weight * rate).toString(),
-      });
+      const existingLines = await tx.select({ id: contractLines.id }).from(contractLines)
+        .where(eq(contractLines.contractId, id)).limit(1);
+
+      if (existingLines.length > 0) {
+        await tx.update(contractLines).set({
+          commodityId,
+          packagingId,
+          brand: body.brand || null,
+          numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
+          weightQuintals: weight.toString(),
+          rate: rate.toString(),
+          amount: (weight * rate).toString(),
+        }).where(eq(contractLines.id, existingLines[0].id));
+      } else {
+        await tx.insert(contractLines).values({
+          contractId: id,
+          commodityId,
+          packagingId,
+          brand: body.brand || null,
+          numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
+          weightQuintals: weight.toString(),
+          rate: rate.toString(),
+          amount: (weight * rate).toString(),
+        });
+      }
     });
 
     cacheInvalidate('contracts');

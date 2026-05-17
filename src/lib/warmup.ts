@@ -168,10 +168,12 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         cacheSet('contracts:all', enriched, TTL);
         paginateIntoCache('contracts', enriched, TTL);
         paginateIntoPayload('contracts', enriched, payload);
+        payload['/contracts'] = enriched;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>('contracts:all') || [];
         paginateIntoPayload('contracts', all, payload);
+        payload['/contracts'] = all;
       },
     },
 
@@ -203,10 +205,12 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         cacheSet('bills:all', data, TTL);
         paginateIntoCache('bills', data, TTL);
         paginateIntoPayload('bills', data, payload);
+        payload['/bills'] = data;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>('bills:all') || [];
         paginateIntoPayload('bills', all, payload);
+        payload['/bills'] = all;
       },
     },
 
@@ -242,10 +246,12 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         cacheSet('deliveries:all', enriched, TTL);
         paginateIntoCache('deliveries', enriched, TTL);
         paginateIntoPayload('deliveries', enriched, payload);
+        payload['/deliveries'] = enriched;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>('deliveries:all') || [];
         paginateIntoPayload('deliveries', all, payload);
+        payload['/deliveries'] = all;
       },
     },
 
@@ -281,10 +287,12 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         cacheSet('payments:all', enriched, TTL);
         paginateIntoCache('payments', enriched, TTL);
         paginateIntoPayload('payments', enriched, payload);
+        payload['/payments'] = enriched;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>('payments:all') || [];
         paginateIntoPayload('payments', all, payload);
+        payload['/payments'] = all;
       },
     },
 
@@ -319,10 +327,12 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
         // Ledger route cache key has ':all' suffix when no accountId filter
         paginateIntoCache('ledger', data, TTL, ':all');
         paginateIntoPayload('ledger', data, payload);
+        payload['/ledger'] = data;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>('ledger:all') || [];
         paginateIntoPayload('ledger', all, payload);
+        payload['/ledger'] = all;
       },
     },
 

@@ -12,8 +12,7 @@ export async function renderPartyList(ctx) {
   const limit = 50;
 
   try {
-    const data = await api.get(`/parties?page=${page}&limit=${limit}`);
-    const hasMore = data.length === limit;
+    const data = await api.get('/parties');
 
     const renderRows = (items) => items.map(p => `
       <tr>
@@ -45,14 +44,8 @@ export async function renderPartyList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/parties?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-    
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-parties', document.querySelector('#parties-table tbody'), data, renderRows, '/parties');
+      ui.attachTableSearch('search-parties', document.querySelector('#parties-table tbody'), data, renderRows);
     });
 
     // Export button handler

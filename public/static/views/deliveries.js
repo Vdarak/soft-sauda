@@ -23,8 +23,7 @@ export async function renderDeliveryList(ctx) {
   const limit = 50;
 
   try {
-    const data = await api.get(`/deliveries?page=${page}&limit=${limit}`);
-    const hasMore = data.length === limit;
+    const data = await api.get('/deliveries');
 
     const renderRows = (items) => items.map(c => `
       <tr>
@@ -71,14 +70,8 @@ export async function renderDeliveryList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/deliveries?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-    
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-deliveries', document.querySelector('#deliveries-table tbody'), data, renderRows, '/deliveries');
+      ui.attachTableSearch('search-deliveries', document.querySelector('#deliveries-table tbody'), data, renderRows);
     });
 
     // Export button handler

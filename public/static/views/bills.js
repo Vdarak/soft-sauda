@@ -12,8 +12,7 @@ export async function renderBillList(ctx) {
   const limit = 50;
 
   try {
-    const data = await api.get(`/bills?page=${page}&limit=${limit}`);
-    const hasMore = data.length === limit;
+    const data = await api.get('/bills');
     
     const renderRows = (items) => items.map(c => `
       <tr>
@@ -48,14 +47,8 @@ export async function renderBillList(ctx) {
       })}
     `;
 
-    if (hasMore) {
-      const loadMore = document.createElement('div');
-      loadMore.innerHTML = `<div style="text-align:center;margin-top:1rem"><a href="/bills?page=${page + 1}" data-route><button class="secondary">Load More</button></a></div>`;
-      app.appendChild(loadMore);
-    }
-    
     import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-bills', document.querySelector('#bills-table tbody'), data, renderRows, '/bills');
+      ui.attachTableSearch('search-bills', document.querySelector('#bills-table tbody'), data, renderRows);
     });
   } catch (err) { app.innerHTML = `${PageHeader({ title: 'Bills' })}<div class="alert danger">${err.message}</div>`; }
 }
