@@ -5,27 +5,19 @@ import { ok, serverError } from '@/lib/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
-    const tables = [
-      'parties', 
-      'commodities', 
-      'contracts', 
-      'deliveries', 
-      'bills', 
-      'payments', 
-      'ledger'
-    ];
-    
-    // Build a deterministic checksum from COUNT and MAX(id) of all core tables
-    let hashString = '';
-    
-    for (const tbl of tables) {
-      const res = await db.execute(sql.raw(`SELECT COUNT(id) as c, MAX(id) as m FROM ${tbl}`));
-      const row = (res as any[])[0] as { c: string | number, m: string | number | null };
-      hashString += `${tbl}:${row.c}-${row.m || 0}|`;
-    }
+    // Single round-trip: all table counts via one UNION ALL
+    const rows = await db.execute(sql`
+      SELECT 'parties'     AS t, COUNT(id)::text AS c, COALESCE(MAX(id),0)::text AS m FROM parties
+      UNION ALL SELECT 'commodities',  COUNT(id)::text, COALESCE(MAX(id),0)::text FROM commodities
+      UNION ALL SELECT 'contracts',    COUNT(id)::text, COALESCE(MAX(id),0)::text FROM contracts
+      UNION ALL SELECT 'deliveries',   COUNT(id)::text, COALESCE(MAX(id),0)::text FROM deliveries
+      UNION ALL SELECT 'bills',        COUNT(id)::text, COALESCE(MAX(id),0)::text FROM bills
+      UNION ALL SELECT 'payments',     COUNT(id)::text, COALESCE(MAX(id),0)::text FROM payments
+      UNION ALL SELECT 'ledger',       COUNT(id)::text, COALESCE(MAX(id),0)::text FROM ledger
+    `) as { t: string; c: string; m: string }[];
 
-    // A simple checksum string that will change if any item is created or deleted
-    return ok({ checksum: hashString });
+    const checksum = rows.map(r => `${r.t}:${r.c}-${r.m}`).join('|');
+    return ok({ checksum });
   } catch (err) {
     console.error('GET /api/status error:', err);
     return serverError('Failed to generate status checksum');

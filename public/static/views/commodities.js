@@ -176,7 +176,7 @@ export async function renderCommodityForm(id) {
       if (isEdit) { await api.put(`/commodities/${id}`, fd); showToast('Commodity updated'); }
       else { await api.post('/commodities', fd); showToast('Commodity created'); }
       
-      await api.get('/commodities?page=1&limit=50', { forceRefresh: true });
+      await api.get('/commodities', { forceRefresh: true });
       window.history.pushState({}, '', '/commodities');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
@@ -195,7 +195,7 @@ export async function renderCommodityForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/commodities/${id}`);
-        await api.get('/commodities?page=1&limit=50', { forceRefresh: true });
+        await api.get('/commodities', { forceRefresh: true });
         window.history.pushState({}, '', '/commodities');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

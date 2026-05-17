@@ -96,7 +96,7 @@ export async function renderBillForm(id) {
       if (isEdit) { await api.put(`/bills/${id}`, fd); showToast('Bill updated'); }
       else { await api.post('/bills', fd); showToast('Bill created & posted to ledger'); }
       
-      await api.get('/bills?page=1&limit=50', { forceRefresh: true });
+      await api.get('/bills', { forceRefresh: true });
       window.history.pushState({}, '', '/bills'); window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       btn.disabled = false;
@@ -114,7 +114,7 @@ export async function renderBillForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/bills/${id}`);
-        await api.get('/bills?page=1&limit=50', { forceRefresh: true });
+        await api.get('/bills', { forceRefresh: true });
         window.history.pushState({}, '', '/bills');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

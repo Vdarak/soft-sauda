@@ -96,10 +96,6 @@ export async function renderContractList(ctx) {
         ${filterBtn('Active', 'ACTIVE')}
         ${filterBtn('Delivery Pending', 'DELIVERY_PENDING')}
         ${filterBtn('Completed', 'COMPLETED')}
-        <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
-          <input type="number" id="goto-sauda" placeholder="Go to Sauda #" style="width:140px;font-size:0.75rem;padding:0.3rem 0.5rem">
-          <button class="small" id="goto-btn">Go</button>
-        </div>
       </div>
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
@@ -122,26 +118,6 @@ export async function renderContractList(ctx) {
         rows: renderRows(data)
       })}
     `;
-
-    // Go to Sauda # handler
-    const gotoBtn = document.getElementById('goto-btn');
-    const gotoInput = document.getElementById('goto-sauda');
-    if (gotoBtn && gotoInput) {
-      const navigateToSauda = () => {
-        const num = gotoInput.value.trim();
-        if (!num) return;
-        // Find contract by saudaNo in current data
-        const found = data.find(c => String(c.saudaNo) === num);
-        if (found) {
-          window.history.pushState({}, '', `/contracts/${found.id}`);
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        } else {
-          showToast(`Sauda #${num} not found in current page`, 'error');
-        }
-      };
-      gotoBtn.addEventListener('click', navigateToSauda);
-      gotoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateToSauda(); });
-    }
 
     // Attach search engine — fully client-side
     import('../components/ui.js').then(ui => {
@@ -266,13 +242,22 @@ export async function renderContractForm(id) {
 
   document.getElementById('contract-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fd = collectFormData('contract-form');
+    const btn = e.target.querySelector('button[type="submit"]');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
 
+    const fd = collectFormData('contract-form');
     try {
       if (isEdit) { await api.put(`/contracts/${id}`, fd); showToast('Contract updated'); }
       else { await api.post('/contracts', fd); showToast('Contract created'); }
+      await api.get('/contracts', { forceRefresh: true });
       window.history.pushState({}, '', '/contracts');
       window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = ogHtml;
+      showToast(err.message, 'error');
+    }
   });
 }

@@ -127,7 +127,7 @@ export async function renderDeliveryForm(id) {
       if (isEdit) { await api.put(`/deliveries/${id}`, fd); showToast('Delivery updated'); }
       else { await api.post('/deliveries', fd); showToast('Delivery created'); }
       
-      await api.get('/deliveries?page=1&limit=50', { forceRefresh: true });
+      await api.get('/deliveries', { forceRefresh: true });
       window.history.pushState({}, '', '/deliveries');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
@@ -146,7 +146,7 @@ export async function renderDeliveryForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/deliveries/${id}`);
-        await api.get('/deliveries?page=1&limit=50', { forceRefresh: true });
+        await api.get('/deliveries', { forceRefresh: true });
         window.history.pushState({}, '', '/deliveries');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

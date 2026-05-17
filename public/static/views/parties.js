@@ -148,7 +148,7 @@ export async function renderPartyForm(id) {
         showToast('Party created successfully');
       }
       
-      await api.get('/parties?page=1&limit=50', { forceRefresh: true });
+      await api.get('/parties', { forceRefresh: true });
       window.history.pushState({}, '', '/parties');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
@@ -167,7 +167,7 @@ export async function renderPartyForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/parties/${id}`);
-        await api.get('/parties?page=1&limit=50', { forceRefresh: true });
+        await api.get('/parties', { forceRefresh: true });
         window.history.pushState({}, '', '/parties');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

@@ -12,8 +12,8 @@ import * as schema from './schema';
 const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres';
 
 const client = postgres(connectionString, {
-  max: 5,            // Limit pool size for serverless
-  idle_timeout: 20,  // Close idle connections after 20s
+  max: 5,             // Limit pool size for serverless
+  idle_timeout: 120,  // Keep connections alive for 120s (browser timers throttle to ~60s in background tabs)
   connect_timeout: 10,
 });
 

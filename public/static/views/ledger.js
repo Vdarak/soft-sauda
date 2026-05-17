@@ -125,7 +125,7 @@ export async function renderLedgerForm(id) {
       if (isEdit) { await api.put(`/ledger/${id}`, fd); showToast('Entry updated'); }
       else { await api.post('/ledger', fd); showToast('Journal entry created'); }
       
-      await api.get('/ledger?page=1&limit=50', { forceRefresh: true });
+      await api.get('/ledger', { forceRefresh: true });
       window.history.pushState({}, '', '/ledger'); window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       btn.disabled = false;
@@ -143,7 +143,7 @@ export async function renderLedgerForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/ledger/${id}`);
-        await api.get('/ledger?page=1&limit=50', { forceRefresh: true });
+        await api.get('/ledger', { forceRefresh: true });
         window.history.pushState({}, '', '/ledger');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

@@ -7,6 +7,17 @@
 import { Icons, showToast } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
+function warmupOverlayHTML() {
+  return `
+    <div class="warmup-overlay">
+      <img src="/gcc-logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
+      <div class="warmup-overlay-title">Soft Sauda</div>
+      <div class="warmup-overlay-sub">Preparing your workspace…</div>
+      <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
+    </div>
+  `;
+}
+
 export function renderLogin() {
   // Toggle sidebar visibility via a body attribute (CSS-driven, no hydration conflict)
   document.body.setAttribute('data-page', 'login');
@@ -48,14 +59,28 @@ export function renderLogin() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Signing in…';
+
     try {
-      await api.login(username, password);
-      // Remove login mode — sidebar reappears via CSS
+      // Step 1: authenticate only (fast)
+      const data = await api.post('/auth/login', { username, password });
+      api.setToken(data.token);
+      localStorage.setItem('ss_user', data.username);
+
+      // Step 2: show loading overlay while warmup runs
+      app.innerHTML = warmupOverlayHTML();
+      await api.triggerWarmup();
+
+      // Step 3: navigate into the app
       document.body.removeAttribute('data-page');
       showToast('Welcome back!', 'success');
       window.history.pushState({}, '', '/');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Sign In';
       errEl.textContent = err.message || 'Login failed';
       errEl.style.display = 'block';
     }

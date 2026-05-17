@@ -100,13 +100,18 @@ function initRouter() {
   // Start router — binds popstate + [data-route] clicks + handles initial URL
   r.ready();
 
-  // After each navigation, update sidebar highlight
+  // After each navigation (click-based via r.navigate), update sidebar highlight
   const origNav = r.navigate.bind(r);
   r.navigate = function(path, ...args) {
     origNav(path, ...args);
     updateSidebarActive(path);
   };
-  
+
+  // Also update on programmatic popstate (pushState + dispatchEvent used by all views after save/delete)
+  window.addEventListener('popstate', () => {
+    updateSidebarActive(window.location.pathname);
+  });
+
   // Highlight on initial load
   updateSidebarActive(window.location.pathname);
 }

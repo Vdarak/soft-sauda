@@ -103,7 +103,7 @@ export async function renderPaymentForm(id) {
       if (isEdit) { await api.put(`/payments/${id}`, fd); showToast('Payment updated'); }
       else { await api.post('/payments', fd); showToast('Payment recorded & bill balance updated'); }
       
-      await api.get('/payments?page=1&limit=50', { forceRefresh: true });
+      await api.get('/payments', { forceRefresh: true });
       window.history.pushState({}, '', '/payments'); window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       btn.disabled = false;
@@ -121,7 +121,7 @@ export async function renderPaymentForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/payments/${id}`);
-        await api.get('/payments?page=1&limit=50', { forceRefresh: true });
+        await api.get('/payments', { forceRefresh: true });
         window.history.pushState({}, '', '/payments');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
