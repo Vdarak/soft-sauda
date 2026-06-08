@@ -91,9 +91,20 @@ export async function PUT(req: NextRequest, context: Params) {
       const description = body.description || `Bill against ${basis}`;
       const firstLine = await tx.select().from(billLines).where(eq(billLines.billId, id)).limit(1);
       if (firstLine.length > 0) {
-        await tx.update(billLines).set({ description, amount: totalAmount.toString(), referenceType: basis }).where(eq(billLines.id, firstLine[0].id));
+        await tx.update(billLines).set({
+          description,
+          amount: totalAmount.toString(),
+          referenceType: basis,
+          referenceId: body.referenceId ? parseInt(body.referenceId, 10) : null,
+        }).where(eq(billLines.id, firstLine[0].id));
       } else {
-        await tx.insert(billLines).values({ billId: id, description, amount: totalAmount.toString(), referenceType: basis });
+        await tx.insert(billLines).values({
+          billId: id,
+          description,
+          amount: totalAmount.toString(),
+          referenceType: basis,
+          referenceId: body.referenceId ? parseInt(body.referenceId, 10) : null,
+        });
       }
     });
 

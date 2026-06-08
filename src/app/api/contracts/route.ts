@@ -265,14 +265,11 @@ export async function POST(req: NextRequest) {
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
     if (!body.saudaNo) return badRequest('Sauda No is required');
-    if (!body.commodity) return badRequest('Commodity is required');
     if (!body.sellerName) return badRequest('Seller is required');
     if (!body.buyerName) return badRequest('Buyer is required');
 
     let result: any;
     await db.transaction(async (tx) => {
-      const commodityId = await resolveCommodity(body.commodity, tx);
-      const packagingId = await resolvePackaging(commodityId, body.packaging, tx);
       const sellerId = await resolveParty(body.sellerName, tx);
       const buyerId = await resolveParty(body.buyerName, tx);
       const sellerBrokerId = await resolveParty(body.sellerBroker, tx);
@@ -281,11 +278,21 @@ export async function POST(req: NextRequest) {
       const [contract] = await tx.insert(contracts).values({
         saudaNo: parseInt(body.saudaNo, 10),
         saudaBook: body.saudaBook || 'Main Book',
+        saudaPrefix: body.saudaPrefix || null,
         saudaDate: body.saudaDate ? new Date(body.saudaDate) : new Date(),
         deliveryTerm: body.deliveryTerm || null,
-        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : 'DISCOUNT',
+        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : body.paymentTermType === 'PAYMENT' ? 'PAYMENT' : 'DISCOUNT',
         paymentPercent: body.paymentPercent || null,
         paymentDays: body.paymentDays ? parseInt(body.paymentDays, 10) : null,
+        deliveryDeadlineDate: body.deliveryDeadlineDate ? new Date(body.deliveryDeadlineDate) : null,
+        approxWeight: body.approxWeight || null,
+        quantityTolerance: body.quantityTolerance || null,
+        originStation: body.originStation || null,
+        destinationStation: body.destinationStation || null,
+        taxFormRequired: body.taxFormRequired || null,
+        poNumber: body.poNumber || null,
+        poDate: body.poDate ? new Date(body.poDate) : null,
+        termsAndConditions: body.termsAndConditions || null,
         status: 'ACTIVE',
         customRemarks: body.remarks || null,
       }).returning();
@@ -297,18 +304,41 @@ export async function POST(req: NextRequest) {
       if (buyerBrokerId && buyerBrokerId !== sellerBrokerId) partyInserts.push({ contractId: contract.id, partyId: buyerBrokerId, role: 'BUYER_BROKER' as const });
       if (partyInserts.length > 0) await tx.insert(contractParties).values(partyInserts);
 
-      const weight = parseFloat(body.weight || '0');
-      const rate = parseFloat(body.rate || '0');
-      await tx.insert(contractLines).values({
-        contractId: contract.id,
-        commodityId,
-        packagingId,
-        brand: body.brand || null,
-        numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
-        weightQuintals: weight.toString(),
-        rate: rate.toString(),
-        amount: (weight * rate).toString(),
-      });
+      const contractLinesToInsert = [];
+      const lines = body.lines && Array.isArray(body.lines) ? body.lines : [{
+        commodity: body.commodity,
+        packaging: body.packaging,
+        brand: body.brand,
+        numberOfLorries: body.numberOfLorries,
+        weight: body.weight,
+        rate: body.rate,
+        quantityBags: body.quantityBags,
+      }];
+
+      for (const line of lines) {
+        if (!line.commodity) continue;
+        const commodityId = await resolveCommodity(line.commodity, tx);
+        const packagingId = await resolvePackaging(commodityId, line.packaging, tx);
+        const weight = parseFloat(line.weight || line.weightQuintals || '0');
+        const rate = parseFloat(line.rate || '0');
+        const qtyBags = line.quantityBags ? parseFloat(line.quantityBags) : null;
+
+        contractLinesToInsert.push({
+          contractId: contract.id,
+          commodityId,
+          packagingId,
+          brand: line.brand || null,
+          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : null,
+          quantityBags: qtyBags ? qtyBags.toString() : null,
+          weightQuintals: weight.toString(),
+          rate: rate.toString(),
+          amount: (weight * rate).toString(),
+        });
+      }
+
+      if (contractLinesToInsert.length > 0) {
+        await tx.insert(contractLines).values(contractLinesToInsert);
+      }
 
       result = contract;
     });
@@ -316,6 +346,7 @@ export async function POST(req: NextRequest) {
     cacheInvalidate('contracts');
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
+    cacheInvalidate('dashboard');
     return created(result);
   } catch (err: any) {
     console.error('POST /api/contracts error:', err);

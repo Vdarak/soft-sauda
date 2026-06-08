@@ -98,6 +98,18 @@ async function request(method, path, body = null, options = {}) {
        clientCache.set(path, data);
     }
     persistCache();
+  } else {
+    // If a write operation was performed, clear caches and reload mega payload
+    const isTargetEntity = path.startsWith('/contracts') || 
+                           path.startsWith('/deliveries') || 
+                           path.startsWith('/bills') || 
+                           path.startsWith('/payments');
+    if (isTargetEntity) {
+      sessionStorage.removeItem('ss_mega_payload');
+      sessionStorage.removeItem('gcc_mega_payload');
+      clientCache.clear();
+      triggerWarmup().catch(err => console.error('[api.js] Background warmup failed:', err));
+    }
   }
 
   return data;

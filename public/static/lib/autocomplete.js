@@ -6,7 +6,7 @@
  *
  * Usage:
  *   import { attachPartyAutocomp, attachCommodityAutocomp } from '../lib/autocomplete.js';
- *   attachPartyAutocomp('sellerName');  // binds to <input id="sellerName">
+ *   attachPartyAutocomp('sellerName', (name, party) => { ... });
  */
 
 import { autocomp } from '../vendor/autocomp.js';
@@ -14,9 +14,7 @@ import { get, clientCache } from './api.js';
 
 /** Return the full parties list from clientCache (populated by warmup). */
 async function getPartiesList() {
-  // clientCache has '/parties' → full array, loaded at login via warmup payload
   if (clientCache.has('/parties')) return clientCache.get('/parties');
-  // Fallback: fetch once and it will be cached by the api client
   return get('/parties');
 }
 
@@ -28,7 +26,7 @@ async function getCommoditiesList() {
 
 /**
  * Attach party name autocomplete to an input field.
- * Filters locally — no network request per keystroke.
+ * Passes (name, partyObject) to onSelectCb.
  */
 export function attachPartyAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -39,16 +37,20 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
       if (!val || val.trim() === '') return [];
       const q = val.toLowerCase();
       const all = await getPartiesList();
-      return (all || [])
+      const matches = (all || [])
         .filter(p => p.name && p.name.toLowerCase().includes(q))
-        .slice(0, 15)
-        .map(p => p.name + (p.place ? ` (${p.place})` : ''));
+        .slice(0, 15);
+      el._matches = matches;
+      return matches.map(p => p.name + (p.place ? ` (${p.place})` : ''));
     },
     onSelect: (val) => {
-      // Strip the " (place)" suffix that was appended for display
       const name = val.includes(' (') ? val.slice(0, val.lastIndexOf(' (')) : val;
       el.value = name;
-      if (onSelectCb) onSelectCb(name);
+      let matchedObj = null;
+      if (el._matches) {
+        matchedObj = el._matches.find(p => p.name === name);
+      }
+      if (onSelectCb) onSelectCb(name, matchedObj);
       return name;
     },
   });
@@ -56,7 +58,7 @@ export function attachPartyAutocomp(inputId, onSelectCb) {
 
 /**
  * Attach commodity name autocomplete to an input field.
- * Filters locally — no network request per keystroke.
+ * Passes (name, commodityObject) to onSelectCb.
  */
 export function attachCommodityAutocomp(inputId, onSelectCb) {
   const el = document.getElementById(inputId);
@@ -67,15 +69,20 @@ export function attachCommodityAutocomp(inputId, onSelectCb) {
       if (!val || val.trim() === '') return [];
       const q = val.toLowerCase();
       const all = await getCommoditiesList();
-      return (all || [])
+      const matches = (all || [])
         .filter(c => c.name && c.name.toLowerCase().includes(q))
-        .slice(0, 15)
-        .map(c => c.name + (c.unit ? ` (${c.unit})` : ''));
+        .slice(0, 15);
+      el._matches = matches;
+      return matches.map(c => c.name + (c.unit ? ` (${c.unit})` : ''));
     },
     onSelect: (val) => {
       const name = val.includes(' (') ? val.slice(0, val.lastIndexOf(' (')) : val;
       el.value = name;
-      if (onSelectCb) onSelectCb(name);
+      let matchedObj = null;
+      if (el._matches) {
+        matchedObj = el._matches.find(c => c.name === name);
+      }
+      if (onSelectCb) onSelectCb(name, matchedObj);
       return name;
     },
   });

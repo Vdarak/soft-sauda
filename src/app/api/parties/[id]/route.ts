@@ -6,7 +6,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { parties, partyTaxIds, partyBankDetails, partyContacts, partyDeliveryAddresses } from '@/db/schema';
+import { parties, partyTaxIds, partyBankDetails, partyContacts, partyDeliveryAddresses, partyRoles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -30,6 +30,7 @@ export async function GET(req: NextRequest, context: Params) {
     const bankDetails = await db.select().from(partyBankDetails).where(eq(partyBankDetails.partyId, id));
     const contacts = await db.select().from(partyContacts).where(eq(partyContacts.partyId, id));
     const deliveryAddresses = await db.select().from(partyDeliveryAddresses).where(eq(partyDeliveryAddresses.partyId, id));
+    const roles = await db.select().from(partyRoles).where(eq(partyRoles.partyId, id));
 
     const result = {
       ...party[0],
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest, context: Params) {
       bankDetails,
       contacts,
       deliveryAddresses,
+      roles,
     };
 
     cacheSet(cacheKey, result, 300);
@@ -66,6 +68,7 @@ export async function PUT(req: NextRequest, context: Params) {
         pinCode: body.pinCode || null,
         creditLimit: body.creditLimit || null,
         phone: body.phone || null,
+        phoneRes: body.phoneRes || null,
         smsMobile: body.smsMobile || null,
         mill: body.mill || null,
         fax: body.fax || null,
@@ -84,6 +87,52 @@ export async function PUT(req: NextRequest, context: Params) {
       if (body.cstNo) taxEntries.push({ partyId: id, taxType: 'CST_NO' as const, taxValue: body.cstNo });
       if (taxEntries.length > 0) {
         await tx.insert(partyTaxIds).values(taxEntries);
+      }
+
+      // Wipe and rewrite roles
+      await tx.delete(partyRoles).where(eq(partyRoles.partyId, id));
+      if (body.roles && Array.isArray(body.roles) && body.roles.length > 0) {
+        const roleInserts = body.roles.map((r: string) => ({ partyId: id, role: r as any }));
+        await tx.insert(partyRoles).values(roleInserts);
+      }
+
+      // Wipe and rewrite contacts
+      await tx.delete(partyContacts).where(eq(partyContacts.partyId, id));
+      if (body.contacts && Array.isArray(body.contacts) && body.contacts.length > 0) {
+        const contactInserts = body.contacts.map((c: any) => ({
+          partyId: id,
+          contactName: c.contactName,
+          contactNumber: c.contactNumber,
+          emailId: c.emailId || null,
+          designation: c.designation || null,
+        }));
+        await tx.insert(partyContacts).values(contactInserts);
+      }
+
+      // Wipe and rewrite bank details
+      await tx.delete(partyBankDetails).where(eq(partyBankDetails.partyId, id));
+      if (body.bankDetails && Array.isArray(body.bankDetails) && body.bankDetails.length > 0) {
+        const bankInserts = body.bankDetails.map((b: any) => ({
+          partyId: id,
+          bankName: b.bankName || null,
+          accountNo: b.accountNo || null,
+          ifscCode: b.ifscCode || null,
+          branch: b.branch || null,
+        }));
+        await tx.insert(partyBankDetails).values(bankInserts);
+      }
+
+      // Wipe and rewrite delivery addresses
+      await tx.delete(partyDeliveryAddresses).where(eq(partyDeliveryAddresses.partyId, id));
+      if (body.deliveryAddresses && Array.isArray(body.deliveryAddresses) && body.deliveryAddresses.length > 0) {
+        const addrInserts = body.deliveryAddresses.map((a: any) => ({
+          partyId: id,
+          addressLine: a.addressLine,
+          city: a.city || null,
+          state: a.state || null,
+          pincode: a.pincode || null,
+        }));
+        await tx.insert(partyDeliveryAddresses).values(addrInserts);
       }
     });
 

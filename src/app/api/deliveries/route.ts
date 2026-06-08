@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { deliveries, deliveryLines, parties, contractLines, contracts } from '@/db/schema';
+import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
         id: deliveries.id,
         dispatchDate: deliveries.dispatchDate,
         truckNo: deliveries.truckNo,
+        billNo: deliveries.billNo,
+        carrierBillDate: deliveries.carrierBillDate,
         transporterId: deliveries.transporterId,
+        advancePaymentCollected: deliveries.advancePaymentCollected,
         status: deliveries.status,
         createdAt: deliveries.createdAt,
         transporterName: parties.name,
@@ -84,7 +87,9 @@ export async function GET(req: NextRequest) {
       dispatchDate: deliveries.dispatchDate,
       truckNo: deliveries.truckNo,
       billNo: deliveries.billNo,
+      carrierBillDate: deliveries.carrierBillDate,
       transporterId: deliveries.transporterId,
+      advancePaymentCollected: deliveries.advancePaymentCollected,
       status: deliveries.status,
       createdAt: deliveries.createdAt,
       transporterName: parties.name,
@@ -149,28 +154,60 @@ export async function POST(req: NextRequest) {
   try {
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
-    if (!body.contractLineId) return badRequest('Contract Line ID is required');
-    if (!body.dispatchedWeight) return badRequest('Dispatched weight is required');
 
-    const transporterId = await resolveParty(body.transporterName);
+    // Retrieve the active transaction database
+    const result = await db.transaction(async (tx) => {
+      const transporterId = await resolveParty(body.transporterName);
 
-    const [delivery] = await db.insert(deliveries).values({
-      dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
-      truckNo: body.truckNo || null,
-      billNo: body.billNo || null,
-      transporterId,
-      status: 'DISPATCHED',
-    }).returning();
+      const [delivery] = await tx.insert(deliveries).values({
+        dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
+        truckNo: body.truckNo || null,
+        billNo: body.billNo || null,
+        carrierBillDate: body.carrierBillDate ? new Date(body.carrierBillDate) : null,
+        transporterId,
+        advancePaymentCollected: body.advancePaymentCollected ? parseFloat(body.advancePaymentCollected).toString() : null,
+        status: body.status || 'DISPATCHED',
+      }).returning();
 
-    await db.insert(deliveryLines).values({
-      deliveryId: delivery.id,
-      contractLineId: parseInt(body.contractLineId, 10),
-      dispatchedBags: body.dispatchedBags ? parseFloat(body.dispatchedBags).toString() : null,
-      dispatchedWeight: parseFloat(body.dispatchedWeight).toString(),
+      // Write multi-line deliveryLines
+      const lines = body.lines && Array.isArray(body.lines) ? body.lines : [];
+      if (lines.length > 0) {
+        for (const line of lines) {
+          if (!line.contractLineId || !line.dispatchedWeight) continue;
+          await tx.insert(deliveryLines).values({
+            deliveryId: delivery.id,
+            contractLineId: parseInt(line.contractLineId, 10),
+            dispatchedBags: line.dispatchedBags ? parseFloat(line.dispatchedBags).toString() : null,
+            dispatchedWeight: parseFloat(line.dispatchedWeight).toString(),
+          });
+        }
+      } else if (body.contractLineId && body.dispatchedWeight) {
+        // Fallback for single line inputs
+        await tx.insert(deliveryLines).values({
+          deliveryId: delivery.id,
+          contractLineId: parseInt(body.contractLineId, 10),
+          dispatchedBags: body.dispatchedBags ? parseFloat(body.dispatchedBags).toString() : null,
+          dispatchedWeight: parseFloat(body.dispatchedWeight).toString(),
+        });
+      }
+
+      // Write deliveryCharges
+      const charges = body.charges && Array.isArray(body.charges) ? body.charges : [];
+      for (const charge of charges) {
+        if (!charge.chargeType || charge.amount === undefined || charge.amount === null) continue;
+        const amtVal = parseFloat(charge.amount || '0');
+        await tx.insert(deliveryCharges).values({
+          deliveryId: delivery.id,
+          chargeType: charge.chargeType,
+          amount: amtVal.toString(),
+        });
+      }
+
+      return delivery;
     });
 
     cacheInvalidate('deliveries');
-    return created(delivery);
+    return created(result);
   } catch (err) {
     console.error('POST /api/deliveries error:', err);
     return serverError('Failed to create delivery');

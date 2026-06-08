@@ -1,63 +1,237 @@
 /**
- * Bills View — List + Create/Edit form with ledger posting
+ * Bills View — List + Create/Edit form with ledger posting & reference auto-fills
  */
 import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
 import * as api from '../lib/api.js';
+import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
+import { autocomp } from '../vendor/autocomp.js';
+
+function attachReferenceAutocomplete(inputId, basis, onSelectCb) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  
+  autocomp(el, {
+    onQuery: async (val) => {
+      if (!val || val.trim() === '') return [];
+      const q = val.toLowerCase();
+      
+      const billsList = clientCache.get('/bills') || await api.get('/bills');
+      if (basis === 'CONTRACT') {
+        const contractsList = clientCache.get('/contracts') || await api.get('/contracts');
+        const billedContractIds = new Set(
+          billsList.filter(b => b.basis === 'CONTRACT').flatMap(b => b.lines || []).map(l => l.referenceId).filter(Boolean)
+        );
+        const matches = contractsList.filter(c => {
+          if (billedContractIds.has(c.id)) return false;
+          return String(c.saudaNo).includes(q) || (c.buyerName && c.buyerName.toLowerCase().includes(q)) || (c.sellerName && c.sellerName.toLowerCase().includes(q));
+        });
+        el._matches = matches;
+        return matches.map(c => `Sauda #${c.saudaNo} - ${c.buyerName} vs ${c.sellerName} (Amt: ₹${c.amount})`);
+      } else {
+        const deliveriesList = clientCache.get('/deliveries') || await api.get('/deliveries');
+        const billedDeliveryIds = new Set(
+          billsList.filter(b => b.basis === 'DELIVERY').flatMap(b => b.lines || []).map(l => l.referenceId).filter(Boolean)
+        );
+        const matches = deliveriesList.filter(d => {
+          if (billedDeliveryIds.has(d.id)) return false;
+          return String(d.id).includes(q) || (d.truckNo && d.truckNo.toLowerCase().includes(q)) || (d.transporterName && d.transporterName.toLowerCase().includes(q));
+        });
+        el._matches = matches;
+        return matches.map(d => `Disp #${d.id} - Truck: ${d.truckNo || '-'} - Transporter: ${d.transporterName || '-'} (Sauda: #${d.saudaNo || '-'})`);
+      }
+    },
+    onSelect: (val) => {
+      el.value = val;
+      let matchedObj = null;
+      if (el._matches) {
+        matchedObj = el._matches.find(m => {
+          if (basis === 'CONTRACT') {
+            return val.startsWith(`Sauda #${m.saudaNo}`);
+          } else {
+            return val.startsWith(`Disp #${m.id}`);
+          }
+        });
+      }
+      if (onSelectCb) onSelectCb(val, matchedObj);
+      return val;
+    }
+  });
+}
 
 export async function renderBillList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
-  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
-  const limit = 50;
 
   try {
-    const data = await api.get('/bills');
-    
-    const renderRows = (items) => items.map(c => `
+    let sortBy = 'date'; // default sorting
+    let data = await api.get(`/reports/bill-register?sortBy=${sortBy}`, { forceRefresh: true });
+
+    const renderRows = (items) => items.map(b => `
       <tr>
+        <td style="font-weight: 600;">${escapeHtml(b.billNo)}</td>
+        <td>${formatDate(b.billDate)}</td>
+        <td style="font-weight: 500;">${escapeHtml(b.partyName)}</td>
+        <td>${escapeHtml(b.place || '-')}</td>
         <td>
-          <div style="font-weight:600">${c.billNo}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(c.billDate)}</div>
+          <span class="badge badge-active" style="font-size: 0.6875rem;">${b.basis}</span>
         </td>
-        <td>
-          <div style="font-weight:600">${escapeHtml(c.partyName)}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Basis: ${c.billBasis}</div>
-        </td>
-        <td style="text-align:right" class="mono">${formatCurrency(c.totalAmount)}</td>
-        <td style="text-align:right">
-          <a href="/bills/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        <td style="text-align: right; font-weight: 700; color: var(--primary);" class="mono">${formatCurrency(b.totalAmount)}</td>
+        <td style="text-align: right;">
+          <a href="/bills/${b.id}" data-route><button class="small">${Icons.edit || 'Edit'}</button></a>
         </td>
       </tr>
     `);
 
+    const updateView = (billsList) => {
+      const container = document.getElementById('bills-table-container');
+      if (!container) return;
+
+      container.innerHTML = `
+        <table id="bills-table">
+          <thead>
+            <tr>
+              <th>Bill No</th>
+              <th>Bill Date</th>
+              <th>Billed Party</th>
+              <th>Station / City</th>
+              <th>Basis</th>
+              <th style="text-align: right;">Total Amount</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${billsList.length === 0 
+              ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No bills found.</td></tr>`
+              : renderRows(billsList).join('')}
+          </tbody>
+        </table>
+      `;
+
+      import('../components/ui.js').then(ui => {
+        ui.attachTableSearch('search-bills', document.querySelector('#bills-table tbody'), billsList, renderRows);
+      });
+    };
+
     app.innerHTML = `
-      ${PageHeader({ title: 'Bills', actions: `<a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>` })}
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
-        <div class="form-group" style="margin:0; flex:1; position:relative">
-          <input type="text" id="search-bills" placeholder="Search bills..." style="padding-left:2.5rem; width:100%">
-          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
+      ${PageHeader({ 
+        title: 'Bills (Register)', 
+        subtitle: 'Manage billing invoices and audit register logs',
+        actions: `
+          <button class="secondary" id="btn-print-bills" style="margin-right:0.5rem">${Icons.fileText || ''} Print List (P)</button>
+          <button class="secondary" id="btn-export-bills" style="margin-right:0.5rem">📥 Export Excel</button>
+          <a href="/bills/batch-billing" data-route style="margin-right:0.5rem"><button class="secondary">⚙ Batch Billing</button></a>
+          <a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>
+        ` 
+      })}
+      
+      <div class="form-grid" style="grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: start;">
+        <!-- Left Sidebar: Sorting Macros -->
+        <div class="table-container" style="padding: 1.25rem; background: var(--card);">
+          <h3 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">Sort Register</h3>
+          
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
+              <input type="radio" name="sorting" value="date" checked> Date Wise
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
+              <input type="radio" name="sorting" value="city"> City / Station Wise
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
+              <input type="radio" name="sorting" value="proprietor"> Proprietor Wise
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
+              <input type="radio" name="sorting" value="type"> Billing Basis Wise
+            </label>
+          </div>
+        </div>
+
+        <!-- Right Content: Report Grid -->
+        <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+          <div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem; width:100%">
+            <div class="form-group" style="margin:0; flex:1; position:relative">
+              <input type="text" id="search-bills" placeholder="Search bills..." style="padding-left:2.5rem; width:100%">
+              <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
+            </div>
+          </div>
+
+          <div id="bills-table-container" class="table-container" style="background: var(--card);">
+            <!-- Render bills table here -->
+          </div>
         </div>
       </div>
-      ${DataTable({
-        id: 'bills-table',
-        count: data.length,
-        headers: [ { label: 'Bill No & Date' }, { label: 'Party & Basis' }, { label: 'Amount', style: 'text-align:right' }, { label: '', style: 'text-align:right' } ],
-        rows: renderRows(data)
-      })}
     `;
 
-    import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-bills', document.querySelector('#bills-table tbody'), data, renderRows);
+    updateView(data);
+
+    // Bind Sorting changes
+    document.querySelectorAll('input[name="sorting"]').forEach(radio => {
+      radio.addEventListener('change', async (e) => {
+        sortBy = e.target.value;
+        const container = document.getElementById('bills-table-container');
+        if (container) {
+          container.innerHTML = `<div style="padding: 2rem; text-align: center;"><span class="spinner"></span> Sorting bills...</div>`;
+        }
+        try {
+          const sortedData = await api.get(`/reports/bill-register?sortBy=${sortBy}`, { forceRefresh: true });
+          updateView(sortedData);
+        } catch (err) {
+          if (container) {
+            container.innerHTML = `<div class="alert danger">${escapeHtml(err.message)}</div>`;
+          }
+        }
+      });
     });
-  } catch (err) { app.innerHTML = `${PageHeader({ title: 'Bills' })}<div class="alert danger">${err.message}</div>`; }
+
+    // Export Excel handler
+    document.getElementById('btn-export-bills')?.addEventListener('click', () => {
+      import('../components/ui.js').then(ui => {
+        ui.exportToExcel(`/reports/bill-register?sortBy=${sortBy}`, `bill_register_${sortBy}`);
+      });
+    });
+
+    // Print handler
+    document.getElementById('btn-print-bills')?.addEventListener('click', () => {
+      window.print();
+    });
+
+  } catch (err) { 
+    app.innerHTML = `${PageHeader({ title: 'Bills' })}<div class="alert danger">${err.message}</div>`; 
+  }
 }
 
 export async function renderBillForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
   let bill = {};
-  if (isEdit) { try { bill = await api.get(`/bills/${id}`); } catch (err) { app.innerHTML = `<div class="alert danger">${err.message}</div>`; return; } }
+  if (isEdit) {
+    try {
+      bill = await api.get(`/bills/${id}`);
+    } catch (err) {
+      app.innerHTML = `<div class="alert danger">${err.message}</div>`;
+      return;
+    }
+  }
+
+  // Pre-resolve initial reference text if editing
+  let initialRefText = '';
+  const firstLine = bill.lines?.[0] || {};
+  const refId = firstLine.referenceId;
+  if (isEdit && refId && (bill.basis === 'CONTRACT' || bill.basis === 'DELIVERY')) {
+    if (bill.basis === 'CONTRACT') {
+      const contractsList = clientCache.get('/contracts') || [];
+      const contract = contractsList.find(c => c.id === refId);
+      if (contract) {
+        initialRefText = `Sauda #${contract.saudaNo} - ${contract.buyerName} vs ${contract.sellerName} (Amt: ₹${contract.amount})`;
+      }
+    } else {
+      const deliveriesList = clientCache.get('/deliveries') || [];
+      const delivery = deliveriesList.find(d => d.id === refId);
+      if (delivery) {
+        initialRefText = `Disp #${delivery.id} - Truck: ${delivery.truckNo || '-'} - Transporter: ${delivery.transporterName || '-'} (Sauda: #${delivery.saudaNo || '-'})`;
+      }
+    }
+  }
 
   app.innerHTML = `
     ${PageHeader({ title: isEdit ? `Edit Bill: ${bill.billNo}` : 'New Bill', backHref: '/bills' })}
@@ -66,11 +240,18 @@ export async function renderBillForm(id) {
         <div class="form-grid">
           ${FormGroup({ id: 'billNo', label: 'Bill Number', value: bill.billNo || '', required: true })}
           ${FormGroup({ id: 'billDate', label: 'Bill Date', value: bill.billDate ? new Date(bill.billDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+          ${FormGroup({ id: 'basis', label: 'Basis', value: bill.basis || 'DIRECT', type: 'select', options: [{ value: 'DIRECT', label: 'Direct' }, { value: 'CONTRACT', label: 'Contract' }, { value: 'DELIVERY', label: 'Delivery' }] })}
+          
+          <div class="form-group" id="reference-group" style="display: none;">
+            <label for="referenceSearch" id="reference-label">Reference No / ID *</label>
+            <input type="text" id="referenceSearch" value="${initialRefText}" placeholder="Type to search unbilled references...">
+            <input type="hidden" id="referenceId" name="referenceId" value="${refId || ''}">
+          </div>
+
           ${FormGroup({ id: 'partyName', label: 'Party', value: bill.partyName || '', required: true, placeholder: 'Start typing to search...' })}
-          ${FormGroup({ id: 'basis', label: 'Basis', value: bill.basis || '', type: 'select', options: [{ value: 'DIRECT', label: 'Direct' }, { value: 'CONTRACT', label: 'Contract' }, { value: 'DELIVERY', label: 'Delivery' }] })}
           ${FormGroup({ id: 'totalAmount', label: 'Total Amount (₹)', value: bill.totalAmount || '', type: 'number', required: true })}
           ${FormGroup({ id: 'creditDays', label: 'Credit Days', value: bill.creditDays || '', type: 'number' })}
-          ${FormGroup({ id: 'description', label: 'Description', value: bill.lines?.[0]?.description || '', type: 'textarea' })}
+          ${FormGroup({ id: 'description', label: 'Description', value: firstLine.description || '', type: 'textarea' })}
         </div>
         <div class="form-actions">
           <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
@@ -84,6 +265,75 @@ export async function renderBillForm(id) {
   // Attach party autocomplete
   attachPartyAutocomp('partyName');
 
+  const basisSelect = document.getElementById('basis');
+  const refGroup = document.getElementById('reference-group');
+  const refLabel = document.getElementById('reference-label');
+  const refSearch = document.getElementById('referenceSearch');
+  const refIdInput = document.getElementById('referenceId');
+
+  const updateReferenceVisibility = () => {
+    const val = basisSelect.value;
+    if (val === 'DIRECT') {
+      refGroup.style.display = 'none';
+      refIdInput.value = '';
+      refSearch.value = '';
+    } else {
+      refGroup.style.display = '';
+      refLabel.textContent = val === 'CONTRACT' ? 'Contract Reference (Sauda) *' : 'Delivery Reference (Dispatch) *';
+      
+      // Attach autocomplete based on select
+      attachReferenceAutocomplete('referenceSearch', val, (text, item) => {
+        if (item) {
+          refIdInput.value = item.id;
+          
+          if (val === 'CONTRACT') {
+            document.getElementById('partyName').value = item.buyerName || '';
+            document.getElementById('totalAmount').value = item.amount || '';
+            document.getElementById('creditDays').value = item.paymentDays || '';
+            document.getElementById('description').value = `Sauda Contract #${item.saudaNo} - ${item.commodityName || 'Grains'} wt: ${item.weight || '0'} Qtl`;
+          } else {
+            // Delivery
+            let deliveryAmount = 0;
+            let descParts = [];
+            let buyerName = '';
+            let creditDays = '';
+            
+            if (item.lines && item.lines.length > 0) {
+              item.lines.forEach(line => {
+                const wt = parseFloat(line.dispatchedWeight || '0');
+                const rate = parseFloat(line.rate || '0');
+                deliveryAmount += wt * rate;
+                descParts.push(`${line.commodityName || 'Commodity'} (${wt} Qtl @ ₹${rate})`);
+              });
+              
+              const firstLine = item.lines[0];
+              const contractsList = clientCache.get('/contracts') || [];
+              const contract = contractsList.find(c => String(c.saudaNo) === String(firstLine.saudaNo));
+              if (contract) {
+                buyerName = contract.buyerName;
+                creditDays = contract.paymentDays || '';
+              }
+            }
+            
+            document.getElementById('partyName').value = buyerName;
+            document.getElementById('totalAmount').value = deliveryAmount.toFixed(2);
+            document.getElementById('creditDays').value = creditDays;
+            document.getElementById('description').value = `Lorry Dispatch #${item.id} Truck: ${item.truckNo || '-'} - ${descParts.join(', ')}`;
+          }
+        }
+      });
+    }
+  };
+
+  basisSelect.addEventListener('change', () => {
+    refIdInput.value = '';
+    refSearch.value = '';
+    updateReferenceVisibility();
+  });
+
+  // Initial load execution
+  updateReferenceVisibility();
+
   document.getElementById('bill-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
@@ -92,12 +342,21 @@ export async function renderBillForm(id) {
     btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
 
     const fd = collectFormData('bill-form');
+    // referenceSearch is search-only
+    delete fd.referenceSearch;
+
     try {
-      if (isEdit) { await api.put(`/bills/${id}`, fd); showToast('Bill updated'); }
-      else { await api.post('/bills', fd); showToast('Bill created & posted to ledger'); }
+      if (isEdit) {
+        await api.put(`/bills/${id}`, fd);
+        showToast('Bill updated');
+      } else {
+        await api.post('/bills', fd);
+        showToast('Bill created & posted to ledger');
+      }
       
       await api.get('/bills', { forceRefresh: true });
-      window.history.pushState({}, '', '/bills'); window.dispatchEvent(new PopStateEvent('popstate'));
+      window.history.pushState({}, '', '/bills');
+      window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       btn.disabled = false;
       btn.innerHTML = ogHtml;

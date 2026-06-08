@@ -9,7 +9,7 @@ export const taxIdTypeEnum = pgEnum('tax_id_type', ['GSTIN', 'VAT_TIN', 'CST_TIN
 export const contractStatusEnum = pgEnum('contract_status', ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED']);
 export const deliveryStatusEnum = pgEnum('delivery_status', ['PENDING', 'DISPATCHED', 'DELIVERED', 'CANCELLED']);
 export const billBasisEnum = pgEnum('bill_basis', ['CONTRACT', 'DELIVERY', 'DIRECT', 'DALALI']);
-export const paymentTermTypeEnum = pgEnum('payment_term_type', ['DISCOUNT', 'CREDIT']);
+export const paymentTermTypeEnum = pgEnum('payment_term_type', ['DISCOUNT', 'CREDIT', 'PAYMENT']);
 
 // ==========================================
 // 1. PARTIES DOMAIN
@@ -27,6 +27,7 @@ export const parties = pgTable("parties", {
   // Credit & Communication Fields
   creditLimit: numeric("credit_limit", { precision: 15, scale: 2 }),
   phone: text("phone"),
+  phoneRes: text("phone_res"),
   smsMobile: text("sms_mobile"),
   mill: text("mill"),
   fax: text("fax"),
@@ -82,6 +83,8 @@ export const partyContacts = pgTable("party_contacts", {
   partyId: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
   contactName: text("contact_name").notNull(),
   contactNumber: text("contact_number").notNull(),
+  emailId: text("email_id"),
+  designation: text("designation"),
 });
 
 // ==========================================
@@ -108,6 +111,7 @@ export const commodityPackaging = pgTable("commodity_packaging", {
   id: serial("id").primaryKey(),
   commodityId: integer("commodity_id").references(() => commodities.id, { onDelete: "cascade" }).notNull(),
   packingWeight: numeric("packing_weight", { precision: 10, scale: 3 }).notNull(),
+  packingWeight2: numeric("packing_weight_2", { precision: 10, scale: 3 }),
   packingType: text("packing_type").notNull(),
   sellerBrokerageRate: numeric("seller_brokerage_rate", { precision: 10, scale: 2 }),
   sellerBrokerageType: text("seller_brokerage_type"),
@@ -131,6 +135,7 @@ export const contracts = pgTable("contracts", {
   id: serial("id").primaryKey(),
   saudaNo: integer("sauda_no").notNull(),
   saudaBook: text("sauda_book").notNull(),
+  saudaPrefix: text("sauda_prefix"),
   saudaDate: timestamp("sauda_date").defaultNow().notNull(),
   status: contractStatusEnum("status").default('ACTIVE').notNull(),
   deliveryTerm: text("delivery_term"),
@@ -138,6 +143,15 @@ export const contracts = pgTable("contracts", {
   paymentTermType: paymentTermTypeEnum("payment_term_type").default('DISCOUNT'),
   paymentPercent: numeric("payment_percent", { precision: 5, scale: 2 }),
   paymentDays: integer("payment_days"),
+  deliveryDeadlineDate: timestamp("delivery_deadline_date"),
+  approxWeight: numeric("approx_weight", { precision: 15, scale: 3 }),
+  quantityTolerance: numeric("quantity_tolerance", { precision: 5, scale: 2 }),
+  originStation: text("origin_station"),
+  destinationStation: text("destination_station"),
+  taxFormRequired: text("tax_form_required"),
+  poNumber: text("po_number"),
+  poDate: timestamp("po_date"),
+  termsAndConditions: text("terms_and_conditions"),
   customRemarks: text("custom_remarks"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -179,7 +193,9 @@ export const deliveries = pgTable("deliveries", {
   dispatchDate: timestamp("dispatch_date").defaultNow().notNull(),
   truckNo: text("truck_no"),
   billNo: text("bill_no"),  // WS2: seller's bill number accompanying the truck
+  carrierBillDate: timestamp("carrier_bill_date"),
   transporterId: integer("transporter_id").references(() => parties.id),
+  advancePaymentCollected: numeric("advance_payment_collected", { precision: 15, scale: 2 }),
   status: deliveryStatusEnum("status").default('PENDING').notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -289,6 +305,7 @@ export const cities = pgTable("cities", {
   districtId: integer("district_id").references(() => districts.id, { onDelete: "cascade" }).notNull(),
   name: text("name").notNull(),
   pincode: text("pincode"),
+  stdCode: text("std_code"),
 }, (t) => ({
   nameTrgmIdx: index("idx_cities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
 }));

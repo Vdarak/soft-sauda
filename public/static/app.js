@@ -18,8 +18,10 @@ import { renderBillList, renderBillForm } from './views/bills.js';
 import { renderPaymentList, renderPaymentForm } from './views/payments.js';
 import { renderLedgerList, renderLedgerForm } from './views/ledger.js';
 import { renderCityList, renderCityForm } from './views/cities.js';
+import { renderBatchBilling } from './views/batch_billing.js';
+import { renderPaymentOutstanding } from './views/payment_outstanding.js';
 import { isAuthenticated, clearAuth, triggerWarmup } from './lib/api.js';
-import { Icons } from './components/ui.js';
+import { Icons, showToast } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
 
 /* ── Auth Guard ── */
@@ -97,6 +99,16 @@ function initRouter() {
   r.on('/cities',             requireAuth((ctx) => renderCityList(ctx)));
   r.on('/cities/new',         requireAuth(() => renderCityForm()));
 
+  // Batch Billing
+  r.on('/bills/batch-billing', requireAuth(() => renderBatchBilling()));
+
+  // Reports
+  r.on('/reports/payment-outstanding', requireAuth((ctx) => renderPaymentOutstanding(ctx)));
+  r.on('/reports/bill-register', requireAuth(() => {
+    window.history.replaceState({}, '', '/bills');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }));
+
   // Start router — binds popstate + [data-route] clicks + handles initial URL
   r.ready();
 
@@ -163,11 +175,100 @@ function initLogout() {
   }
 }
 
+/* ── Keyboard Shortcuts ── */
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    // F2 - Add new record
+    if (e.key === 'F2') {
+      e.preventDefault();
+      const path = window.location.pathname;
+      if (path.startsWith('/parties')) {
+        window.history.pushState({}, '', '/parties/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/commodities')) {
+        window.history.pushState({}, '', '/commodities/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/contracts')) {
+        window.history.pushState({}, '', '/contracts/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/deliveries')) {
+        window.history.pushState({}, '', '/deliveries/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/bills')) {
+        window.history.pushState({}, '', '/bills/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/payments')) {
+        window.history.pushState({}, '', '/payments/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/ledger')) {
+        window.history.pushState({}, '', '/ledger/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else if (path.startsWith('/cities')) {
+        window.history.pushState({}, '', '/cities/new');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    }
+
+    // F3 - List/Alter
+    if (e.key === 'F3') {
+      e.preventDefault();
+      const path = window.location.pathname;
+      const base = path.split('/')[1];
+      if (base) {
+        window.history.pushState({}, '', `/${base}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    }
+
+    // F5 - Delete
+    if (e.key === 'F5') {
+      const deleteBtn = document.getElementById('btn-delete');
+      if (deleteBtn) {
+        e.preventDefault();
+        deleteBtn.click();
+      }
+    }
+
+    // F6 - Save
+    if (e.key === 'F6') {
+      const form = document.querySelector('form');
+      if (form) {
+        e.preventDefault();
+        const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+        form.dispatchEvent(submitEvent);
+      } else {
+        const proceedBtn = document.getElementById('btn-proceed');
+        if (proceedBtn) {
+          e.preventDefault();
+          proceedBtn.click();
+        }
+      }
+    }
+
+    // F12 - Copy Record
+    if (e.key === 'F12') {
+      e.preventDefault();
+      const path = window.location.pathname;
+      const parts = path.split('/');
+      if (parts.length === 3 && !isNaN(parseInt(parts[2], 10))) {
+        window.history.replaceState({}, '', `/${parts[1]}/new`);
+        const formHeader = document.querySelector('.page-header h1');
+        if (formHeader) {
+          formHeader.textContent = 'New ' + parts[1].slice(0, -1).toUpperCase() + ' (Copy)';
+        }
+        document.getElementById('btn-delete')?.remove();
+        showToast('Record copied! Save to duplicate.', 'success');
+      }
+    }
+  });
+}
+
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initLogout();
   initRouter();
+  initKeyboardShortcuts();
 
   // If already logged in (e.g. page refresh), warm the server cache
   if (isAuthenticated()) {

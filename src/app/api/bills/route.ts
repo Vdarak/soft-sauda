@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
       description: body.description || `Bill against ${basis}`,
       amount: totalAmount.toString(),
       referenceType: basis,
+      referenceId: body.referenceId ? parseInt(body.referenceId, 10) : null,
     });
 
     // Post to ledger (Debit the party's account)

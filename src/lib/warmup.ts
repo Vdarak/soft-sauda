@@ -14,8 +14,11 @@
 
 import { db } from '@/db';
 import {
-  parties, commodities, contracts, contractParties, contractLines,
-  deliveries, deliveryLines, bills, billLines, payments, paymentAllocations, ledger,
+  parties, partyTaxIds, partyBankDetails, partyContacts, partyDeliveryAddresses, partyRoles,
+  commodities, commodityPackaging, commoditySpecifications,
+  contracts, contractParties, contractLines,
+  deliveries, deliveryLines, deliveryCharges,
+  bills, billLines, payments, paymentAllocations, ledger,
   cities, districts, states,
 } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
@@ -83,10 +86,61 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
     {
       key: 'parties:all',
       fn: async () => {
-        const all = await db.select().from(parties).orderBy(desc(parties.id));
+        const rawParties = await db.select().from(parties).orderBy(desc(parties.id));
+        const partyIds = rawParties.map(p => p.id);
+
+        let taxMap: Record<number, any[]> = {};
+        let bankMap: Record<number, any[]> = {};
+        let contactsMap: Record<number, any[]> = {};
+        let addressesMap: Record<number, any[]> = {};
+        let rolesMap: Record<number, any[]> = {};
+
+        if (partyIds.length > 0) {
+          const [taxRows, bankRows, contactRows, addressRows, roleRows] = await Promise.all([
+            db.select().from(partyTaxIds).where(sql`${partyTaxIds.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(partyBankDetails).where(sql`${partyBankDetails.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(partyContacts).where(sql`${partyContacts.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(partyDeliveryAddresses).where(sql`${partyDeliveryAddresses.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(partyRoles).where(sql`${partyRoles.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+          ]);
+
+          for (const row of taxRows) {
+            if (!taxMap[row.partyId]) taxMap[row.partyId] = [];
+            taxMap[row.partyId].push(row);
+          }
+          for (const row of bankRows) {
+            if (!bankMap[row.partyId]) bankMap[row.partyId] = [];
+            bankMap[row.partyId].push(row);
+          }
+          for (const row of contactRows) {
+            if (!contactsMap[row.partyId]) contactsMap[row.partyId] = [];
+            contactsMap[row.partyId].push(row);
+          }
+          for (const row of addressRows) {
+            if (!addressesMap[row.partyId]) addressesMap[row.partyId] = [];
+            addressesMap[row.partyId].push(row);
+          }
+          for (const row of roleRows) {
+            if (!rolesMap[row.partyId]) rolesMap[row.partyId] = [];
+            rolesMap[row.partyId].push(row);
+          }
+        }
+
+        const all = rawParties.map(p => {
+          const detail = {
+            ...p,
+            taxIds: taxMap[p.id] || [],
+            bankDetails: bankMap[p.id] || [],
+            contacts: contactsMap[p.id] || [],
+            deliveryAddresses: addressesMap[p.id] || [],
+            roles: rolesMap[p.id] || [],
+          };
+          cacheSet(`parties:${p.id}`, detail, TTL);
+          return detail;
+        });
+
         cacheSet('parties:all', all, TTL);
         paginateIntoCache('parties', all, TTL);
-        all.forEach(p => cacheSet(`parties:${p.id}`, p, TTL));
         paginateIntoPayload('parties', all, payload);
         payload['/parties'] = all; // full list — used by autocomplete local filtering
       },
@@ -101,10 +155,40 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
     {
       key: 'commodities:all',
       fn: async () => {
-        const all = await db.select().from(commodities).orderBy(desc(commodities.id));
+        const rawCommodities = await db.select().from(commodities).orderBy(desc(commodities.id));
+        const commIds = rawCommodities.map(c => c.id);
+
+        let packagingMap: Record<number, any[]> = {};
+        let specsMap: Record<number, any[]> = {};
+
+        if (commIds.length > 0) {
+          const [packRows, specRows] = await Promise.all([
+            db.select().from(commodityPackaging).where(sql`${commodityPackaging.commodityId} IN (${sql.join(commIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(commoditySpecifications).where(sql`${commoditySpecifications.commodityId} IN (${sql.join(commIds.map(id => sql`${id}`), sql`, `)})`),
+          ]);
+
+          for (const row of packRows) {
+            if (!packagingMap[row.commodityId]) packagingMap[row.commodityId] = [];
+            packagingMap[row.commodityId].push(row);
+          }
+          for (const row of specRows) {
+            if (!specsMap[row.commodityId]) specsMap[row.commodityId] = [];
+            specsMap[row.commodityId].push(row);
+          }
+        }
+
+        const all = rawCommodities.map(c => {
+          const detail = {
+            ...c,
+            packaging: packagingMap[c.id] || [],
+            specifications: specsMap[c.id] || [],
+          };
+          cacheSet(`commodities:${c.id}`, detail, TTL);
+          return detail;
+        });
+
         cacheSet('commodities:all', all, TTL);
         paginateIntoCache('commodities', all, TTL);
-        all.forEach(c => cacheSet(`commodities:${c.id}`, c, TTL));
         paginateIntoPayload('commodities', all, payload);
         payload['/commodities'] = all; // full list — used by autocomplete local filtering
       },
@@ -120,12 +204,36 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
       key: 'contracts:all',
       fn: async () => {
         const rawContracts = await db.select({
-          id: contracts.id, saudaNo: contracts.saudaNo, saudaBook: contracts.saudaBook,
-          saudaDate: contracts.saudaDate, status: contracts.status,
-          deliveryTerm: contracts.deliveryTerm, customRemarks: contracts.customRemarks,
+          id: contracts.id,
+          saudaNo: contracts.saudaNo,
+          saudaBook: contracts.saudaBook,
+          saudaPrefix: contracts.saudaPrefix,
+          saudaDate: contracts.saudaDate,
+          deliveryTerm: contracts.deliveryTerm,
+          paymentTermType: contracts.paymentTermType,
+          paymentPercent: contracts.paymentPercent,
+          paymentDays: contracts.paymentDays,
+          deliveryDeadlineDate: contracts.deliveryDeadlineDate,
+          approxWeight: contracts.approxWeight,
+          quantityTolerance: contracts.quantityTolerance,
+          originStation: contracts.originStation,
+          destinationStation: contracts.destinationStation,
+          taxFormRequired: contracts.taxFormRequired,
+          poNumber: contracts.poNumber,
+          poDate: contracts.poDate,
+          termsAndConditions: contracts.termsAndConditions,
+          customRemarks: contracts.customRemarks,
           createdAt: contracts.createdAt,
-          amount: contractLines.amount, weight: contractLines.weightQuintals,
-          rate: contractLines.rate, commodityName: commodities.name,
+          updatedAt: contracts.updatedAt,
+          contractLineId: contractLines.id,
+          commodityId: contractLines.commodityId,
+          brand: contractLines.brand,
+          numberOfLorries: contractLines.numberOfLorries,
+          quantityBags: contractLines.quantityBags,
+          weightQuintals: contractLines.weightQuintals,
+          rate: contractLines.rate,
+          amount: contractLines.amount,
+          commodityName: commodities.name,
         })
           .from(contracts)
           .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
@@ -147,23 +255,70 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
           }
         }
 
-        const enriched = rawContracts.map(c => {
-          const cParties = partyMap[c.id] || [];
-          const item = {
-            id: c.id, saudaNo: c.saudaNo, saudaBook: c.saudaBook, saudaDate: c.saudaDate,
-            status: c.status, deliveryTerm: c.deliveryTerm, customRemarks: c.customRemarks,
-            createdAt: c.createdAt,
-            sellerName: cParties.find(p => p.role === 'SELLER')?.name || null,
-            buyerName: cParties.find(p => p.role === 'BUYER')?.name || null,
-            sellerBroker: cParties.find(p => p.role === 'SELLER_BROKER')?.name || null,
-            buyerBroker: cParties.find(p => p.role === 'BUYER_BROKER')?.name || null,
-            commodityName: c.commodityName || 'Unknown',
-            amount: c.amount || '0', weight: c.weight || '0', rate: c.rate || '0',
-            parties: cParties,
-            lines: [{ commodityName: c.commodityName || 'Unknown', amount: c.amount, weightQuintals: c.weight, rate: c.rate }],
-          };
-          cacheSet(`contracts:${c.id}`, item, TTL);
-          return item;
+        const contractMap = new Map<number, any>();
+        for (const c of rawContracts) {
+          if (!contractMap.has(c.id)) {
+            const cParties = partyMap[c.id] || [];
+            contractMap.set(c.id, {
+              id: c.id,
+              saudaNo: c.saudaNo,
+              saudaBook: c.saudaBook,
+              saudaPrefix: c.saudaPrefix,
+              saudaDate: c.saudaDate,
+              deliveryTerm: c.deliveryTerm,
+              paymentTermType: c.paymentTermType,
+              paymentPercent: c.paymentPercent,
+              paymentDays: c.paymentDays,
+              deliveryDeadlineDate: c.deliveryDeadlineDate,
+              approxWeight: c.approxWeight,
+              quantityTolerance: c.quantityTolerance,
+              originStation: c.originStation,
+              destinationStation: c.destinationStation,
+              taxFormRequired: c.taxFormRequired,
+              poNumber: c.poNumber,
+              poDate: c.poDate,
+              termsAndConditions: c.termsAndConditions,
+              customRemarks: c.customRemarks,
+              createdAt: c.createdAt,
+              updatedAt: c.updatedAt,
+              sellerName: cParties.find(p => p.role === 'SELLER')?.name || null,
+              buyerName: cParties.find(p => p.role === 'BUYER')?.name || null,
+              sellerBroker: cParties.find(p => p.role === 'SELLER_BROKER')?.name || null,
+              buyerBroker: cParties.find(p => p.role === 'BUYER_BROKER')?.name || null,
+              parties: cParties,
+              lines: [],
+            });
+          }
+          const item = contractMap.get(c.id);
+          if (c.commodityName) {
+            item.lines.push({
+              id: c.contractLineId,
+              commodityId: c.commodityId,
+              commodityName: c.commodityName,
+              brand: c.brand,
+              numberOfLorries: c.numberOfLorries,
+              quantityBags: c.quantityBags,
+              weightQuintals: c.weightQuintals,
+              rate: c.rate,
+              amount: c.amount,
+            });
+          }
+        }
+
+        const enriched = Array.from(contractMap.values());
+        enriched.forEach(item => {
+          if (item.lines.length > 0) {
+            item.commodityName = item.lines[0].commodityName;
+            item.amount = item.lines[0].amount;
+            item.weight = item.lines[0].weightQuintals;
+            item.rate = item.lines[0].rate;
+          } else {
+            item.commodityName = 'Unknown';
+            item.amount = '0';
+            item.weight = '0';
+            item.rate = '0';
+          }
+          cacheSet(`contracts:${item.id}`, item, TTL);
         });
         cacheSet('contracts:all', enriched, TTL);
         paginateIntoCache('contracts', enriched, TTL);
@@ -219,9 +374,15 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
       key: 'deliveries:all',
       fn: async () => {
         const rawDeliveries = await db.select({
-          id: deliveries.id, dispatchDate: deliveries.dispatchDate,
-          truckNo: deliveries.truckNo, transporterId: deliveries.transporterId,
-          status: deliveries.status, createdAt: deliveries.createdAt,
+          id: deliveries.id,
+          dispatchDate: deliveries.dispatchDate,
+          truckNo: deliveries.truckNo,
+          billNo: deliveries.billNo,
+          carrierBillDate: deliveries.carrierBillDate,
+          transporterId: deliveries.transporterId,
+          advancePaymentCollected: deliveries.advancePaymentCollected,
+          status: deliveries.status,
+          createdAt: deliveries.createdAt,
           transporterName: parties.name,
         })
           .from(deliveries)
@@ -230,19 +391,71 @@ export async function warmCache(): Promise<{ payload: Record<string, any>, warme
 
         const deliveryIds = rawDeliveries.map(d => d.id);
         let linesMap: Record<number, any[]> = {};
+        let chargesMap: Record<number, any[]> = {};
+
         if (deliveryIds.length > 0) {
-          const allLines = await db.select().from(deliveryLines)
-            .where(sql`${deliveryLines.deliveryId} IN (${sql.join(deliveryIds.map(id => sql`${id}`), sql`, `)})`);
+          const [allLines, allCharges] = await Promise.all([
+            db.select().from(deliveryLines).where(sql`${deliveryLines.deliveryId} IN (${sql.join(deliveryIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(deliveryCharges).where(sql`${deliveryCharges.deliveryId} IN (${sql.join(deliveryIds.map(id => sql`${id}`), sql`, `)})`),
+          ]);
+
+          // Enrich lines with commodityName, saudaNo, saudaDate, rate in memory
+          const contractLineIds = [...new Set(allLines.map(l => l.contractLineId))];
+          let contractLineMap: Record<number, any> = {};
+          if (contractLineIds.length > 0) {
+            const clRows = await db.select({
+              id: contractLines.id,
+              contractId: contractLines.contractId,
+              commodityId: contractLines.commodityId,
+              rate: contractLines.rate,
+              saudaNo: contracts.saudaNo,
+              saudaDate: contracts.saudaDate,
+              commodityName: commodities.name,
+            })
+              .from(contractLines)
+              .leftJoin(contracts, eq(contracts.id, contractLines.contractId))
+              .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
+              .where(sql`${contractLines.id} IN (${sql.join(contractLineIds.map(id => sql`${id}`), sql`, `)})`);
+            
+            for (const cl of clRows) {
+              contractLineMap[cl.id] = cl;
+            }
+          }
+
           for (const line of allLines) {
+            const cl = contractLineMap[line.contractLineId];
+            if (cl) {
+              (line as any).commodityName = cl.commodityName || 'Unknown';
+              (line as any).rate = cl.rate;
+              (line as any).saudaNo = cl.saudaNo;
+              (line as any).saudaDate = cl.saudaDate;
+            }
             if (!linesMap[line.deliveryId]) linesMap[line.deliveryId] = [];
             linesMap[line.deliveryId].push(line);
           }
+
+          for (const charge of allCharges) {
+            if (!chargesMap[charge.deliveryId]) chargesMap[charge.deliveryId] = [];
+            chargesMap[charge.deliveryId].push(charge);
+          }
         }
+
         const enriched = rawDeliveries.map(d => {
-          const detail = { ...d, lines: linesMap[d.id] || [] };
+          const lines = linesMap[d.id] || [];
+          const charges = chargesMap[d.id] || [];
+          const firstLine = lines[0] || {};
+          const detail = {
+            ...d,
+            lines,
+            charges,
+            saudaNo: firstLine.saudaNo || null,
+            saudaDate: firstLine.saudaDate || null,
+            dispatchNo: d.id,
+          };
           cacheSet(`deliveries:${d.id}`, detail, TTL);
           return detail;
         });
+
         cacheSet('deliveries:all', enriched, TTL);
         paginateIntoCache('deliveries', enriched, TTL);
         paginateIntoPayload('deliveries', enriched, payload);

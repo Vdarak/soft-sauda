@@ -113,11 +113,21 @@ export async function PUT(req: NextRequest, context: Params) {
       await tx.update(contracts).set({
         saudaNo: parseInt(body.saudaNo, 10),
         saudaBook: body.saudaBook || 'Main Book',
+        saudaPrefix: body.saudaPrefix || null,
         saudaDate: body.saudaDate ? new Date(body.saudaDate) : new Date(),
         deliveryTerm: body.deliveryTerm || null,
-        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : 'DISCOUNT',
+        paymentTermType: body.paymentTermType === 'CREDIT' ? 'CREDIT' : body.paymentTermType === 'PAYMENT' ? 'PAYMENT' : 'DISCOUNT',
         paymentPercent: body.paymentPercent || null,
         paymentDays: body.paymentDays ? parseInt(body.paymentDays, 10) : null,
+        deliveryDeadlineDate: body.deliveryDeadlineDate ? new Date(body.deliveryDeadlineDate) : null,
+        approxWeight: body.approxWeight || null,
+        quantityTolerance: body.quantityTolerance || null,
+        originStation: body.originStation || null,
+        destinationStation: body.destinationStation || null,
+        taxFormRequired: body.taxFormRequired || null,
+        poNumber: body.poNumber || null,
+        poDate: body.poDate ? new Date(body.poDate) : null,
+        termsAndConditions: body.termsAndConditions || null,
         customRemarks: body.remarks || null,
         updatedAt: new Date(),
       }).where(eq(contracts.id, id));
@@ -136,40 +146,64 @@ export async function PUT(req: NextRequest, context: Params) {
       if (buyerBrokerId && buyerBrokerId !== sellerBrokerId) partyInserts.push({ contractId: id, partyId: buyerBrokerId, role: 'BUYER_BROKER' as const });
       if (partyInserts.length > 0) await tx.insert(contractParties).values(partyInserts);
 
-      // Update contract line in-place (cannot delete while delivery_lines reference it)
-      const commodityId = await resolveCommodity(body.commodity || 'Unknown', tx);
-      const packagingId = await resolvePackaging(commodityId, body.packaging, tx);
-      const weight = parseFloat(body.weight || '0');
-      const rate = parseFloat(body.rate || '0');
+      // Support multi-line items update/delete
+      const lines = body.lines && Array.isArray(body.lines) ? body.lines : [{
+        id: body.contractLineId || null,
+        commodity: body.commodity,
+        packaging: body.packaging,
+        brand: body.brand,
+        numberOfLorries: body.numberOfLorries,
+        weight: body.weight,
+        rate: body.rate,
+        quantityBags: body.quantityBags,
+      }];
 
-      const existingLines = await tx.select({ id: contractLines.id }).from(contractLines)
-        .where(eq(contractLines.contractId, id)).limit(1);
+      const existingLines = await tx.select().from(contractLines).where(eq(contractLines.contractId, id));
+      const existingIds = existingLines.map(l => l.id);
+      const incomingIds = lines.map(l => l.id).filter(Boolean);
 
-      if (existingLines.length > 0) {
-        await tx.update(contractLines).set({
-          commodityId,
-          packagingId,
-          brand: body.brand || null,
-          numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
-          weightQuintals: weight.toString(),
-          rate: rate.toString(),
-          amount: (weight * rate).toString(),
-        }).where(eq(contractLines.id, existingLines[0].id));
-      } else {
-        await tx.insert(contractLines).values({
+      // Delete existing lines not present in incoming request
+      const toDelete = existingIds.filter(exId => !incomingIds.includes(exId));
+      for (const delId of toDelete) {
+        try {
+          await tx.delete(contractLines).where(eq(contractLines.id, delId));
+        } catch (err) {
+          console.warn(`Cannot delete contract line ${delId} due to active reference constraints:`, err);
+        }
+      }
+
+      for (const line of lines) {
+        if (!line.commodity) continue;
+        const commodityId = await resolveCommodity(line.commodity, tx);
+        const packagingId = await resolvePackaging(commodityId, line.packaging, tx);
+        const weight = parseFloat(line.weight || line.weightQuintals || '0');
+        const rate = parseFloat(line.rate || '0');
+        const qtyBags = line.quantityBags ? parseFloat(line.quantityBags) : null;
+
+        const lineValues = {
           contractId: id,
           commodityId,
           packagingId,
-          brand: body.brand || null,
-          numberOfLorries: body.numberOfLorries ? parseInt(body.numberOfLorries, 10) : null,
+          brand: line.brand || null,
+          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : null,
+          quantityBags: qtyBags ? qtyBags.toString() : null,
           weightQuintals: weight.toString(),
           rate: rate.toString(),
           amount: (weight * rate).toString(),
-        });
+        };
+
+        if (line.id && existingIds.includes(line.id)) {
+          await tx.update(contractLines).set(lineValues).where(eq(contractLines.id, line.id));
+        } else {
+          await tx.insert(contractLines).values(lineValues);
+        }
       }
     });
 
     cacheInvalidate('contracts');
+    cacheInvalidate('parties');
+    cacheInvalidate('commodities');
+    cacheInvalidate('dashboard');
     const updated = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
     return ok(updated[0]);
   } catch (err) {
@@ -185,6 +219,9 @@ export async function DELETE(req: NextRequest, context: Params) {
     if (isNaN(id)) return badRequest('Invalid ID');
     await db.delete(contracts).where(eq(contracts.id, id));
     cacheInvalidate('contracts');
+    cacheInvalidate('parties');
+    cacheInvalidate('commodities');
+    cacheInvalidate('dashboard');
     return ok({ success: true, id });
   } catch (err) {
     console.error('DELETE /api/contracts/[id] error:', err);
