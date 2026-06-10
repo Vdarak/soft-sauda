@@ -3,6 +3,8 @@
  */
 import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData } from '../components/ui.js';
 import * as api from '../lib/api.js';
+import { attachCityAutocomp } from '../lib/autocomplete.js';
+
 
 /** Render standard party list */
 export async function renderPartyList(ctx) {
@@ -31,7 +33,8 @@ export async function renderPartyList(ctx) {
       ${PageHeader({ 
         title: 'Party Master', 
         actions: `
-          <button class="secondary" id="export-parties-btn" style="margin-right:0.5rem">📥 Export Excel</button>
+          <button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button>
+          <button class="secondary" id="export-parties-btn" style="margin-right:0.5rem">${Icons.download} Export Excel</button>
           <a href="/parties/new" data-route><button class="primary">${Icons.plus} New Party</button></a>
         ` 
       })}
@@ -197,7 +200,18 @@ export async function renderPartyForm(id) {
     `;
     document.head.appendChild(style);
 
+    // Bind city autocomplete for auto-filling state and pincode
+    attachCityAutocomp('place', (name, city) => {
+      if (city) {
+        const stateInput = document.getElementById('stateName');
+        const pinInput = document.getElementById('pinCode');
+        if (stateInput && city.stateName) stateInput.value = city.stateName;
+        if (pinInput && city.pincode) pinInput.value = city.pincode;
+      }
+    });
+
     // Bind left sidebar search filter
+
     document.getElementById('alter-party-search')?.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase();
       document.querySelectorAll('.alter-list-item').forEach(el => {
@@ -278,7 +292,6 @@ export async function renderPartyForm(id) {
           showToast('Party created successfully');
         }
         
-        await api.get('/parties', { forceRefresh: true });
         window.history.pushState({}, '', '/parties');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
@@ -297,7 +310,6 @@ export async function renderPartyForm(id) {
         btn.innerHTML = '<span class="spinner"></span> Deleting...';
         try {
           await api.del(`/parties/${id}`);
-          await api.get('/parties', { forceRefresh: true });
           window.history.pushState({}, '', '/parties');
           window.dispatchEvent(new PopStateEvent('popstate'));
         } catch (err) {

@@ -87,3 +87,41 @@ export function attachCommodityAutocomp(inputId, onSelectCb) {
     },
   });
 }
+
+/** Return the full cities list from clientCache. */
+export async function getCitiesList() {
+  if (clientCache.has('/cities')) return clientCache.get('/cities');
+  return get('/cities');
+}
+
+/**
+ * Attach city name autocomplete to an input field.
+ * Passes (name, cityObject) to onSelectCb.
+ */
+export function attachCityAutocomp(inputId, onSelectCb) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+
+  autocomp(el, {
+    onQuery: async (val) => {
+      if (!val || val.trim() === '') return [];
+      const q = val.toLowerCase();
+      const all = await getCitiesList();
+      const matches = (all || [])
+        .filter(c => c.name && c.name.toLowerCase().includes(q))
+        .slice(0, 15);
+      el._matches = matches;
+      return matches.map(c => c.name + (c.stateName ? ` (${c.stateName})` : ''));
+    },
+    onSelect: (val) => {
+      const name = val.includes(' (') ? val.slice(0, val.lastIndexOf(' (')) : val;
+      el.value = name;
+      let matchedObj = null;
+      if (el._matches) {
+        matchedObj = el._matches.find(c => c.name === name);
+      }
+      if (onSelectCb) onSelectCb(name, matchedObj);
+      return name;
+    },
+  });
+}

@@ -64,6 +64,71 @@ function persistCache() {
   } catch(e) {}
 }
 
+/** Update clientCache in-place for write operations (POST, PUT, DELETE) */
+function updateLocalCache(method, path, responseData, requestBody) {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return;
+  const entity = parts[0]; // e.g. "contracts", "parties"
+  const listKey = `/${entity}`;
+  const id = parts[1] ? parseInt(parts[1], 10) : null;
+
+  if (method === 'POST') {
+    // Merge response data (has generated ID/dates) with request body (has full values)
+    const createdItem = { ...requestBody, ...responseData };
+    if (createdItem && createdItem.id) {
+      clientCache.set(`${listKey}/${createdItem.id}`, createdItem);
+      const list = clientCache.get(listKey);
+      if (Array.isArray(list)) {
+        list.unshift(createdItem);
+        clientCache.set(listKey, list);
+      }
+    }
+  } else if (method === 'PUT') {
+    const updatedItem = { ...requestBody, ...responseData };
+    if (updatedItem && updatedItem.id) {
+      clientCache.set(`${listKey}/${updatedItem.id}`, updatedItem);
+      const list = clientCache.get(listKey);
+      if (Array.isArray(list)) {
+        const idx = list.findIndex(item => item.id === updatedItem.id);
+        if (idx !== -1) {
+          list[idx] = updatedItem;
+        } else {
+          list.unshift(updatedItem);
+        }
+        clientCache.set(listKey, list);
+      }
+    }
+  } else if (method === 'DELETE') {
+    const deletedId = id || (responseData && responseData.id);
+    if (deletedId) {
+      clientCache.delete(`${listKey}/${deletedId}`);
+      let list = clientCache.get(listKey);
+      if (Array.isArray(list)) {
+        list = list.filter(item => item.id !== deletedId);
+        clientCache.set(listKey, list);
+      }
+    }
+  }
+
+  // Custom schema mappings for parties/contracts line items if needed
+  if (entity === 'parties' && (method === 'POST' || method === 'PUT')) {
+    const item = clientCache.get(`${listKey}/${responseData.id}`);
+    if (item && requestBody) {
+      if (requestBody.roles) {
+        item.roles = requestBody.roles.map(r => ({ role: r }));
+      }
+      item.taxIds = [
+        { taxType: 'GSTIN', taxValue: requestBody.gstin },
+        { taxType: 'VAT_TIN', taxValue: requestBody.vatTin },
+        { taxType: 'CST_TIN', taxValue: requestBody.cstTin },
+        { taxType: 'CST_NO', taxValue: requestBody.cstNo },
+      ].filter(t => t.taxValue);
+    }
+  }
+
+  persistCache();
+}
+
 /** Generic fetch helper */
 async function request(method, path, body = null, options = {}) {
   // If GET and cached, return instantly
@@ -99,17 +164,14 @@ async function request(method, path, body = null, options = {}) {
     }
     persistCache();
   } else {
-    // If a write operation was performed, clear caches and reload mega payload
-    const isTargetEntity = path.startsWith('/contracts') || 
-                           path.startsWith('/deliveries') || 
-                           path.startsWith('/bills') || 
-                           path.startsWith('/payments');
-    if (isTargetEntity) {
-      sessionStorage.removeItem('ss_mega_payload');
-      sessionStorage.removeItem('gcc_mega_payload');
-      clientCache.clear();
-      triggerWarmup().catch(err => console.error('[api.js] Background warmup failed:', err));
-    }
+    // Perform local in-place update first, then background warmup silently
+    updateLocalCache(method, path, data, body);
+    triggerWarmup({ forceRefresh: true })
+      .then(() => {
+        // Dispatch event so active view re-renders with fresh computed metrics
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      })
+      .catch(err => console.error('[api.js] Background warmup failed:', err));
   }
 
   return data;
@@ -150,11 +212,15 @@ export async function login(username, password) {
  * Fetches the Giant Synchronous Payload.
  * Populates both list and detail routes in the client cache instantly.
  */
-export async function triggerWarmup() {
+export async function triggerWarmup(options = {}) {
   try {
     // 1. Check if we already downloaded the mega payload in this session
     let payload = null;
-    const cachedPayload = sessionStorage.getItem('gcc_mega_payload');
+    let cachedPayload = null;
+    
+    if (!options.forceRefresh) {
+      cachedPayload = sessionStorage.getItem('gcc_mega_payload');
+    }
     
     if (cachedPayload) {
       payload = JSON.parse(cachedPayload);

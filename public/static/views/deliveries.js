@@ -7,6 +7,8 @@ import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, esc
 import * as api from '../lib/api.js';
 import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
+import { autocomp } from '../vendor/autocomp.js';
+
 
 /** Compute days between two dates */
 function daysBetween(d1, d2) {
@@ -47,7 +49,7 @@ export async function renderDeliveryList(ctx) {
     `);
 
     app.innerHTML = `
-      ${PageHeader({ title: 'Deliveries', actions: `<button class="secondary" id="export-deliveries-btn" style="margin-right:0.5rem">📥 Export Excel</button><a href="/deliveries/new" data-route><button class="primary">${Icons.plus} New Delivery</button></a>` })}
+      ${PageHeader({ title: 'Deliveries', actions: `<button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button><button class="secondary" id="export-deliveries-btn" style="margin-right:0.5rem">${Icons.download} Export Excel</button><a href="/deliveries/new" data-route><button class="primary">${Icons.plus} New Delivery</button></a>` })}
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
           <input type="text" id="search-deliveries" placeholder="Search deliveries..." style="padding-left:2.5rem; width:100%">
@@ -100,9 +102,28 @@ export async function renderDeliveryForm(id) {
     ${PageHeader({ title: isEdit ? 'Edit Delivery' : 'New Delivery', backHref: '/deliveries' })}
     <div class="table-container" style="padding:1.5rem">
       <form id="delivery-form">
-        <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Link Contract (Sauda)</h3>
-        <div class="form-grid">
-          ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: delivery.saudaNo || '', type: 'number', required: true, placeholder: 'Enter Sauda No. to inherit details...' })}
+        <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Link Contract (Sauda) & Status</h3>
+        <div class="form-grid" style="align-items: end;">
+          ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: delivery.saudaNo || '', required: true, placeholder: 'Search Sauda by number, party or commodity...' })}
+          
+          <div class="form-group" style="margin-bottom: 0.25rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.8125rem;">Delivery Status</label>
+            <div style="display: flex; gap: 1rem; align-items: center; background: var(--background); padding: 0.5rem 0.875rem; border-radius: 0.375rem; border: 1px solid var(--border); height: 38px; flex-wrap: wrap; min-width: max-content;">
+              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                <input type="checkbox" class="status-checkbox" value="PENDING" ${delivery.status === 'PENDING' ? 'checked' : ''}> Pending
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                <input type="checkbox" class="status-checkbox" value="DISPATCHED" ${delivery.status === 'DISPATCHED' || !delivery.status ? 'checked' : ''}> Dispatched
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                <input type="checkbox" class="status-checkbox" value="DELIVERED" ${delivery.status === 'DELIVERED' ? 'checked' : ''}> Delivered
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                <input type="checkbox" class="status-checkbox" value="CANCELLED" ${delivery.status === 'CANCELLED' ? 'checked' : ''}> Cancelled
+              </label>
+              <input type="hidden" id="status" name="status" value="${delivery.status || 'DISPATCHED'}">
+            </div>
+          </div>
         </div>
         
         <!-- Contract Metadata Preview (populated dynamically) -->
@@ -125,16 +146,6 @@ export async function renderDeliveryForm(id) {
           ${FormGroup({ id: 'carrierBillDate', label: 'Carrier Bill Date', value: delivery.carrierBillDate ? new Date(delivery.carrierBillDate).toISOString().split('T')[0] : '', type: 'date' })}
           ${FormGroup({ id: 'transporterName', label: 'Transporter', value: delivery.transporterName || '', placeholder: 'Search transporter...', required: true })}
           ${FormGroup({ id: 'advancePaymentCollected', label: 'Advance Payment Collected (₹)', value: delivery.advancePaymentCollected || '', type: 'number', placeholder: 'e.g. 5000' })}
-          
-          <div class="form-group">
-            <label for="status">Status</label>
-            <select id="status" name="status" style="width: 100%;">
-              <option value="PENDING" ${delivery.status === 'PENDING' ? 'selected' : ''}>PENDING</option>
-              <option value="DISPATCHED" ${delivery.status === 'DISPATCHED' || !delivery.status ? 'selected' : ''}>DISPATCHED</option>
-              <option value="DELIVERED" ${delivery.status === 'DELIVERED' ? 'selected' : ''}>DELIVERED</option>
-              <option value="CANCELLED" ${delivery.status === 'CANCELLED' ? 'selected' : ''}>CANCELLED</option>
-            </select>
-          </div>
         </div>
 
         <h3 style="margin:1.5rem 0 0.5rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Delivery Line Items</h3>
@@ -282,6 +293,8 @@ export async function renderDeliveryForm(id) {
     addChargeRow({ chargeType: 'ADVANCE' });
   }
 
+  document.getElementById('btn-add-charge')?.addEventListener('click', () => addChargeRow());
+
   // Load contract details and populate metadata preview & line items
   async function findAndLoadContract(saudaNoVal) {
     if (!saudaNoVal) {
@@ -395,6 +408,59 @@ export async function renderDeliveryForm(id) {
     }, 300);
   });
 
+  // Attach searchable autocomplete to Sauda Number field
+  if (saudaInput) {
+    autocomp(saudaInput, {
+      onQuery: async (val) => {
+        if (!val || val.trim() === '') return [];
+        const q = val.toLowerCase();
+        const contractsList = clientCache.get('/contracts') || await api.get('/contracts');
+        const matches = contractsList.filter(c => {
+          return String(c.saudaNo).toLowerCase().includes(q) ||
+                 (c.buyerName && c.buyerName.toLowerCase().includes(q)) ||
+                 (c.sellerName && c.sellerName.toLowerCase().includes(q)) ||
+                 (c.commodityName && c.commodityName.toLowerCase().includes(q));
+        }).slice(0, 15);
+        saudaInput._matches = matches;
+        return matches.map(c => `Sauda #${c.saudaNo} - ${c.buyerName} vs ${c.sellerName} (${c.commodityName})`);
+      },
+      onSelect: (val) => {
+        let matched = null;
+        if (saudaInput._matches) {
+          matched = saudaInput._matches.find(c => {
+            const label = `Sauda #${c.saudaNo} - ${c.buyerName} vs ${c.sellerName} (${c.commodityName})`;
+            return label === val;
+          });
+        }
+        if (matched) {
+          saudaInput.value = matched.saudaNo;
+          findAndLoadContract(matched.saudaNo);
+          return String(matched.saudaNo);
+        }
+        return val;
+      }
+    });
+  }
+
+  // Bind status checkboxes to act like radio buttons and set hidden input
+  const checkboxes = document.querySelectorAll('.status-checkbox');
+  const statusHidden = document.getElementById('status');
+  if (checkboxes && statusHidden) {
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          checkboxes.forEach(other => {
+            if (other !== e.target) other.checked = false;
+          });
+          statusHidden.value = e.target.value;
+        } else {
+          // Prevent unchecking the only checked item
+          e.target.checked = true;
+        }
+      });
+    });
+  }
+
   // If saudaNo is pre-populated (e.g. in edit mode), load details immediately
   if (saudaInput.value) {
     findAndLoadContract(saudaInput.value);
@@ -448,7 +514,6 @@ export async function renderDeliveryForm(id) {
         showToast('Delivery created');
       }
       
-      await api.get('/deliveries', { forceRefresh: true });
       window.history.pushState({}, '', '/deliveries');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
@@ -467,7 +532,6 @@ export async function renderDeliveryForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/deliveries/${id}`);
-        await api.get('/deliveries', { forceRefresh: true });
         window.history.pushState({}, '', '/deliveries');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

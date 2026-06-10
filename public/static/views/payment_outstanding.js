@@ -1,7 +1,7 @@
 /**
  * Payment Outstanding & Reports Dashboard View
  */
-import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency } from '../components/ui.js';
+import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, attachTableSearch } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 export async function renderPaymentOutstanding(ctx) {
@@ -9,7 +9,7 @@ export async function renderPaymentOutstanding(ctx) {
   app.innerHTML = Spinner();
 
   try {
-    const data = await api.get('/reports/payment-outstanding', { forceRefresh: true });
+    const data = await api.get('/reports/payment-outstanding');
 
     let activeTab = 'outstanding'; // outstanding, pending_contract, pending_delivery, delivery, payment, interest
     let activeSlice = 'date'; // date, buyer, seller, sbroker, bbroker, product
@@ -19,19 +19,19 @@ export async function renderPaymentOutstanding(ctx) {
         title: 'Outstanding & Business intelligence',
         subtitle: 'Financial outstanding logs, registers, and aging statistics',
         actions: `
-          <button class="secondary" id="btn-print">${Icons.fileText || ''} Print (P)</button>
-          <button class="secondary" id="btn-export-outstanding">📥 Export Excel</button>
+          <button class="secondary" id="btn-print">${Icons.printer} Print (P)</button>
+          <button class="secondary" id="btn-export-outstanding">${Icons.download} Export Excel</button>
         `
       })}
 
       <!-- Reports Workspace Tabs -->
-      <div style="display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border); margin-bottom: 1.5rem; flex-wrap: wrap;">
-        <button class="tab-btn primary" data-tab="outstanding" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Payment Outstanding</button>
-        <button class="tab-btn secondary" data-tab="pending_contract" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Pending Contracts</button>
-        <button class="tab-btn secondary" data-tab="pending_delivery" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Pending Deliveries</button>
-        <button class="tab-btn secondary" data-tab="delivery" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Delivery Register</button>
-        <button class="tab-btn secondary" data-tab="payment" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Payment Register</button>
-        <button class="tab-btn secondary" data-tab="interest" style="border-radius: 0.375rem 0.375rem 0 0; border: none; margin-bottom: -2px; padding: 0.5rem 1rem; font-size: 0.8125rem;">Interest Calculation</button>
+      <div class="pills-container">
+        <button class="pill-btn active" data-tab="outstanding">Payment Outstanding</button>
+        <button class="pill-btn" data-tab="pending_contract">Pending Contracts</button>
+        <button class="pill-btn" data-tab="pending_delivery">Pending Deliveries</button>
+        <button class="pill-btn" data-tab="delivery">Delivery Register</button>
+        <button class="pill-btn" data-tab="payment">Payment Register</button>
+        <button class="pill-btn" data-tab="interest">Interest Calculation</button>
       </div>
 
       <div class="form-grid" style="grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: start;">
@@ -81,14 +81,13 @@ export async function renderPaymentOutstanding(ctx) {
     updateReportView(data, activeTab, activeSlice);
 
     // Tab buttons event listener
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.pill-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         // Clear active classes
-        document.querySelectorAll('.tab-btn').forEach(b => {
-          b.className = 'tab-btn secondary';
-          b.style.background = '';
+        document.querySelectorAll('.pill-btn').forEach(b => {
+          b.classList.remove('active');
         });
-        e.target.className = 'tab-btn primary';
+        e.target.classList.add('active');
         
         activeTab = e.target.getAttribute('data-tab');
         updateReportView(data, activeTab, activeSlice);
@@ -100,16 +99,6 @@ export async function renderPaymentOutstanding(ctx) {
       radio.addEventListener('change', (e) => {
         activeSlice = e.target.value;
         updateReportView(data, activeTab, activeSlice);
-      });
-    });
-
-    // Search bar event listener
-    document.getElementById('search-report')?.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase();
-      const rows = document.querySelectorAll('#report-grid-table tbody tr');
-      rows.forEach(row => {
-        const txt = row.textContent.toLowerCase();
-        row.style.display = txt.includes(q) ? '' : 'none';
       });
     });
 
@@ -133,6 +122,13 @@ export async function renderPaymentOutstanding(ctx) {
 function updateReportView(allData, tab, slice) {
   const container = document.getElementById('report-grid-container');
   if (!container) return;
+
+  const searchInput = document.getElementById('search-report');
+  if (searchInput) {
+    searchInput.value = '';
+    const cloned = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(cloned, searchInput);
+  }
 
   // Let's filter data according to the selected tab
   let filtered = [...allData];
@@ -173,31 +169,33 @@ function renderOutstandingGrid(container, items) {
   let runningReceived = 0;
   let runningNetBal = 0;
 
-  const rows = items.map(item => {
+  const renderRows = (list) => list.map(item => `
+    <tr>
+      <td>${formatDate(item.billDate)}</td>
+      <td style="font-weight: 600;">Sauda #${item.contractNo}</td>
+      <td>${escapeHtml(item.buyerName)}</td>
+      <td>${escapeHtml(item.sellerName)}</td>
+      <td style="font-weight: 500;">${escapeHtml(item.billNo)}</td>
+      <td style="text-align: center; font-weight: 600;" class="${item.overDays > 30 ? 'color:var(--danger)' : ''}">${item.overDays}</td>
+      <td style="text-align: right;" class="mono">${formatCurrency(item.billAmount).replace('₹ ', '')}</td>
+      <td style="text-align: right;" class="mono">${formatCurrency(item.receivedAmount).replace('₹ ', '')}</td>
+      <td style="text-align: right;" class="mono">0.00</td>
+      <td style="text-align: right; font-weight: 700;" class="mono">${formatCurrency(item.balanceAmount).replace('₹ ', '')}</td>
+      <td style="text-align: right; color: var(--muted-foreground);" class="mono">${formatCurrency(item.creditLimit).replace('₹ ', '')}</td>
+    </tr>
+  `);
+
+  items.forEach(item => {
     runningBillAmt += item.billAmount;
     runningReceived += item.receivedAmount;
     runningNetBal += item.balanceAmount;
-
-    return `
-      <tr>
-        <td>${formatDate(item.billDate)}</td>
-        <td style="font-weight: 600;">Sauda #${item.contractNo}</td>
-        <td>${escapeHtml(item.buyerName)}</td>
-        <td>${escapeHtml(item.sellerName)}</td>
-        <td style="font-weight: 500;">${escapeHtml(item.billNo)}</td>
-        <td style="text-align: center; font-weight: 600;" class="${item.overDays > 30 ? 'color:var(--danger)' : ''}">${item.overDays}</td>
-        <td style="text-align: right;" class="mono">${formatCurrency(item.billAmount).replace('₹ ', '')}</td>
-        <td style="text-align: right;" class="mono">${formatCurrency(item.receivedAmount).replace('₹ ', '')}</td>
-        <td style="text-align: right;" class="mono">0.00</td>
-        <td style="text-align: right; font-weight: 700;" class="mono">${formatCurrency(item.balanceAmount).replace('₹ ', '')}</td>
-        <td style="text-align: right; color: var(--muted-foreground);" class="mono">${formatCurrency(item.creditLimit).replace('₹ ', '')}</td>
-      </tr>
-    `;
   });
+
+  const rowsHtml = renderRows(items);
 
   container.innerHTML = `
     <div style="overflow-x: auto;">
-      <table id="report-grid-table">
+      <table id="outstanding-table">
         <thead>
           <tr>
             <th>Bill Date</th>
@@ -214,11 +212,11 @@ function renderOutstandingGrid(container, items) {
           </tr>
         </thead>
         <tbody>
-          ${rows.length === 0 
+          ${rowsHtml.length === 0 
             ? `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No outstanding balances found.</td></tr>`
-            : rows.join('')}
+            : rowsHtml.join('')}
         </tbody>
-        ${rows.length > 0 ? `
+        ${rowsHtml.length > 0 ? `
           <tfoot>
             <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
               <td colspan="6">TOTALS</td>
@@ -233,16 +231,18 @@ function renderOutstandingGrid(container, items) {
       </table>
     </div>
   `;
+
+  attachTableSearch('search-report', document.querySelector('#outstanding-table tbody'), items, renderRows);
 }
 
 async function renderPendingContractsGrid(container) {
   container.innerHTML = `<tr><td style="text-align: center; padding: 2rem;"><span class="spinner"></span> Loading active contracts...</td></tr>`;
   try {
-    const contractsList = await api.get('/contracts', { forceRefresh: true });
+    const contractsList = await api.get('/contracts');
     // Filter contracts with remaining pending lorries
     const pending = contractsList.filter(c => c.pendingCount > 0);
 
-    const rows = pending.map(c => `
+    const renderRows = (list) => list.map(c => `
       <tr>
         <td style="font-weight: 600;">Sauda #${c.saudaNo}</td>
         <td>${formatDate(c.saudaDate)}</td>
@@ -255,9 +255,15 @@ async function renderPendingContractsGrid(container) {
       </tr>
     `);
 
+    const totalLorries = pending.reduce((sum, c) => sum + (c.numberOfLorries || 0), 0);
+    const pendingLorries = pending.reduce((sum, c) => sum + (c.pendingCount || 0), 0);
+    const totalAmount = pending.reduce((sum, c) => sum + parseFloat(c.amount || '0'), 0);
+
+    const rowsHtml = renderRows(pending);
+
     container.innerHTML = `
       <div style="overflow-x: auto;">
-        <table>
+        <table id="pending-contracts-table">
           <thead>
             <tr>
               <th>Sauda No</th>
@@ -271,13 +277,25 @@ async function renderPendingContractsGrid(container) {
             </tr>
           </thead>
           <tbody>
-            ${rows.length === 0 
+            ${rowsHtml.length === 0 
               ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No pending contracts found.</td></tr>`
-              : rows.join('')}
+              : rowsHtml.join('')}
           </tbody>
+          ${rowsHtml.length > 0 ? `
+            <tfoot>
+              <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+                <td colspan="5">TOTALS</td>
+                <td style="text-align: center;" class="mono">${totalLorries}</td>
+                <td style="text-align: center; color: var(--primary);" class="mono">${pendingLorries}</td>
+                <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
+              </tr>
+            </tfoot>
+          ` : ''}
         </table>
       </div>
     `;
+
+    attachTableSearch('search-report', document.querySelector('#pending-contracts-table tbody'), pending, renderRows);
   } catch (err) {
     container.innerHTML = `<tr><td style="text-align: center; padding: 2rem; color: var(--danger);">${escapeHtml(err.message)}</td></tr>`;
   }
@@ -286,10 +304,10 @@ async function renderPendingContractsGrid(container) {
 async function renderPendingDeliveriesGrid(container) {
   container.innerHTML = `<tr><td style="text-align: center; padding: 2rem;"><span class="spinner"></span> Loading pending deliveries...</td></tr>`;
   try {
-    const delList = await api.get('/deliveries', { forceRefresh: true });
+    const delList = await api.get('/deliveries');
     const pending = delList.filter(d => d.status === 'PENDING' || d.status === 'DISPATCHED');
 
-    const rows = pending.map(d => `
+    const renderRows = (list) => list.map(d => `
       <tr>
         <td>Disp #${d.dispatchNo}</td>
         <td>${formatDate(d.dispatchDate)}</td>
@@ -303,9 +321,11 @@ async function renderPendingDeliveriesGrid(container) {
       </tr>
     `);
 
+    const rowsHtml = renderRows(pending);
+
     container.innerHTML = `
       <div style="overflow-x: auto;">
-        <table>
+        <table id="pending-deliveries-table">
           <thead>
             <tr>
               <th>Dispatch No</th>
@@ -318,13 +338,15 @@ async function renderPendingDeliveriesGrid(container) {
             </tr>
           </thead>
           <tbody>
-            ${rows.length === 0 
+            ${rowsHtml.length === 0 
               ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No pending deliveries found.</td></tr>`
-              : rows.join('')}
+              : rowsHtml.join('')}
           </tbody>
         </table>
       </div>
     `;
+
+    attachTableSearch('search-report', document.querySelector('#pending-deliveries-table tbody'), pending, renderRows);
   } catch (err) {
     container.innerHTML = `<tr><td style="text-align: center; padding: 2rem; color: var(--danger);">${escapeHtml(err.message)}</td></tr>`;
   }
@@ -333,9 +355,9 @@ async function renderPendingDeliveriesGrid(container) {
 async function renderDeliveryRegisterGrid(container) {
   container.innerHTML = `<tr><td style="text-align: center; padding: 2rem;"><span class="spinner"></span> Loading deliveries...</td></tr>`;
   try {
-    const delList = await api.get('/deliveries', { forceRefresh: true });
+    const delList = await api.get('/deliveries');
 
-    const rows = delList.map(d => `
+    const renderRows = (list) => list.map(d => `
       <tr>
         <td>Disp #${d.dispatchNo}</td>
         <td>${formatDate(d.dispatchDate)}</td>
@@ -347,9 +369,11 @@ async function renderDeliveryRegisterGrid(container) {
       </tr>
     `);
 
+    const rowsHtml = renderRows(delList);
+
     container.innerHTML = `
       <div style="overflow-x: auto;">
-        <table>
+        <table id="delivery-register-table">
           <thead>
             <tr>
               <th>Dispatch No</th>
@@ -362,13 +386,15 @@ async function renderDeliveryRegisterGrid(container) {
             </tr>
           </thead>
           <tbody>
-            ${rows.length === 0 
+            ${rowsHtml.length === 0 
               ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No deliveries found.</td></tr>`
-              : rows.join('')}
+              : rowsHtml.join('')}
           </tbody>
         </table>
       </div>
     `;
+
+    attachTableSearch('search-report', document.querySelector('#delivery-register-table tbody'), delList, renderRows);
   } catch (err) {
     container.innerHTML = `<tr><td style="text-align: center; padding: 2rem; color: var(--danger);">${escapeHtml(err.message)}</td></tr>`;
   }
@@ -377,9 +403,9 @@ async function renderDeliveryRegisterGrid(container) {
 async function renderPaymentRegisterGrid(container) {
   container.innerHTML = `<tr><td style="text-align: center; padding: 2rem;"><span class="spinner"></span> Loading payments...</td></tr>`;
   try {
-    const payList = await api.get('/payments', { forceRefresh: true });
+    const payList = await api.get('/payments');
 
-    const rows = payList.map(p => `
+    const renderRows = (list) => list.map(p => `
       <tr>
         <td>${formatDate(p.paymentDate)}</td>
         <td style="font-weight: 600;">${escapeHtml(p.partyName)}</td>
@@ -390,9 +416,12 @@ async function renderPaymentRegisterGrid(container) {
       </tr>
     `);
 
+    const totalPaid = payList.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
+    const rowsHtml = renderRows(payList);
+
     container.innerHTML = `
       <div style="overflow-x: auto;">
-        <table>
+        <table id="payment-register-table">
           <thead>
             <tr>
               <th>Payment Date</th>
@@ -404,13 +433,23 @@ async function renderPaymentRegisterGrid(container) {
             </tr>
           </thead>
           <tbody>
-            ${rows.length === 0 
+            ${rowsHtml.length === 0 
               ? `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No payments found.</td></tr>`
-              : rows.join('')}
+              : rowsHtml.join('')}
           </tbody>
+          ${rowsHtml.length > 0 ? `
+            <tfoot>
+              <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+                <td colspan="5">TOTAL</td>
+                <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalPaid)}</td>
+              </tr>
+            </tfoot>
+          ` : ''}
         </table>
       </div>
     `;
+
+    attachTableSearch('search-report', document.querySelector('#payment-register-table tbody'), payList, renderRows);
   } catch (err) {
     container.innerHTML = `<tr><td style="text-align: center; padding: 2rem; color: var(--danger);">${escapeHtml(err.message)}</td></tr>`;
   }
@@ -419,10 +458,8 @@ async function renderPaymentRegisterGrid(container) {
 function renderInterestCalculationGrid(container, items) {
   const annualInterestRate = 0.12; // 12% default annual rate
 
-  const rows = items.map(item => {
-    // Interest = Outstanding amount * (Over Days / 365) * rate
+  const renderRows = (list) => list.map(item => {
     const interest = item.balanceAmount * (item.overDays / 365) * annualInterestRate;
-
     return `
       <tr>
         <td>${formatDate(item.billDate)}</td>
@@ -436,9 +473,14 @@ function renderInterestCalculationGrid(container, items) {
     `;
   });
 
+  const totalPrincipal = items.reduce((sum, item) => sum + parseFloat(item.balanceAmount || '0'), 0);
+  const totalInterest = items.reduce((sum, item) => sum + (item.balanceAmount * (item.overDays / 365) * annualInterestRate), 0);
+
+  const rowsHtml = renderRows(items);
+
   container.innerHTML = `
     <div style="overflow-x: auto;">
-      <table>
+      <table id="interest-calculation-table">
         <thead>
           <tr>
             <th>Bill Date</th>
@@ -451,11 +493,23 @@ function renderInterestCalculationGrid(container, items) {
           </tr>
         </thead>
         <tbody>
-          ${rows.length === 0 
+          ${rowsHtml.length === 0 
             ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No outstanding bills to compute interest on.</td></tr>`
-            : rows.join('')}
+            : rowsHtml.join('')}
         </tbody>
+        ${rowsHtml.length > 0 ? `
+          <tfoot>
+            <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+              <td colspan="3">TOTALS</td>
+              <td style="text-align: right;" class="mono">${formatCurrency(totalPrincipal).replace('₹ ', '')}</td>
+              <td colspan="2"></td>
+              <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalInterest)}</td>
+            </tr>
+          </tfoot>
+        ` : ''}
       </table>
     </div>
   `;
+
+  attachTableSearch('search-report', document.querySelector('#interest-calculation-table tbody'), items, renderRows);
 }

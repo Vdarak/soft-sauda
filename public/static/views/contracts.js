@@ -3,7 +3,7 @@
  */
 import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
 import * as api from '../lib/api.js';
-import { attachPartyAutocomp, attachCommodityAutocomp } from '../lib/autocomplete.js';
+import { attachPartyAutocomp, attachCommodityAutocomp, attachCityAutocomp } from '../lib/autocomplete.js';
 
 /** Build delivery progress badge HTML */
 function deliveryBadge(c) {
@@ -37,7 +37,7 @@ export async function renderContractList(ctx) {
   const statusFilter = params.get('status') || 'ALL';
 
   try {
-    const allContracts = await api.get('/contracts', { forceRefresh: true });
+    const allContracts = await api.get('/contracts');
     const data = statusFilter !== 'ALL'
       ? allContracts.filter(c => c.status === statusFilter)
       : allContracts;
@@ -67,16 +67,16 @@ export async function renderContractList(ctx) {
 
     const filterBtn = (label, value) => {
       const active = statusFilter === value;
-      return `<a href="/contracts?status=${value}" data-route><button class="${active ? 'primary' : 'secondary'}" style="font-size:0.75rem;padding:0.25rem 0.75rem">${label}</button></a>`;
+      return `<a href="/contracts?status=${value}" data-route><button class="filter-pill ${active ? 'active' : ''}">${label}</button></a>`;
     };
 
     app.innerHTML = `
       ${PageHeader({
         title: 'Sauda Register',
         subtitle: 'View and manage trade contracts',
-        actions: `<button class="secondary" id="export-contracts-btn" style="margin-right:0.5rem">📥 Export Excel</button><a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
+        actions: `<button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button><button class="secondary" id="export-contracts-btn" style="margin-right:0.5rem">${Icons.download} Export Excel</button><a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
       })}
-      <div style="margin-bottom:0.75rem;display:flex;gap:0.375rem;flex-wrap:wrap;align-items:center">
+      <div class="filter-pills">
         ${filterBtn('All', 'ALL')}
         ${filterBtn('Active', 'ACTIVE')}
         ${filterBtn('Completed', 'COMPLETED')}
@@ -234,6 +234,8 @@ export async function renderContractForm(id) {
 
           <div class="form-actions">
             <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Sauda</button>
+            ${isEdit ? `<button type="button" class="secondary" id="btn-print-contract">${Icons.printer} Print PDF</button>` : ''}
+            ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
             <a href="/contracts" data-route><button type="button" class="secondary">Cancel</button></a>
           </div>
         </form>
@@ -266,6 +268,11 @@ export async function renderContractForm(id) {
     attachPartyAutocomp('sellerBroker');
     attachPartyAutocomp('buyerBroker');
 
+    // Attach city autocomplete to Origin & Destination Stations
+    attachCityAutocomp('originStation');
+    attachCityAutocomp('destinationStation');
+
+
     const linesBody = document.getElementById('lines-grid-body');
 
     // Attach new line row function
@@ -275,7 +282,7 @@ export async function renderContractForm(id) {
       tr.className = 'sauda-line-row';
       tr.innerHTML = `
         <input type="hidden" class="line-id" value="${line.id || ''}">
-        <td style="padding: 0.375rem 0.75rem; min-width: 180px;">
+        <td style="padding: 0.375rem 0.75rem; min-width: 180px; position: relative;">
           <input type="text" id="line_comm_${idx}" class="line-commodity" value="${escapeHtml(line.commodityName || '')}" required style="width: 100%;" placeholder="Type commodity...">
         </td>
         <td style="padding: 0.375rem 0.75rem;">
@@ -375,6 +382,26 @@ export async function renderContractForm(id) {
     document.getElementById('paymentDays')?.addEventListener('input', updatePaymentPreview);
     updatePaymentPreview(); // Initial render
 
+    if (isEdit) {
+      document.getElementById('btn-print-contract')?.addEventListener('click', () => {
+        if (contract && contract.saudaNo) {
+          window.open(`/api/pdf/contract/${contract.saudaNo}`, '_blank');
+        }
+      });
+      document.getElementById('btn-delete')?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete this contract?')) {
+          try {
+            await api.del(`/contracts/${id}`);
+            showToast('Sauda contract deleted');
+            window.history.pushState({}, '', '/contracts');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        }
+      });
+    }
+
     // Submit handler
     document.getElementById('contract-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -425,7 +452,6 @@ export async function renderContractForm(id) {
           showToast('Sauda contract created');
         }
         
-        await api.get('/contracts', { forceRefresh: true });
         window.history.pushState({}, '', '/contracts');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

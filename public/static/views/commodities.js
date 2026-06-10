@@ -28,7 +28,7 @@ export async function renderCommodityList(ctx) {
     app.innerHTML = `
       ${PageHeader({ 
         title: 'Commodity Master', 
-        actions: `<a href="/commodities/new" data-route><button class="primary">${Icons.plus} New Commodity</button></a>` 
+        actions: `<button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button><a href="/commodities/new" data-route><button class="primary">${Icons.plus} New Commodity</button></a>` 
       })}
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
@@ -315,7 +315,6 @@ export async function renderCommodityForm(id) {
           showToast('Commodity created');
         }
         
-        await api.get('/commodities', { forceRefresh: true });
         window.history.pushState({}, '', '/commodities');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
@@ -334,7 +333,6 @@ export async function renderCommodityForm(id) {
         btn.innerHTML = '<span class="spinner"></span> Deleting...';
         try {
           await api.del(`/commodities/${id}`);
-          await api.get('/commodities', { forceRefresh: true });
           window.history.pushState({}, '', '/commodities');
           window.dispatchEvent(new PopStateEvent('popstate'));
         } catch (err) {

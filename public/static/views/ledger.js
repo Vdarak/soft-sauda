@@ -33,8 +33,25 @@ export async function renderLedgerList(ctx) {
       </tr>
     `);
 
+    const totalDr = data.reduce((sum, c) => sum + (c.drCr === 'Dr' ? parseFloat(c.amount || '0') : 0), 0);
+    const totalCr = data.reduce((sum, c) => sum + (c.drCr === 'Cr' ? parseFloat(c.amount || '0') : 0), 0);
+    const footerHtml = `
+      <tfoot>
+        <tr style="font-weight: bold; background: var(--faint);">
+          <td colspan="3">Total</td>
+          <td style="text-align: right;" class="mono">${formatCurrency(totalDr)}</td>
+          <td style="text-align: right;" class="mono">${formatCurrency(totalCr)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    `;
+
     app.innerHTML = `
-      ${PageHeader({ title: 'Ledger', actions: `<a href="/ledger/new" data-route><button class="primary">${Icons.plus} New Entry</button></a>` })}
+      ${PageHeader({ title: 'Ledger', actions: `
+        <button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button>
+        <button class="secondary" id="btn-export-ledger" style="margin-right:0.5rem">${Icons.download} Export Excel</button>
+        <a href="/ledger/new" data-route><button class="primary">${Icons.plus} New Entry</button></a>
+      ` })}
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
         <div class="form-group" style="margin:0; flex:1; position:relative">
           <input type="text" id="search-ledger" placeholder="Search ledger entries..." style="padding-left:2.5rem; width:100%">
@@ -45,9 +62,14 @@ export async function renderLedgerList(ctx) {
         id: 'ledger-table',
         count: data.length,
         headers: [ { label: 'Date' }, { label: 'Account' }, { label: 'Particulars' }, { label: 'Debit', style: 'text-align:right' }, { label: 'Credit', style: 'text-align:right' }, { label: '', style: 'text-align:right' } ],
-        rows: renderRows(data)
+        rows: renderRows(data),
+        footer: footerHtml
       })}
     `;
+
+    document.getElementById('btn-export-ledger')?.addEventListener('click', () => {
+      import('../components/ui.js').then(ui => ui.exportToExcel('/ledger/export', 'ledger'));
+    });
 
     import('../components/ui.js').then(ui => {
       ui.attachTableSearch('search-ledger', document.querySelector('#ledger-table tbody'), data, renderRows);
@@ -83,22 +105,13 @@ export async function renderLedgerForm(id) {
     </div>
   `;
 
-  // Attach party autocomplete — when selected, resolve the party ID
-  attachPartyAutocomp('accountName', async (selectedName) => {
-    try {
-      const res = await fetch(`/api/search/parties?q=${encodeURIComponent(selectedName)}`);
-      const items = await res.json();
-      // Find exact match and fill hidden accountId
-      const match = items.find(i => i.value === selectedName);
-      if (match) {
-        // Fetch the party to get their ID
-        const partyRes = await fetch(`/api/parties?q=${encodeURIComponent(selectedName)}&limit=1`);
-        const partyList = await partyRes.json();
-        if (partyList.length > 0) {
-          document.getElementById('accountId').value = partyList[0].id;
-        }
-      }
-    } catch { /* silently ignore lookup failures */ }
+  // Attach party autocomplete — when selected, resolve the party ID from the local cache
+  attachPartyAutocomp('accountName', (selectedName) => {
+    const partiesList = api.clientCache.get('/parties') || [];
+    const match = partiesList.find(p => p.name === selectedName);
+    if (match) {
+      document.getElementById('accountId').value = match.id;
+    }
   });
 
   document.getElementById('ledger-form').addEventListener('submit', async (e) => {
@@ -125,7 +138,6 @@ export async function renderLedgerForm(id) {
       if (isEdit) { await api.put(`/ledger/${id}`, fd); showToast('Entry updated'); }
       else { await api.post('/ledger', fd); showToast('Journal entry created'); }
       
-      await api.get('/ledger', { forceRefresh: true });
       window.history.pushState({}, '', '/ledger'); window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       btn.disabled = false;
@@ -143,7 +155,6 @@ export async function renderLedgerForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/ledger/${id}`);
-        await api.get('/ledger', { forceRefresh: true });
         window.history.pushState({}, '', '/ledger');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

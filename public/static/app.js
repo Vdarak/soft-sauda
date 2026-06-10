@@ -83,6 +83,7 @@ function initRouter() {
   // Bills
   r.on('/bills',              requireAuth((ctx) => renderBillList(ctx)));
   r.on('/bills/new',          requireAuth(() => renderBillForm()));
+  r.on('/bills/batch-billing', requireAuth(() => renderBatchBilling()));
   r.on('/bills/{id}',         requireAuth((ctx) => renderBillForm(ctx.params.id)));
 
   // Payments
@@ -98,9 +99,6 @@ function initRouter() {
   // City Master
   r.on('/cities',             requireAuth((ctx) => renderCityList(ctx)));
   r.on('/cities/new',         requireAuth(() => renderCityForm()));
-
-  // Batch Billing
-  r.on('/bills/batch-billing', requireAuth(() => renderBatchBilling()));
 
   // Reports
   r.on('/reports/payment-outstanding', requireAuth((ctx) => renderPaymentOutstanding(ctx)));
@@ -234,8 +232,12 @@ function initKeyboardShortcuts() {
       const form = document.querySelector('form');
       if (form) {
         e.preventDefault();
-        const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
-        form.dispatchEvent(submitEvent);
+        const submitBtn = form.querySelector('[type="submit"]') || form.querySelector('button:not([type="button"])');
+        if (submitBtn) {
+          submitBtn.click();
+        } else {
+          form.requestSubmit();
+        }
       } else {
         const proceedBtn = document.getElementById('btn-proceed');
         if (proceedBtn) {
@@ -258,6 +260,27 @@ function initKeyboardShortcuts() {
         }
         document.getElementById('btn-delete')?.remove();
         showToast('Record copied! Save to duplicate.', 'success');
+      }
+    }
+
+    // Find / Focus Search input
+    const isEditing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable;
+    if (((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) || ((e.key === 'f' || e.key === 'F') && !isEditing)) {
+      const searchInput = document.querySelector('input[id^="search-"]');
+      if (searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+    }
+
+    // Print shortcut (Alt+P or P when not editing)
+    if (((e.altKey || e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) || ((e.key === 'p' || e.key === 'P') && !isEditing)) {
+      // Avoid conflict with standard browser printing unless we want to intercept
+      const printBtn = document.getElementById('btn-print') || document.getElementById('btn-print-bills') || document.querySelector('.btn-print');
+      if (printBtn) {
+        e.preventDefault();
+        printBtn.click();
       }
     }
   });

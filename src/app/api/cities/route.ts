@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       id: cities.id,
       name: cities.name,
       pincode: cities.pincode,
+      stdCode: cities.stdCode,
       districtId: cities.districtId,
       districtName: districts.name,
       stateId: districts.stateId,
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
         id: cities.id,
         name: cities.name,
         pincode: cities.pincode,
+        stdCode: cities.stdCode,
         districtId: cities.districtId,
         districtName: districts.name,
         stateId: districts.stateId,
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       name: body.name.trim(),
       districtId,
       pincode: body.pincode || null,
+      stdCode: body.stdCode || null,
     }).returning();
 
     return created(city);

@@ -77,15 +77,17 @@ export function autocomp(el, options = {}) {
 
 	function createBox() {
 		box = document.createElement("div");
+		const rect = el.getBoundingClientRect();
 		Object.assign(box.style, {
-			width: window.getComputedStyle(el).width,
 			position: "absolute",
-			left: `${el.offsetLeft}px`,
-			top: `${el.offsetTop + el.offsetHeight}px`
+			width: `${rect.width}px`,
+			left: `${rect.left + window.scrollX}px`,
+			top: `${rect.bottom + window.scrollY}px`,
+			zIndex: "9999"
 		});
 
 		box.classList.add("autocomp");
-		el.parentNode.insertBefore(box, el.nextSibling);
+		document.body.appendChild(box);
 	}
 
 	function renderResults() {

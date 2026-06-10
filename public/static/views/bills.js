@@ -65,7 +65,23 @@ export async function renderBillList(ctx) {
 
   try {
     let sortBy = 'date'; // default sorting
-    let data = await api.get(`/reports/bill-register?sortBy=${sortBy}`, { forceRefresh: true });
+    const baseData = await api.get('/reports/bill-register?sortBy=date');
+
+    const sortData = (list, by) => {
+      const sorted = [...list];
+      if (by === 'city') {
+        sorted.sort((a, b) => (a.place || '').localeCompare(b.place || '') || new Date(a.billDate).getTime() - new Date(b.billDate).getTime());
+      } else if (by === 'proprietor') {
+        sorted.sort((a, b) => (a.partyName || '').localeCompare(b.partyName || '') || new Date(a.billDate).getTime() - new Date(b.billDate).getTime());
+      } else if (by === 'type') {
+        sorted.sort((a, b) => (a.basis || '').localeCompare(b.basis || '') || new Date(a.billDate).getTime() - new Date(b.billDate).getTime());
+      } else {
+        sorted.sort((a, b) => new Date(b.billDate).getTime() - new Date(a.billDate).getTime());
+      }
+      return sorted;
+    };
+
+    let data = sortData(baseData, sortBy);
 
     const renderRows = (items) => items.map(b => `
       <tr>
@@ -87,6 +103,8 @@ export async function renderBillList(ctx) {
       const container = document.getElementById('bills-table-container');
       if (!container) return;
 
+      const totalAmount = billsList.reduce((sum, b) => sum + parseFloat(b.totalAmount || '0'), 0);
+
       container.innerHTML = `
         <table id="bills-table">
           <thead>
@@ -105,6 +123,15 @@ export async function renderBillList(ctx) {
               ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No bills found.</td></tr>`
               : renderRows(billsList).join('')}
           </tbody>
+          ${billsList.length > 0 ? `
+            <tfoot>
+              <tr style="font-weight: bold; background: var(--faint); border-top: 2px solid var(--border);">
+                <td colspan="5">Total</td>
+                <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          ` : ''}
         </table>
       `;
 
@@ -118,9 +145,9 @@ export async function renderBillList(ctx) {
         title: 'Bills (Register)', 
         subtitle: 'Manage billing invoices and audit register logs',
         actions: `
-          <button class="secondary" id="btn-print-bills" style="margin-right:0.5rem">${Icons.fileText || ''} Print List (P)</button>
-          <button class="secondary" id="btn-export-bills" style="margin-right:0.5rem">📥 Export Excel</button>
-          <a href="/bills/batch-billing" data-route style="margin-right:0.5rem"><button class="secondary">⚙ Batch Billing</button></a>
+          <button class="secondary" id="btn-print-bills" style="margin-right:0.5rem">${Icons.printer} Print List (P)</button>
+          <button class="secondary" id="btn-export-bills" style="margin-right:0.5rem">${Icons.download} Export Excel</button>
+          <a href="/bills/batch-billing" data-route style="margin-right:0.5rem"><button class="secondary">${Icons.settings} Batch Billing</button></a>
           <a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>
         ` 
       })}
@@ -173,7 +200,7 @@ export async function renderBillList(ctx) {
           container.innerHTML = `<div style="padding: 2rem; text-align: center;"><span class="spinner"></span> Sorting bills...</div>`;
         }
         try {
-          const sortedData = await api.get(`/reports/bill-register?sortBy=${sortBy}`, { forceRefresh: true });
+          const sortedData = sortData(baseData, sortBy);
           updateView(sortedData);
         } catch (err) {
           if (container) {
@@ -354,7 +381,6 @@ export async function renderBillForm(id) {
         showToast('Bill created & posted to ledger');
       }
       
-      await api.get('/bills', { forceRefresh: true });
       window.history.pushState({}, '', '/bills');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
@@ -373,7 +399,6 @@ export async function renderBillForm(id) {
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
       try {
         await api.del(`/bills/${id}`);
-        await api.get('/bills', { forceRefresh: true });
         window.history.pushState({}, '', '/bills');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
