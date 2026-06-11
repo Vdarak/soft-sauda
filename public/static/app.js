@@ -147,7 +147,7 @@ function initRouter() {
 
 /* ── Topbar Active State ── */
 function updateSidebarActive(path) {
-  document.querySelectorAll('.topbar-nav a').forEach(a => {
+  document.querySelectorAll('.topbar-nav a, .topbar-nav-mobile-drawer a').forEach(a => {
     const href = a.getAttribute('href');
     if (href === path || (href !== '/' && path.startsWith(href))) {
       a.classList.add('active');
@@ -155,6 +155,45 @@ function updateSidebarActive(path) {
       a.classList.remove('active');
     }
   });
+}
+
+/* ── Mobile Navigation Drawer ── */
+function initMobileMenu() {
+  const toggleBtn = document.getElementById('mobile-menu-toggle');
+  const topbar = document.querySelector('.topbar');
+  const backdrop = document.getElementById('mobile-menu-backdrop');
+  if (toggleBtn && topbar) {
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      topbar.classList.toggle('mobile-open');
+    });
+
+    // Close drawer when clicking a link inside the mobile drawer
+    const mobileDrawer = document.querySelector('.topbar-nav-mobile-drawer');
+    if (mobileDrawer) {
+      mobileDrawer.addEventListener('click', (e) => {
+        if (e.target.closest('a')) {
+          topbar.classList.remove('mobile-open');
+        }
+      });
+    }
+ 
+    // Close drawer when clicking the backdrop
+    if (backdrop) {
+      backdrop.addEventListener('click', () => {
+        topbar.classList.remove('mobile-open');
+      });
+    }
+ 
+    // Close drawer when clicking outside topbar or drawer
+    document.addEventListener('click', (e) => {
+      if (!topbar.contains(e.target) && 
+          (!mobileDrawer || !mobileDrawer.contains(e.target)) && 
+          (!backdrop || !backdrop.contains(e.target))) {
+        topbar.classList.remove('mobile-open');
+      }
+    });
+  }
 }
 
 /* ── Theme Toggle ── */
@@ -343,6 +382,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initLogout();
   initRouter();
   initKeyboardShortcuts();
+  initMobileMenu();
+  initDualPaneObserver();
 
   // If already logged in (e.g. page refresh), warm the server cache
   if (isAuthenticated()) {
@@ -366,3 +407,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+/* ── Dual-Pane Mobile Drawer Injector ── */
+function initDualPaneObserver() {
+  // Setup existing containers
+  document.querySelectorAll('.dual-pane-container').forEach(setupDualPaneDrawer);
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        const container = node.classList?.contains('dual-pane-container') 
+          ? node 
+          : node.querySelector?.('.dual-pane-container');
+        if (container) {
+          setupDualPaneDrawer(container);
+        }
+      }
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function setupDualPaneDrawer(container) {
+  // Prevent duplicate setup
+  if (container.querySelector('.dual-pane-drawer-toggle')) return;
+
+  // 1. Create floating toggle button
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'dual-pane-drawer-toggle';
+
+  // Determine label based on route
+  let labelText = 'Records';
+  const path = window.location.pathname;
+  if (path.startsWith('/parties')) labelText = 'Accounts';
+  else if (path.startsWith('/commodities')) labelText = 'Commodities';
+  else if (path.startsWith('/contracts')) labelText = 'Contracts';
+  else if (path.startsWith('/deliveries')) labelText = 'Deliveries';
+  else if (path.startsWith('/bills')) labelText = 'Bills';
+  else if (path.startsWith('/payments')) labelText = 'Payments';
+  else if (path.startsWith('/ledger')) labelText = 'Ledger';
+
+  toggleBtn.innerHTML = `
+    <span>${labelText}</span>
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-top: 0.25rem;"><polyline points="9 18 15 12 9 6"/></svg>
+  `;
+  container.appendChild(toggleBtn);
+
+  // 2. Create backdrop element
+  const backdrop = document.createElement('div');
+  backdrop.className = 'dual-pane-backdrop';
+  container.appendChild(backdrop);
+
+  // Get the left sidebar (first child table-container)
+  const sidebar = container.querySelector('.table-container:first-child');
+  if (!sidebar) return;
+  sidebar.classList.add('dual-pane-sidebar');
+
+  // 3. Bind events
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    container.classList.toggle('drawer-open');
+  });
+
+  backdrop.addEventListener('click', () => {
+    container.classList.remove('drawer-open');
+  });
+
+  // Close when selecting an item in the sidebar list
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.closest('.alter-list-item')) {
+      container.classList.remove('drawer-open');
+    }
+  });
+}

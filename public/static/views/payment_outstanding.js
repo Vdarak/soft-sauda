@@ -34,7 +34,7 @@ export async function renderPaymentOutstanding(ctx) {
         <button class="pill-btn" data-tab="interest">Interest Calculation</button>
       </div>
 
-      <div class="form-grid" style="grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: start;">
+      <div class="form-grid layout-200-1fr">
         <!-- Left Sidebar: Slicing Macros -->
         <div class="table-container" style="padding: 1.25rem; background: var(--card);">
           <h3 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">Slice Data By</h3>

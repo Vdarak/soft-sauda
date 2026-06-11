@@ -19,7 +19,7 @@ export async function renderBatchBilling() {
     app.innerHTML = `
       ${PageHeader({ title: 'Batch Bill Generation', subtitle: 'Process unbilled contracts and shipments in bulk', backHref: '/bills' })}
 
-      <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 1.5rem; margin-bottom: 2rem;">
+      <div class="form-grid layout-1fr-2fr" style="margin-bottom: 2rem;">
         <!-- Left Pane: Configuration & Filters -->
         <div class="table-container" style="padding: 1.5rem; height: fit-content; background: var(--card);">
           <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 0.875rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Configuration</h3>

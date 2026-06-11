@@ -109,33 +109,35 @@ export async function renderBillList(ctx) {
       const totalAmount = billsList.reduce((sum, b) => sum + parseFloat(b.totalAmount || '0'), 0);
 
       container.innerHTML = `
-        <table id="bills-table">
-          <thead>
-            <tr>
-              <th>Bill No</th>
-              <th>Bill Date</th>
-              <th>Billed Party</th>
-              <th>Station / City</th>
-              <th>Basis</th>
-              <th style="text-align: right;">Total Amount</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${billsList.length === 0 
-              ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No bills found.</td></tr>`
-              : renderRows(billsList).join('')}
-          </tbody>
-          ${billsList.length > 0 ? `
-            <tfoot>
-              <tr style="font-weight: bold; background: var(--faint); border-top: 2px solid var(--border);">
-                <td colspan="5">Total</td>
-                <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
-                <td></td>
+        <div style="overflow-x:auto">
+          <table id="bills-table">
+            <thead>
+              <tr>
+                <th>Bill No</th>
+                <th>Bill Date</th>
+                <th>Billed Party</th>
+                <th>Station / City</th>
+                <th>Basis</th>
+                <th style="text-align: right;">Total Amount</th>
+                <th style="text-align: right;">Actions</th>
               </tr>
-            </tfoot>
-          ` : ''}
-        </table>
+            </thead>
+            <tbody>
+              ${billsList.length === 0 
+                ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No bills found.</td></tr>`
+                : renderRows(billsList).join('')}
+            </tbody>
+            ${billsList.length > 0 ? `
+              <tfoot>
+                <tr style="font-weight: bold; background: var(--faint); border-top: 2px solid var(--border);">
+                  <td colspan="5">Total</td>
+                  <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            ` : ''}
+          </table>
+        </div>
       `;
 
       import('../components/ui.js').then(ui => {
@@ -148,14 +150,14 @@ export async function renderBillList(ctx) {
         title: 'Bills (Register)', 
         subtitle: 'Manage billing invoices and audit register logs',
         actions: `
-          <button class="secondary" id="btn-print-bills" style="margin-right:0.5rem">${Icons.printer} Print List (P)</button>
-          <button class="secondary" id="btn-export-bills" style="margin-right:0.5rem">${Icons.download} Export Excel</button>
-          <a href="/bills/batch-billing" data-route style="margin-right:0.5rem"><button class="secondary">${Icons.settings} Batch Billing</button></a>
+          <button class="secondary" id="btn-print-bills">${Icons.printer} Print List (P)</button>
+          <button class="secondary" id="btn-export-bills">${Icons.download} Export Excel</button>
+          <a href="/bills/batch-billing" data-route><button class="secondary">${Icons.settings} Batch Billing</button></a>
           <a href="/bills/new" data-route><button class="primary">${Icons.plus} New Bill</button></a>
         ` 
       })}
       
-      <div class="form-grid" style="grid-template-columns: 200px 1fr; gap: 1.5rem; align-items: start;">
+      <div class="form-grid layout-200-1fr">
         <!-- Left Sidebar: Sorting Macros -->
         <div class="table-container" style="padding: 1.25rem; background: var(--card);">
           <h3 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">Sort Register</h3>
