@@ -42,7 +42,7 @@ export async function renderCommodityList(ctx) {
       ${DataTable({
         id: 'commodities-table',
         count: data.length,
-        headers: [ { label: 'Commodity Name' }, { label: 'HSN Code' }, { label: 'Unit' }, { label: '', style: 'text-align:right' } ],
+        headers: [ { label: 'Commodity Name' }, { label: 'HSN Code' }, { label: 'Unit' }, { label: 'Actions', style: 'text-align:right' } ],
         rows: renderRows(data)
       })}
     `;
@@ -143,7 +143,7 @@ export async function renderCommodityForm(id) {
     }
 
     app.innerHTML = `
-      <div style="display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem; height: calc(100vh - 100px); align-items: stretch;">
+      <div class="dual-pane-container">
         
         <!-- Left Sidebar: SELECT COMMODITY TO ALTER -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
@@ -153,9 +153,9 @@ export async function renderCommodityForm(id) {
           </div>
           <div id="alter-commodities-list" style="flex: 1; overflow-y: auto;">
             ${allCommodities.map(c => `
-              <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}" style="padding: 0.625rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;">
-                <div style="font-size: 0.8125rem; font-weight: 600; color: ${c.id == id ? 'var(--primary)' : 'inherit'};">${escapeHtml(c.name)}</div>
-                <div style="font-size: 0.6875rem; color: var(--muted-foreground);">${escapeHtml(c.shortName || '-')}</div>
+              <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}">
+                <div class="title">${escapeHtml(c.name)}</div>
+                <div class="subtitle">${escapeHtml(c.shortName || '-')}</div>
               </div>
             `).join('')}
           </div>

@@ -50,7 +50,7 @@ export async function renderPartyList(ctx) {
       ${DataTable({
         id: 'parties-table',
         count: data.length,
-        headers: [ { label: 'Party Details' }, { label: 'Contact' }, { label: 'Designation' }, { label: 'Status' }, { label: '', style: 'text-align:right' } ],
+        headers: [ { label: 'Party Details' }, { label: 'Contact' }, { label: 'Designation' }, { label: 'Status' }, { label: 'Actions', style: 'text-align:right' } ],
         rows: renderRows(data)
       })}
     `;
@@ -91,7 +91,7 @@ export async function renderPartyForm(id) {
     const activeRoles = party.roles?.map(r => r.role) || [];
 
     app.innerHTML = `
-      <div style="display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem; height: calc(100vh - 100px); align-items: stretch;">
+      <div class="dual-pane-container">
         
         <!-- Left Sidebar: SELECT ACCOUNT TO ALTER -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
@@ -101,9 +101,9 @@ export async function renderPartyForm(id) {
           </div>
           <div id="alter-parties-list" style="flex: 1; overflow-y: auto;">
             ${allParties.map(p => `
-              <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}" style="padding: 0.625rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;">
-                <div style="font-size: 0.8125rem; font-weight: 600; color: ${p.id == id ? 'var(--primary)' : 'inherit'};">${escapeHtml(p.name)}</div>
-                <div style="font-size: 0.6875rem; color: var(--muted-foreground);">${escapeHtml(p.place || 'No location')}</div>
+              <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}">
+                <div class="title">${escapeHtml(p.name)}</div>
+                <div class="subtitle">${escapeHtml(p.place || 'No location')}</div>
               </div>
             `).join('')}
           </div>

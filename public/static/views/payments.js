@@ -63,7 +63,7 @@ export async function renderPaymentList(ctx) {
       ${DataTable({
         id: 'payments-table',
         count: data.length,
-        headers: [ { label: 'Reference & Date' }, { label: 'Party & Method' }, { label: 'Amount', style: 'text-align:right' }, { label: '', style: 'text-align:right' } ],
+        headers: [ { label: 'Reference & Date' }, { label: 'Party & Method' }, { label: 'Amount', style: 'text-align:right' }, { label: 'Actions', style: 'text-align:right' } ],
         rows: renderRows(data),
         footer: footerHtml
       })}

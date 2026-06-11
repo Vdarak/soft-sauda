@@ -70,7 +70,7 @@ export async function renderDeliveryList(ctx) {
           { label: 'Transport' },
           { label: 'Loading Days', style: 'text-align:center' },
           { label: 'Status', style: 'text-align:center' },
-          { label: '', style: 'text-align:right' }
+          { label: 'Actions', style: 'text-align:right' }
         ],
         rows: renderRows(data)
       })}

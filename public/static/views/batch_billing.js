@@ -124,7 +124,7 @@ export async function renderBatchBilling() {
           </div>
 
           <!-- Process button bar -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-base);">
             <div style="font-size: 0.875rem; font-weight: 500;">
               Selected: <span id="selected-count" style="color: var(--primary); font-weight: 700;">0</span> item(s)
             </div>

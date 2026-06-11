@@ -64,7 +64,7 @@ export async function renderLedgerList(ctx) {
       ${DataTable({
         id: 'ledger-table',
         count: data.length,
-        headers: [ { label: 'Date' }, { label: 'Account' }, { label: 'Particulars' }, { label: 'Debit', style: 'text-align:right' }, { label: 'Credit', style: 'text-align:right' }, { label: '', style: 'text-align:right' } ],
+        headers: [ { label: 'Date' }, { label: 'Account' }, { label: 'Particulars' }, { label: 'Debit', style: 'text-align:right' }, { label: 'Credit', style: 'text-align:right' }, { label: 'Actions', style: 'text-align:right' } ],
         rows: renderRows(data),
         footer: footerHtml
       })}
