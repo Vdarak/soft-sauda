@@ -24,7 +24,10 @@ export async function renderPartyList(ctx) {
         <td>${escapeHtml(p.designation || '-')}</td>
         <td>${Badge(p.isActive ? 'Active' : 'Inactive', p.isActive ? 'active' : 'inactive')}</td>
         <td style="text-align:right" onclick="event.stopPropagation()">
-          <a href="/parties/${p.id}" data-route><button class="small">${Icons.edit} Alter</button></a>
+          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+            <a href="/parties/${p.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${p.id}" data-entity="parties">${Icons.trash}</button>
+          </div>
         </td>
       </tr>
     `);

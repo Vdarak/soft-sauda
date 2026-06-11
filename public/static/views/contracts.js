@@ -59,8 +59,11 @@ export async function renderContractList(ctx) {
         </td>
         <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
         <td style="text-align:center">${deliveryBadge(c)}</td>
-        <td style="text-align:right">
-          <a href="/contracts/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        <td style="text-align:right" onclick="event.stopPropagation()">
+          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+            <a href="/contracts/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="contracts">${Icons.trash}</button>
+          </div>
         </td>
       </tr>
     `);
@@ -125,13 +128,14 @@ export async function renderContractForm(id) {
     let contract = { lines: [] };
     let autoSaudaNo = 1;
 
+    // Fetch all contracts for the sidebar selector
+    const allContracts = await api.get('/contracts');
+
     if (isEdit) {
       contract = await api.get(`/contracts/${id}`);
     } else {
-      // Auto-increment helper
-      const list = await api.get('/contracts');
-      if (list && list.length > 0) {
-        autoSaudaNo = Math.max(...list.map(c => c.saudaNo || 0)) + 1;
+      if (allContracts && allContracts.length > 0) {
+        autoSaudaNo = Math.max(...allContracts.map(c => c.saudaNo || 0)) + 1;
       }
     }
 
@@ -139,65 +143,92 @@ export async function renderContractForm(id) {
     const ptType = contract.paymentTermType || 'DISCOUNT';
 
     app.innerHTML = `
-      ${PageHeader({
-        title: isEdit ? `Alter Sauda Record` : 'New Sauda Contract',
-        backHref: '/contracts'
-      })}
-
-      <div class="table-container" style="padding:1.5rem">
-        <form id="contract-form">
-          <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Contract Details</h3>
-          <div class="form-grid">
-            ${FormGroup({ id: 'saudaPrefix', label: 'Sauda Prefix', value: contract.saudaPrefix || 'SD' })}
-            ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: contract.saudaNo || autoSaudaNo, type: 'number', required: true })}
-            ${FormGroup({ id: 'saudaBook', label: 'Sauda Book', value: contract.saudaBook || 'Main Book' })}
-            ${FormGroup({ id: 'saudaDate', label: 'Sauda Date', value: contract.saudaDate ? new Date(contract.saudaDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+      <div class="dual-pane-container">
+        <!-- Left Sidebar: SELECT SAUDA TO ALTER -->
+        <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT SAUDA TO ALTER</h3>
+            <input type="text" id="alter-contract-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
-
-          <div class="form-grid" style="margin-top: 1rem;">
-            ${FormGroup({ id: 'originStation', label: 'Origin Station', value: contract.originStation || '' })}
-            ${FormGroup({ id: 'destinationStation', label: 'Destination Station', value: contract.destinationStation || '' })}
-            ${FormGroup({ id: 'deliveryDeadlineDate', label: 'Delivery Deadline Date', value: contract.deliveryDeadlineDate ? new Date(contract.deliveryDeadlineDate).toISOString().split('T')[0] : '', type: 'date' })}
-            ${FormGroup({ id: 'quantityTolerance', label: 'Quantity Tolerance %', value: contract.quantityTolerance || '', type: 'number' })}
+          <div id="alter-contracts-list" style="flex: 1; overflow-y: auto;">
+            ${allContracts.map(c => `
+              <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}">
+                <div class="title">Sauda #${c.saudaNo} (${escapeHtml(c.saudaBook || 'Main Book')})</div>
+                <div class="subtitle">${escapeHtml(c.buyerName)} vs ${escapeHtml(c.sellerName)}</div>
+              </div>
+            `).join('')}
           </div>
+        </div>
 
-          <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Trade Stakeholders</h3>
-          <div class="form-grid">
-            ${FormGroup({ id: 'sellerName', label: 'Seller (Seller)', value: contract.sellerName || '', required: true, placeholder: 'Search seller...' })}
-            ${FormGroup({ id: 'buyerName', label: 'Buyer (Buyer)', value: contract.buyerName || '', required: true, placeholder: 'Search buyer...' })}
-            ${FormGroup({ id: 'sellerBroker', label: 'Seller Broker', value: contract.sellerBroker || '', placeholder: 'Search broker...' })}
-            ${FormGroup({ id: 'buyerBroker', label: 'Buyer Broker', value: contract.buyerBroker || '', placeholder: 'Search broker...' })}
-          </div>
+        <!-- Right Pane: Master Form -->
+        <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
+          ${PageHeader({
+            title: isEdit ? `Alter Sauda Record` : 'New Sauda Contract',
+            backHref: '/contracts'
+          })}
 
-          <!-- Commodity multi-line grid -->
-          <h3 style="margin:1.5rem 0 0.5rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Sauda Line Items (Commodities)</h3>
-          <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
-            <table id="lines-grid-table" style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: var(--faint);">
-                  <th style="padding: 0.5rem 0.75rem;">Commodity *</th>
-                  <th style="padding: 0.5rem 0.75rem;">Brand</th>
-                  <th style="padding: 0.5rem 0.75rem; text-align: right; width: 80px;">Lorries</th>
-                  <th style="padding: 0.5rem 0.75rem; text-align: right; width: 100px;">Bags</th>
-                  <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Weight (Qtl) *</th>
-                  <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Rate (₹) *</th>
-                  <th style="padding: 0.5rem 0.75rem; text-align: right; width: 130px;">Amount</th>
-                  <th style="width: 40px;"></th>
-                </tr>
-              </thead>
-              <tbody id="lines-grid-body">
-                <!-- Dynamic rows -->
-              </tbody>
-            </table>
-          </div>
-          <button type="button" id="btn-add-line" class="secondary small" style="margin-bottom: 1.5rem;">+ Add Sauda Line Item</button>
+          <form id="contract-form">
+            <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Contract Details</h3>
+            <div class="form-grid">
+              ${FormGroup({ id: 'saudaPrefix', label: 'Sauda Prefix', value: contract.saudaPrefix || 'SD' })}
+              ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: contract.saudaNo || autoSaudaNo, type: 'number', required: true })}
+              ${FormGroup({ id: 'saudaBook', label: 'Sauda Book', value: contract.saudaBook || 'Main Book' })}
+              ${FormGroup({ id: 'saudaDate', label: 'Sauda Date', value: contract.saudaDate ? new Date(contract.saudaDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+            </div>
 
-          <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Payment Terms & Form Trackers</h3>
-          <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:1rem">
-            <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-              <input type="radio" name="paymentTermType" value="DISCOUNT" ${ptType === 'DISCOUNT' ? 'checked' : ''}>
-              Discount Scheme
-            </label>
+            <div class="form-grid" style="margin-top: 1rem;">
+              ${FormGroup({ id: 'originStation', label: 'Origin Station', value: contract.originStation || '' })}
+              ${FormGroup({ id: 'destinationStation', label: 'Destination Station', value: contract.destinationStation || '' })}
+              ${FormGroup({ id: 'deliveryDeadlineDate', label: 'Delivery Deadline Date', value: contract.deliveryDeadlineDate ? new Date(contract.deliveryDeadlineDate).toISOString().split('T')[0] : '', type: 'date' })}
+              ${FormGroup({ id: 'quantityTolerance', label: 'Quantity Tolerance %', value: contract.quantityTolerance || '', type: 'number' })}
+            </div>
+
+            <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Trade Stakeholders</h3>
+            <div class="form-grid">
+              ${FormGroup({ id: 'sellerName', label: 'Seller (Seller)', value: contract.sellerName || '', required: true, placeholder: 'Search seller...' })}
+              ${FormGroup({ id: 'buyerName', label: 'Buyer (Buyer)', value: contract.buyerName || '', required: true, placeholder: 'Search buyer...' })}
+              ${FormGroup({ id: 'sellerBroker', label: 'Seller Broker', value: contract.sellerBroker || '', placeholder: 'Search broker...' })}
+              ${FormGroup({ id: 'buyerBroker', label: 'Buyer Broker', value: contract.buyerBroker || '', placeholder: 'Search broker...' })}
+            </div>
+
+            <!-- Commodity multi-line grid -->
+            <h3 style="margin:1.5rem 0 0.5rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Sauda Line Items (Commodities)</h3>
+            <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
+              <table id="lines-grid-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: var(--faint);">
+                    <th style="padding: 0.5rem 0.75rem;">Commodity *</th>
+                    <th style="padding: 0.5rem 0.75rem;">Brand</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 80px;">Lorries</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 100px;">Bags</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Weight (Qtl) *</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Rate (₹) *</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 130px;">Amount</th>
+                    <th style="width: 40px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="lines-grid-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+            <button type="button" id="btn-add-line" class="secondary small" style="margin-bottom: 1.5rem;">+ Add Sauda Line Item</button>
+
+            <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Payment Terms & Form Trackers</h3>
+            <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:1rem">
+              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
+                <input type="radio" name="paymentTermType" value="DISCOUNT" ${ptType === 'DISCOUNT' ? 'checked' : ''}>
+                Discount Scheme
+              </label>
+              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
+                <input type="radio" name="paymentTermType" value="CREDIT" ${ptType === 'CREDIT' ? 'checked' : ''}>
+                Credit Period
+              </label>
+              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
+                <input type="radio" name="paymentTermType" value="PAYMENT" ${ptType === 'PAYMENT' ? 'checked' : ''}>
+                Immediate Payment
+              </label>
+            </div>
             <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
               <input type="radio" name="paymentTermType" value="CREDIT" ${ptType === 'CREDIT' ? 'checked' : ''}>
               Credit Period
@@ -240,6 +271,7 @@ export async function renderContractForm(id) {
           </div>
         </form>
       </div>
+    </div>
     `;
 
     // Attach Autocomplete to Trade stakeholders with auto-fill callbacks
@@ -459,6 +491,25 @@ export async function renderContractForm(id) {
         btn.innerHTML = ogHtml;
         showToast(err.message, 'error');
       }
+    });
+
+    // Handle click on sidebar item to navigate without full page load
+    document.getElementById('alter-contracts-list')?.addEventListener('click', (e) => {
+      const item = e.target.closest('.alter-list-item');
+      if (!item) return;
+      const targetId = item.getAttribute('data-id');
+      window.history.pushState({}, '', `/contracts/${targetId}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    // Sidebar search filter
+    document.getElementById('alter-contract-search')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      const items = document.querySelectorAll('#alter-contracts-list .alter-list-item');
+      items.forEach(item => {
+        const txt = item.textContent.toLowerCase();
+        item.style.display = txt.includes(q) ? '' : 'none';
+      });
     });
 
   } catch (err) {

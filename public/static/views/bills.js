@@ -93,8 +93,11 @@ export async function renderBillList(ctx) {
           <span class="badge badge-active" style="font-size: 0.6875rem;">${b.basis}</span>
         </td>
         <td style="text-align: right; font-weight: 700; color: var(--primary);" class="mono">${formatCurrency(b.totalAmount)}</td>
-        <td style="text-align: right;">
-          <a href="/bills/${b.id}" data-route><button class="small">${Icons.edit || 'Edit'}</button></a>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+            <a href="/bills/${b.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${b.id}" data-entity="bills">${Icons.trash}</button>
+          </div>
         </td>
       </tr>
     `);
@@ -230,182 +233,224 @@ export async function renderBillList(ctx) {
 export async function renderBillForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
-  let bill = {};
-  if (isEdit) {
-    try {
+  app.innerHTML = Spinner();
+
+  try {
+    const allBills = await api.get('/bills');
+    let bill = {};
+    if (isEdit) {
       bill = await api.get(`/bills/${id}`);
-    } catch (err) {
-      app.innerHTML = `<div class="alert danger">${err.message}</div>`;
-      return;
     }
-  }
 
-  // Pre-resolve initial reference text if editing
-  let initialRefText = '';
-  const firstLine = bill.lines?.[0] || {};
-  const refId = firstLine.referenceId;
-  if (isEdit && refId && (bill.basis === 'CONTRACT' || bill.basis === 'DELIVERY')) {
-    if (bill.basis === 'CONTRACT') {
-      const contractsList = clientCache.get('/contracts') || [];
-      const contract = contractsList.find(c => c.id === refId);
-      if (contract) {
-        initialRefText = `Sauda #${contract.saudaNo} - ${contract.buyerName} vs ${contract.sellerName} (Amt: ₹${contract.amount})`;
-      }
-    } else {
-      const deliveriesList = clientCache.get('/deliveries') || [];
-      const delivery = deliveriesList.find(d => d.id === refId);
-      if (delivery) {
-        initialRefText = `Disp #${delivery.id} - Truck: ${delivery.truckNo || '-'} - Transporter: ${delivery.transporterName || '-'} (Sauda: #${delivery.saudaNo || '-'})`;
+    // Pre-resolve initial reference text if editing
+    let initialRefText = '';
+    const firstLine = bill.lines?.[0] || {};
+    const refId = firstLine.referenceId;
+    if (isEdit && refId && (bill.basis === 'CONTRACT' || bill.basis === 'DELIVERY')) {
+      if (bill.basis === 'CONTRACT') {
+        const contractsList = clientCache.get('/contracts') || await api.get('/contracts');
+        const contract = contractsList.find(c => c.id === refId);
+        if (contract) {
+          initialRefText = `Sauda #${contract.saudaNo} - ${contract.buyerName} vs ${contract.sellerName} (Amt: ₹${contract.amount})`;
+        }
+      } else {
+        const deliveriesList = clientCache.get('/deliveries') || await api.get('/deliveries');
+        const delivery = deliveriesList.find(d => d.id === refId);
+        if (delivery) {
+          initialRefText = `Disp #${delivery.id} - Truck: ${delivery.truckNo || '-'} - Transporter: ${delivery.transporterName || '-'} (Sauda: #${delivery.saudaNo || '-'})`;
+        }
       }
     }
-  }
 
-  app.innerHTML = `
-    ${PageHeader({ title: isEdit ? `Edit Bill: ${bill.billNo}` : 'New Bill', backHref: '/bills' })}
-    <div class="table-container" style="padding:1.5rem">
-      <form id="bill-form">
-        <div class="form-grid">
-          ${FormGroup({ id: 'billNo', label: 'Bill Number', value: bill.billNo || '', required: true })}
-          ${FormGroup({ id: 'billDate', label: 'Bill Date', value: bill.billDate ? new Date(bill.billDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
-          ${FormGroup({ id: 'basis', label: 'Basis', value: bill.basis || 'DIRECT', type: 'select', options: [{ value: 'DIRECT', label: 'Direct' }, { value: 'CONTRACT', label: 'Contract' }, { value: 'DELIVERY', label: 'Delivery' }] })}
-          
-          <div class="form-group" id="reference-group" style="display: none;">
-            <label for="referenceSearch" id="reference-label">Reference No / ID *</label>
-            <input type="text" id="referenceSearch" value="${initialRefText}" placeholder="Type to search unbilled references...">
-            <input type="hidden" id="referenceId" name="referenceId" value="${refId || ''}">
+    app.innerHTML = `
+      <div class="dual-pane-container">
+        <!-- Left Sidebar: SELECT BILL TO ALTER -->
+        <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT BILL TO ALTER</h3>
+            <input type="text" id="alter-bill-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
-
-          ${FormGroup({ id: 'partyName', label: 'Party', value: bill.partyName || '', required: true, placeholder: 'Start typing to search...' })}
-          ${FormGroup({ id: 'totalAmount', label: 'Total Amount (₹)', value: bill.totalAmount || '', type: 'number', required: true })}
-          ${FormGroup({ id: 'creditDays', label: 'Credit Days', value: bill.creditDays || '', type: 'number' })}
-          ${FormGroup({ id: 'description', label: 'Description', value: firstLine.description || '', type: 'textarea' })}
+          <div id="alter-bills-list" style="flex: 1; overflow-y: auto;">
+            ${allBills.map(b => `
+              <div class="alter-list-item ${b.id == id ? 'active-item' : ''}" data-id="${b.id}">
+                <div class="title">Bill #${b.billNo}</div>
+                <div class="subtitle">${escapeHtml(b.partyName || 'Direct')} (${formatDate(b.billDate)})</div>
+              </div>
+            `).join('')}
+          </div>
         </div>
-        <div class="form-actions">
-          <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
-          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-          <a href="/bills" data-route><button type="button" class="secondary">Cancel</button></a>
+
+        <!-- Right Pane: Master Form -->
+        <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
+          ${PageHeader({ title: isEdit ? `Edit Bill: ${bill.billNo}` : 'New Bill', backHref: '/bills' })}
+          
+          <form id="bill-form">
+            <div class="form-grid">
+              ${FormGroup({ id: 'billNo', label: 'Bill Number', value: bill.billNo || '', required: true })}
+              ${FormGroup({ id: 'billDate', label: 'Bill Date', value: bill.billDate ? new Date(bill.billDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+              ${FormGroup({ id: 'basis', label: 'Basis', value: bill.basis || 'DIRECT', type: 'select', options: [{ value: 'DIRECT', label: 'Direct' }, { value: 'CONTRACT', label: 'Contract' }, { value: 'DELIVERY', label: 'Delivery' }] })}
+              
+              <div class="form-group" id="reference-group" style="display: none;">
+                <label for="referenceSearch" id="reference-label">Reference No / ID *</label>
+                <input type="text" id="referenceSearch" value="${initialRefText}" placeholder="Type to search unbilled references...">
+                <input type="hidden" id="referenceId" name="referenceId" value="${refId || ''}">
+              </div>
+
+              ${FormGroup({ id: 'partyName', label: 'Party', value: bill.partyName || '', required: true, placeholder: 'Start typing to search...' })}
+              ${FormGroup({ id: 'totalAmount', label: 'Total Amount (₹)', value: bill.totalAmount || '', type: 'number', required: true })}
+              ${FormGroup({ id: 'creditDays', label: 'Credit Days', value: bill.creditDays || '', type: 'number' })}
+              ${FormGroup({ id: 'description', label: 'Description', value: firstLine.description || '', type: 'textarea' })}
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
+              ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
+              <a href="/bills" data-route><button type="button" class="secondary">Cancel</button></a>
+            </div>
+          </form>
         </div>
-      </form>
-    </div>
-  `;
+      </div>
+    `;
 
-  // Attach party autocomplete
-  attachPartyAutocomp('partyName');
+    // Attach party autocomplete
+    attachPartyAutocomp('partyName');
 
-  const basisSelect = document.getElementById('basis');
-  const refGroup = document.getElementById('reference-group');
-  const refLabel = document.getElementById('reference-label');
-  const refSearch = document.getElementById('referenceSearch');
-  const refIdInput = document.getElementById('referenceId');
+    const basisSelect = document.getElementById('basis');
+    const refGroup = document.getElementById('reference-group');
+    const refLabel = document.getElementById('reference-label');
+    const refSearch = document.getElementById('referenceSearch');
+    const refIdInput = document.getElementById('referenceId');
 
-  const updateReferenceVisibility = () => {
-    const val = basisSelect.value;
-    if (val === 'DIRECT') {
-      refGroup.style.display = 'none';
+    const updateReferenceVisibility = () => {
+      const val = basisSelect.value;
+      if (val === 'DIRECT') {
+        refGroup.style.display = 'none';
+        refIdInput.value = '';
+        refSearch.value = '';
+      } else {
+        refGroup.style.display = '';
+        refLabel.textContent = val === 'CONTRACT' ? 'Contract Reference (Sauda) *' : 'Delivery Reference (Dispatch) *';
+        
+        // Attach autocomplete based on select
+        attachReferenceAutocomplete('referenceSearch', val, (text, item) => {
+          if (item) {
+            refIdInput.value = item.id;
+            
+            if (val === 'CONTRACT') {
+              document.getElementById('partyName').value = item.buyerName || '';
+              document.getElementById('totalAmount').value = item.amount || '';
+              document.getElementById('creditDays').value = item.paymentDays || '';
+              document.getElementById('description').value = `Sauda Contract #${item.saudaNo} - ${item.commodityName || 'Grains'} wt: ${item.weight || '0'} Qtl`;
+            } else {
+              // Delivery
+              let deliveryAmount = 0;
+              let descParts = [];
+              let buyerName = '';
+              let creditDays = '';
+              
+              if (item.lines && item.lines.length > 0) {
+                item.lines.forEach(line => {
+                  const wt = parseFloat(line.dispatchedWeight || '0');
+                  const rate = parseFloat(line.rate || '0');
+                  deliveryAmount += wt * rate;
+                  descParts.push(`${line.commodityName || 'Commodity'} (${wt} Qtl @ ₹${rate})`);
+                });
+                
+                const firstLine = item.lines[0];
+                const contractsList = clientCache.get('/contracts') || [];
+                const contract = contractsList.find(c => String(c.saudaNo) === String(firstLine.saudaNo));
+                if (contract) {
+                  buyerName = contract.buyerName;
+                  creditDays = contract.paymentDays || '';
+                }
+              }
+              
+              document.getElementById('partyName').value = buyerName;
+              document.getElementById('totalAmount').value = deliveryAmount.toFixed(2);
+              document.getElementById('creditDays').value = creditDays;
+              document.getElementById('description').value = `Lorry Dispatch #${item.id} Truck: ${item.truckNo || '-'} - ${descParts.join(', ')}`;
+            }
+          }
+        });
+      }
+    };
+
+    basisSelect.addEventListener('change', () => {
       refIdInput.value = '';
       refSearch.value = '';
-    } else {
-      refGroup.style.display = '';
-      refLabel.textContent = val === 'CONTRACT' ? 'Contract Reference (Sauda) *' : 'Delivery Reference (Dispatch) *';
-      
-      // Attach autocomplete based on select
-      attachReferenceAutocomplete('referenceSearch', val, (text, item) => {
-        if (item) {
-          refIdInput.value = item.id;
-          
-          if (val === 'CONTRACT') {
-            document.getElementById('partyName').value = item.buyerName || '';
-            document.getElementById('totalAmount').value = item.amount || '';
-            document.getElementById('creditDays').value = item.paymentDays || '';
-            document.getElementById('description').value = `Sauda Contract #${item.saudaNo} - ${item.commodityName || 'Grains'} wt: ${item.weight || '0'} Qtl`;
-          } else {
-            // Delivery
-            let deliveryAmount = 0;
-            let descParts = [];
-            let buyerName = '';
-            let creditDays = '';
-            
-            if (item.lines && item.lines.length > 0) {
-              item.lines.forEach(line => {
-                const wt = parseFloat(line.dispatchedWeight || '0');
-                const rate = parseFloat(line.rate || '0');
-                deliveryAmount += wt * rate;
-                descParts.push(`${line.commodityName || 'Commodity'} (${wt} Qtl @ ₹${rate})`);
-              });
-              
-              const firstLine = item.lines[0];
-              const contractsList = clientCache.get('/contracts') || [];
-              const contract = contractsList.find(c => String(c.saudaNo) === String(firstLine.saudaNo));
-              if (contract) {
-                buyerName = contract.buyerName;
-                creditDays = contract.paymentDays || '';
-              }
-            }
-            
-            document.getElementById('partyName').value = buyerName;
-            document.getElementById('totalAmount').value = deliveryAmount.toFixed(2);
-            document.getElementById('creditDays').value = creditDays;
-            document.getElementById('description').value = `Lorry Dispatch #${item.id} Truck: ${item.truckNo || '-'} - ${descParts.join(', ')}`;
-          }
-        }
-      });
-    }
-  };
+      updateReferenceVisibility();
+    });
 
-  basisSelect.addEventListener('change', () => {
-    refIdInput.value = '';
-    refSearch.value = '';
+    // Initial load execution
     updateReferenceVisibility();
-  });
 
-  // Initial load execution
-  updateReferenceVisibility();
-
-  document.getElementById('bill-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    const ogHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
-
-    const fd = collectFormData('bill-form');
-    // referenceSearch is search-only
-    delete fd.referenceSearch;
-
-    try {
-      if (isEdit) {
-        await api.put(`/bills/${id}`, fd);
-        showToast('Bill updated');
-      } else {
-        await api.post('/bills', fd);
-        showToast('Bill created & posted to ledger');
-      }
-      
-      window.history.pushState({}, '', '/bills');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) {
-      btn.disabled = false;
-      btn.innerHTML = ogHtml;
-      showToast(err.message, 'error');
-    }
-  });
-
-  if (isEdit) {
-    document.getElementById('btn-delete').addEventListener('click', async (e) => {
-      if (!confirm('Are you sure you want to delete this bill?')) return;
-      const btn = e.target.closest('button');
+    document.getElementById('bill-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
       const ogHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
+      const fd = collectFormData('bill-form');
+      // referenceSearch is search-only
+      delete fd.referenceSearch;
+
       try {
-        await api.del(`/bills/${id}`);
+        if (isEdit) {
+          await api.put(`/bills/${id}`, fd);
+          showToast('Bill updated');
+        } else {
+          await api.post('/bills', fd);
+          showToast('Bill created & posted to ledger');
+        }
+        
         window.history.pushState({}, '', '/bills');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = ogHtml;
-        alert(err.message);
+        showToast(err.message, 'error');
       }
     });
+
+    if (isEdit) {
+      document.getElementById('btn-delete').addEventListener('click', async (e) => {
+        if (!confirm('Are you sure you want to delete this bill?')) return;
+        const btn = e.target.closest('button');
+        const ogHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+        try {
+          await api.del(`/bills/${id}`);
+          window.history.pushState({}, '', '/bills');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } catch (err) {
+          btn.disabled = false;
+          btn.innerHTML = ogHtml;
+          alert(err.message);
+        }
+      });
+    }
+
+    // Sidebar search filter
+    document.getElementById('alter-bill-search')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      const items = document.querySelectorAll('#alter-bills-list .alter-list-item');
+      items.forEach(item => {
+        const txt = item.textContent.toLowerCase();
+        item.style.display = txt.includes(q) ? '' : 'none';
+      });
+    });
+
+    // Handle click on sidebar item to navigate without full page load
+    document.getElementById('alter-bills-list')?.addEventListener('click', (e) => {
+      const item = e.target.closest('.alter-list-item');
+      if (!item) return;
+      const targetId = item.getAttribute('data-id');
+      window.history.pushState({}, '', `/bills/${targetId}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+  } catch (err) {
+    app.innerHTML = `<div class="alert danger">Failed to initialize: ${err.message}</div>`;
   }
 }

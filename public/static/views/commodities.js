@@ -20,7 +20,10 @@ export async function renderCommodityList(ctx) {
         <td>${escapeHtml(c.hsnCode || '-')}</td>
         <td>${escapeHtml(c.unit || '-')}</td>
         <td style="text-align:right" onclick="event.stopPropagation()">
-          <a href="/commodities/${c.id}" data-route><button class="small">${Icons.edit} Alter</button></a>
+          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+            <a href="/commodities/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="commodities">${Icons.trash}</button>
+          </div>
         </td>
       </tr>
     `);

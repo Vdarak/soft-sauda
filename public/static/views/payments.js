@@ -28,8 +28,11 @@ export async function renderPaymentList(ctx) {
           <div style="font-size:0.6875rem;color:var(--muted-foreground)">Method: ${c.instrumentType} ${c.instrumentNo ? `(${c.instrumentNo})` : ''}</div>
         </td>
         <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
-        <td style="text-align:right">
-          <a href="/payments/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+        <td style="text-align:right" onclick="event.stopPropagation()">
+          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+            <a href="/payments/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="payments">${Icons.trash}</button>
+          </div>
         </td>
       </tr>
     `);
@@ -79,205 +82,247 @@ export async function renderPaymentList(ctx) {
 export async function renderPaymentForm(id) {
   const app = document.getElementById('app');
   const isEdit = !!id;
-  let payment = {};
-  if (isEdit) {
-    try {
+  app.innerHTML = Spinner();
+
+  try {
+    const allPayments = await api.get('/payments');
+    let payment = {};
+    if (isEdit) {
       payment = await api.get(`/payments/${id}`);
-    } catch (err) {
-      app.innerHTML = `<div class="alert danger">${err.message}</div>`;
-      return;
     }
-  }
 
-  const allocatedBillId = payment.allocations?.[0]?.billId || '';
+    const allocatedBillId = payment.allocations?.[0]?.billId || '';
 
-  app.innerHTML = `
-    ${PageHeader({ title: isEdit ? 'Edit Payment' : 'New Payment', backHref: '/payments' })}
-    <div class="table-container" style="padding:1.5rem">
-      <form id="payment-form">
-        <div class="form-grid">
-          ${FormGroup({ id: 'partySearch', label: 'Party', value: payment.partyName || '', placeholder: 'Start typing to search...', required: !isEdit })}
-          
-          <div class="form-group">
-            <label for="billSearch">Allocate to Outstanding Bill *</label>
-            <input type="text" id="billSearch" placeholder="-- Search Party First --" style="width: 100%;" required readonly>
-            <input type="hidden" id="billId" name="billId" value="${allocatedBillId}" required>
+    app.innerHTML = `
+      <div class="dual-pane-container">
+        <!-- Left Sidebar: SELECT PAYMENT TO ALTER -->
+        <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT PAYMENT TO ALTER</h3>
+            <input type="text" id="alter-payment-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
-
-          ${FormGroup({ id: 'paymentDate', label: 'Payment Date', value: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
-          ${FormGroup({ id: 'amount', label: 'Amount (₹)', value: payment.amount || '', type: 'number', required: true })}
-          ${FormGroup({ id: 'instrumentType', label: 'Payment Method', value: payment.instrumentType || '', type: 'select', options: [{ value: 'CASH', label: 'Cash' }, { value: 'CHEQUE', label: 'Cheque' }, { value: 'RTGS', label: 'RTGS/NEFT' }, { value: 'UPI', label: 'UPI' }] })}
-          ${FormGroup({ id: 'instrumentNo', label: 'Reference No.', value: payment.instrumentNo || '' })}
-          ${FormGroup({ id: 'depositedBank', label: 'Deposited Bank', value: payment.depositedBank || '' })}
+          <div id="alter-payments-list" style="flex: 1; overflow-y: auto;">
+            ${allPayments.map(p => `
+              <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}">
+                <div class="title">Ref #${p.id}</div>
+                <div class="subtitle">${escapeHtml(p.partyName || 'Unknown')} (Amt: ₹${p.amount})</div>
+              </div>
+            `).join('')}
+          </div>
         </div>
-        <div class="form-actions">
-          <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
-          ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-          <a href="/payments" data-route><button type="button" class="secondary">Cancel</button></a>
+
+        <!-- Right Pane: Master Form -->
+        <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
+          ${PageHeader({ title: isEdit ? 'Edit Payment' : 'New Payment', backHref: '/payments' })}
+          
+          <form id="payment-form">
+            <div class="form-grid">
+              ${FormGroup({ id: 'partySearch', label: 'Party', value: payment.partyName || '', placeholder: 'Start typing to search...', required: !isEdit })}
+              
+              <div class="form-group">
+                <label for="billSearch">Allocate to Outstanding Bill *</label>
+                <input type="text" id="billSearch" placeholder="-- Search Party First --" style="width: 100%;" required readonly>
+                <input type="hidden" id="billId" name="billId" value="${allocatedBillId}" required>
+              </div>
+
+              ${FormGroup({ id: 'paymentDate', label: 'Payment Date', value: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+              ${FormGroup({ id: 'amount', label: 'Amount (₹)', value: payment.amount || '', type: 'number', required: true })}
+              ${FormGroup({ id: 'instrumentType', label: 'Payment Method', value: payment.instrumentType || '', type: 'select', options: [{ value: 'CASH', label: 'Cash' }, { value: 'CHEQUE', label: 'Cheque' }, { value: 'RTGS', label: 'RTGS/NEFT' }, { value: 'UPI', label: 'UPI' }] })}
+              ${FormGroup({ id: 'instrumentNo', label: 'Reference No.', value: payment.instrumentNo || '' })}
+              ${FormGroup({ id: 'depositedBank', label: 'Deposited Bank', value: payment.depositedBank || '' })}
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
+              ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
+              <a href="/payments" data-route><button type="button" class="secondary">Cancel</button></a>
+            </div>
+          </form>
         </div>
-      </form>
-    </div>
-  `;
+      </div>
+    `;
 
-  let activePartyBills = [];
+    let activePartyBills = [];
 
-  const loadPartyBills = async (partyId, selectedBillId = null) => {
+    const loadPartyBills = async (partyId, selectedBillId = null) => {
+      const billSearch = document.getElementById('billSearch');
+      const billIdInput = document.getElementById('billId');
+      if (!billSearch || !billIdInput) return;
+      
+      billSearch.placeholder = 'Loading outstanding bills...';
+      billSearch.readOnly = true;
+      
+      try {
+        const billsList = clientCache.get('/bills') || await api.get('/bills');
+        activePartyBills = billsList.filter(b => {
+          const isTarget = b.partyId === partyId;
+          const hasBalance = parseFloat(b.balanceAmount || '0') > 0;
+          const isCurrent = selectedBillId && String(b.id) === String(selectedBillId);
+          return isTarget && (hasBalance || isCurrent);
+        });
+        
+        if (activePartyBills.length === 0) {
+          billSearch.placeholder = 'No outstanding bills found for this party';
+          billSearch.value = '';
+          billIdInput.value = '';
+          return;
+        }
+        
+        billSearch.placeholder = 'Type to search outstanding bills...';
+        billSearch.readOnly = false;
+        
+        if (selectedBillId) {
+          const matchedBill = activePartyBills.find(b => String(b.id) === String(selectedBillId));
+          if (matchedBill) {
+            billSearch.value = `Bill #${matchedBill.billNo} - Date: ${formatDate(matchedBill.billDate)} - Balance: ₹${matchedBill.balanceAmount}`;
+            billIdInput.value = selectedBillId;
+          }
+        } else {
+          billSearch.value = '';
+          billIdInput.value = '';
+        }
+      } catch (err) {
+        billSearch.placeholder = 'Error loading bills';
+        console.error(err);
+      }
+    };
+
+    // Party autocomplete with auto-fill outstanding bills callback
+    attachPartyAutocomp('partySearch', (name, party) => {
+      if (party) {
+        loadPartyBills(party.id);
+      } else {
+        activePartyBills = [];
+        const bs = document.getElementById('billSearch');
+        const bi = document.getElementById('billId');
+        if (bs) {
+          bs.placeholder = '-- Search Party First --';
+          bs.value = '';
+          bs.readOnly = true;
+        }
+        if (bi) {
+          bi.value = '';
+        }
+      }
+    });
+
     const billSearch = document.getElementById('billSearch');
     const billIdInput = document.getElementById('billId');
-    if (!billSearch || !billIdInput) return;
-    
-    billSearch.placeholder = 'Loading outstanding bills...';
-    billSearch.readOnly = true;
-    
-    try {
-      const billsList = clientCache.get('/bills') || await api.get('/bills');
-      activePartyBills = billsList.filter(b => {
-        const isTarget = b.partyId === partyId;
-        const hasBalance = parseFloat(b.balanceAmount || '0') > 0;
-        const isCurrent = selectedBillId && String(b.id) === String(selectedBillId);
-        return isTarget && (hasBalance || isCurrent);
-      });
-      
-      if (activePartyBills.length === 0) {
-        billSearch.placeholder = 'No outstanding bills found for this party';
-        billSearch.value = '';
-        billIdInput.value = '';
-        return;
-      }
-      
-      billSearch.placeholder = 'Type to search outstanding bills...';
-      billSearch.readOnly = false;
-      
-      if (selectedBillId) {
-        const matchedBill = activePartyBills.find(b => String(b.id) === String(selectedBillId));
-        if (matchedBill) {
-          billSearch.value = `Bill #${matchedBill.billNo} - Date: ${formatDate(matchedBill.billDate)} - Balance: ₹${matchedBill.balanceAmount}`;
-          billIdInput.value = selectedBillId;
-        }
-      } else {
-        billSearch.value = '';
-        billIdInput.value = '';
-      }
-    } catch (err) {
-      billSearch.placeholder = 'Error loading bills';
-      console.error(err);
-    }
-  };
+    const amountInput = document.getElementById('amount');
 
-  // Party autocomplete with auto-fill outstanding bills callback
-  attachPartyAutocomp('partySearch', (name, party) => {
-    if (party) {
-      loadPartyBills(party.id);
-    } else {
-      activePartyBills = [];
-      const bs = document.getElementById('billSearch');
-      const bi = document.getElementById('billId');
-      if (bs) {
-        bs.placeholder = '-- Search Party First --';
-        bs.value = '';
-        bs.readOnly = true;
-      }
-      if (bi) {
-        bi.value = '';
-      }
-    }
-  });
-
-  const billSearch = document.getElementById('billSearch');
-  const billIdInput = document.getElementById('billId');
-  const amountInput = document.getElementById('amount');
-
-  if (billSearch) {
-    autocomp(billSearch, {
-      onQuery: async (val) => {
-        if (!val || val.trim() === '') return [];
-        const q = val.toLowerCase();
-        const matches = activePartyBills.filter(b => {
-          return String(b.billNo).toLowerCase().includes(q) || 
-                 formatDate(b.billDate).toLowerCase().includes(q) ||
-                 String(b.balanceAmount).includes(q);
-        });
-        billSearch._matches = matches;
-        return matches.map(b => `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`);
-      },
-      onSelect: (val) => {
-        let matched = null;
-        if (billSearch._matches) {
-          matched = billSearch._matches.find(b => {
-            const label = `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`;
-            return label === val;
+    if (billSearch) {
+      autocomp(billSearch, {
+        onQuery: async (val) => {
+          if (!val || val.trim() === '') return [];
+          const q = val.toLowerCase();
+          const matches = activePartyBills.filter(b => {
+            return String(b.billNo).toLowerCase().includes(q) || 
+                   formatDate(b.balanceAmount || '').toLowerCase().includes(q) ||
+                   String(b.balanceAmount).includes(q);
           });
-        }
-        if (matched) {
-          billIdInput.value = matched.id;
-          if (amountInput && !amountInput.value.trim()) {
-            amountInput.value = parseFloat(matched.balanceAmount).toFixed(2);
+          billSearch._matches = matches;
+          return matches.map(b => `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`);
+        },
+        onSelect: (val) => {
+          let matched = null;
+          if (billSearch._matches) {
+            matched = billSearch._matches.find(b => {
+              const label = `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`;
+              return label === val;
+            });
           }
-          const displayVal = `Bill #${matched.billNo} - Date: ${formatDate(matched.billDate)} - Balance: ₹${matched.balanceAmount}`;
-          billSearch.value = displayVal;
-          return displayVal;
+          if (matched) {
+            billIdInput.value = matched.id;
+            if (amountInput && !amountInput.value.trim()) {
+              amountInput.value = parseFloat(matched.balanceAmount).toFixed(2);
+            }
+            const displayVal = `Bill #${matched.billNo} - Date: ${formatDate(matched.billDate)} - Balance: ₹${matched.balanceAmount}`;
+            billSearch.value = displayVal;
+            return displayVal;
+          }
+          return val;
         }
-        return val;
-      }
-    });
+      });
 
-    billSearch.addEventListener('input', (e) => {
-      if (!e.target.value.trim()) {
-        billIdInput.value = '';
-      }
-    });
-  }
-
-  // Load initial bills dropdown in Edit mode
-  if (isEdit && payment.partyId) {
-    loadPartyBills(payment.partyId, allocatedBillId);
-  }
-
-  document.getElementById('payment-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    const ogHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
-
-    const fd = collectFormData('payment-form');
-    // Remove search-only field
-    delete fd.partySearch;
-
-    try {
-      if (isEdit) {
-        await api.put(`/payments/${id}`, fd);
-        showToast('Payment updated');
-      } else {
-        await api.post('/payments', fd);
-        showToast('Payment recorded & bill balance updated');
-      }
-      
-      window.history.pushState({}, '', '/payments');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch (err) {
-      btn.disabled = false;
-      btn.innerHTML = ogHtml;
-      showToast(err.message, 'error');
+      billSearch.addEventListener('input', (e) => {
+        if (!e.target.value.trim()) {
+          billIdInput.value = '';
+        }
+      });
     }
-  });
 
-  if (isEdit) {
-    document.getElementById('btn-delete').addEventListener('click', async (e) => {
-      if (!confirm('Are you sure you want to delete this payment?')) return;
-      const btn = e.target.closest('button');
+    // Load initial bills dropdown in Edit mode
+    if (isEdit && payment.partyId) {
+      loadPartyBills(payment.partyId, allocatedBillId);
+    }
+
+    document.getElementById('payment-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
       const ogHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
+
+      const fd = collectFormData('payment-form');
+      // Remove search-only field
+      delete fd.partySearch;
+
       try {
-        await api.del(`/payments/${id}`);
+        if (isEdit) {
+          await api.put(`/payments/${id}`, fd);
+          showToast('Payment updated');
+        } else {
+          await api.post('/payments', fd);
+          showToast('Payment recorded & bill balance updated');
+        }
+        
         window.history.pushState({}, '', '/payments');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = ogHtml;
-        alert(err.message);
+        showToast(err.message, 'error');
       }
     });
+
+    if (isEdit) {
+      document.getElementById('btn-delete').addEventListener('click', async (e) => {
+        if (!confirm('Are you sure you want to delete this payment?')) return;
+        const btn = e.target.closest('button');
+        const ogHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
+        try {
+          await api.del(`/payments/${id}`);
+          window.history.pushState({}, '', '/payments');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } catch (err) {
+          btn.disabled = false;
+          btn.innerHTML = ogHtml;
+          alert(err.message);
+        }
+      });
+    }
+
+    // Sidebar search filter
+    document.getElementById('alter-payment-search')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      const items = document.querySelectorAll('#alter-payments-list .alter-list-item');
+      items.forEach(item => {
+        const txt = item.textContent.toLowerCase();
+        item.style.display = txt.includes(q) ? '' : 'none';
+      });
+    });
+
+    // Handle click on sidebar item to navigate without full page load
+    document.getElementById('alter-payments-list')?.addEventListener('click', (e) => {
+      const item = e.target.closest('.alter-list-item');
+      if (!item) return;
+      const targetId = item.getAttribute('data-id');
+      window.history.pushState({}, '', `/payments/${targetId}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+  } catch (err) {
+    app.innerHTML = `<div class="alert danger">Failed to initialize: ${err.message}</div>`;
   }
 }

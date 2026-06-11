@@ -24,6 +24,25 @@ import { isAuthenticated, clearAuth, triggerWarmup } from './lib/api.js';
 import { Icons, showToast } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
 
+/* ── Force Clear Rogue Service Workers & Cache (Bypasses old caching on dev port 3000) ── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const registration of registrations) {
+      registration.unregister().then(success => {
+        if (success) {
+          console.log('Unregistered service worker successfully');
+          if (window.caches) {
+            caches.keys().then(names => {
+              for (const name of names) caches.delete(name);
+            });
+          }
+          window.location.reload();
+        }
+      });
+    }
+  });
+}
+
 /* ── Auth Guard ── */
 function requireAuth(handler) {
   return function (ctx) {
@@ -285,6 +304,38 @@ function initKeyboardShortcuts() {
     }
   });
 }
+
+// Global click delegator for row deletion
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-row-btn');
+  if (!btn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const id = btn.getAttribute('data-id');
+  const entity = btn.getAttribute('data-entity');
+  if (!id || !entity) return;
+
+  const entityNameSingular = entity.endsWith('ies') ? entity.slice(0, -3) + 'y' : entity.slice(0, -1);
+  if (!confirm(`Are you sure you want to delete this ${entityNameSingular}?`)) {
+    return;
+  }
+
+  btn.disabled = true;
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner" style="width: 12px; height: 12px; margin: 0; border-width: 2px; border-color: currentColor; border-top-color: transparent;"></span>`;
+
+  try {
+    const api = await import('./lib/api.js');
+    await api.del(`/${entity}/${id}`);
+    showToast(`${entityNameSingular.charAt(0).toUpperCase() + entityNameSingular.slice(1)} deleted successfully`);
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    showToast(err.message, 'error');
+  }
+});
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {

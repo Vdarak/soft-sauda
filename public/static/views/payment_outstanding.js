@@ -70,7 +70,7 @@ export async function renderPaymentOutstanding(ctx) {
             </div>
           </div>
 
-          <div id="report-grid-container" class="table-container" style="background: var(--card);">
+          <div id="report-grid-container" style="background: transparent;">
             <!-- Dynamic report rendering goes here -->
           </div>
         </div>
@@ -182,6 +182,12 @@ function renderOutstandingGrid(container, items) {
       <td style="text-align: right;" class="mono">0.00</td>
       <td style="text-align: right; font-weight: 700;" class="mono">${formatCurrency(item.balanceAmount).replace('₹ ', '')}</td>
       <td style="text-align: right; color: var(--muted-foreground);" class="mono">${formatCurrency(item.creditLimit).replace('₹ ', '')}</td>
+      <td style="text-align: right;" onclick="event.stopPropagation()">
+        <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+          <a href="/bills/${item.billId}" data-route><button class="small">${Icons.edit} Edit</button></a>
+          <button class="small danger delete-row-btn" data-id="${item.billId}" data-entity="bills">${Icons.trash}</button>
+        </div>
+      </td>
     </tr>
   `);
 
@@ -193,44 +199,40 @@ function renderOutstandingGrid(container, items) {
 
   const rowsHtml = renderRows(items);
 
-  container.innerHTML = `
-    <div style="overflow-x: auto;">
-      <table id="outstanding-table">
-        <thead>
-          <tr>
-            <th>Bill Date</th>
-            <th>Sauda No</th>
-            <th>Buyer</th>
-            <th>Seller</th>
-            <th>Bill No</th>
-            <th style="text-align: center;">Over Days</th>
-            <th style="text-align: right;">Bill Amount</th>
-            <th style="text-align: right;">Received</th>
-            <th style="text-align: right;">Deductions</th>
-            <th style="text-align: right;">Outstanding</th>
-            <th style="text-align: right;">Credit Limit</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml.length === 0 
-            ? `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No outstanding balances found.</td></tr>`
-            : rowsHtml.join('')}
-        </tbody>
-        ${rowsHtml.length > 0 ? `
-          <tfoot>
-            <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
-              <td colspan="6">TOTALS</td>
-              <td style="text-align: right;" class="mono">${formatCurrency(runningBillAmt).replace('₹ ', '')}</td>
-              <td style="text-align: right;" class="mono">${formatCurrency(runningReceived).replace('₹ ', '')}</td>
-              <td style="text-align: right;" class="mono">0.00</td>
-              <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(runningNetBal)}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        ` : ''}
-      </table>
-    </div>
+  const footerHtml = `
+    <tfoot>
+      <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+        <td colspan="6">TOTALS</td>
+        <td style="text-align: right;" class="mono">${formatCurrency(runningBillAmt).replace('₹ ', '')}</td>
+        <td style="text-align: right;" class="mono">${formatCurrency(runningReceived).replace('₹ ', '')}</td>
+        <td style="text-align: right;" class="mono">0.00</td>
+        <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(runningNetBal)}</td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tfoot>
   `;
+
+  container.innerHTML = DataTable({
+    id: 'outstanding-table',
+    count: items.length,
+    headers: [
+      { label: 'Bill Date' },
+      { label: 'Sauda No' },
+      { label: 'Buyer' },
+      { label: 'Seller' },
+      { label: 'Bill No' },
+      { label: 'Over Days', align: 'center' },
+      { label: 'Bill Amount', align: 'right' },
+      { label: 'Received', align: 'right' },
+      { label: 'Deductions', align: 'right' },
+      { label: 'Outstanding', align: 'right' },
+      { label: 'Credit Limit', align: 'right' },
+      { label: 'Actions', style: 'text-align:right; width: 100px;' }
+    ],
+    rows: rowsHtml,
+    footer: footerHtml
+  });
 
   attachTableSearch('search-report', document.querySelector('#outstanding-table tbody'), items, renderRows);
 }
@@ -252,6 +254,12 @@ async function renderPendingContractsGrid(container) {
         <td style="text-align: center;" class="mono">${c.numberOfLorries}</td>
         <td style="text-align: center; color: var(--primary); font-weight: 700;" class="mono">${c.pendingCount}</td>
         <td style="text-align: right;" class="mono">${formatCurrency(c.amount)}</td>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+            <a href="/contracts/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="contracts">${Icons.trash}</button>
+          </div>
+        </td>
       </tr>
     `);
 
@@ -261,39 +269,35 @@ async function renderPendingContractsGrid(container) {
 
     const rowsHtml = renderRows(pending);
 
-    container.innerHTML = `
-      <div style="overflow-x: auto;">
-        <table id="pending-contracts-table">
-          <thead>
-            <tr>
-              <th>Sauda No</th>
-              <th>Sauda Date</th>
-              <th>Buyer</th>
-              <th>Seller</th>
-              <th>Commodity</th>
-              <th style="text-align: center;">Total Lorries</th>
-              <th style="text-align: center;">Pending Lorries</th>
-              <th style="text-align: right;">Bargain Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml.length === 0 
-              ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No pending contracts found.</td></tr>`
-              : rowsHtml.join('')}
-          </tbody>
-          ${rowsHtml.length > 0 ? `
-            <tfoot>
-              <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
-                <td colspan="5">TOTALS</td>
-                <td style="text-align: center;" class="mono">${totalLorries}</td>
-                <td style="text-align: center; color: var(--primary);" class="mono">${pendingLorries}</td>
-                <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
-              </tr>
-            </tfoot>
-          ` : ''}
-        </table>
-      </div>
+    const footerHtml = `
+      <tfoot>
+        <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+          <td colspan="5">TOTALS</td>
+          <td style="text-align: center;" class="mono">${totalLorries}</td>
+          <td style="text-align: center; color: var(--primary);" class="mono">${pendingLorries}</td>
+          <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
     `;
+
+    container.innerHTML = DataTable({
+      id: 'pending-contracts-table',
+      count: pending.length,
+      headers: [
+        { label: 'Sauda No' },
+        { label: 'Sauda Date' },
+        { label: 'Buyer' },
+        { label: 'Seller' },
+        { label: 'Commodity' },
+        { label: 'Total Lorries', align: 'center' },
+        { label: 'Pending Lorries', align: 'center' },
+        { label: 'Bargain Amount', align: 'right' },
+        { label: 'Actions', style: 'text-align:right; width: 100px;' }
+      ],
+      rows: rowsHtml,
+      footer: footerHtml
+    });
 
     attachTableSearch('search-report', document.querySelector('#pending-contracts-table tbody'), pending, renderRows);
   } catch (err) {
@@ -318,33 +322,32 @@ async function renderPendingDeliveriesGrid(container) {
         <td style="text-align: center;">
           <span class="badge badge-draft">${d.status}</span>
         </td>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+            <a href="/deliveries/${d.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${d.id}" data-entity="deliveries">${Icons.trash}</button>
+          </div>
+        </td>
       </tr>
     `);
 
     const rowsHtml = renderRows(pending);
 
-    container.innerHTML = `
-      <div style="overflow-x: auto;">
-        <table id="pending-deliveries-table">
-          <thead>
-            <tr>
-              <th>Dispatch No</th>
-              <th>Dispatch Date</th>
-              <th>Sauda Link</th>
-              <th>Lorry/Truck No</th>
-              <th>Transporter</th>
-              <th>Bill Ref</th>
-              <th style="text-align: center;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml.length === 0 
-              ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No pending deliveries found.</td></tr>`
-              : rowsHtml.join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+    container.innerHTML = DataTable({
+      id: 'pending-deliveries-table',
+      count: pending.length,
+      headers: [
+        { label: 'Dispatch No' },
+        { label: 'Dispatch Date' },
+        { label: 'Sauda Link' },
+        { label: 'Lorry/Truck No' },
+        { label: 'Transporter' },
+        { label: 'Bill Ref' },
+        { label: 'Status', align: 'center' },
+        { label: 'Actions', style: 'text-align:right; width: 100px;' }
+      ],
+      rows: rowsHtml
+    });
 
     attachTableSearch('search-report', document.querySelector('#pending-deliveries-table tbody'), pending, renderRows);
   } catch (err) {
@@ -366,33 +369,32 @@ async function renderDeliveryRegisterGrid(container) {
         <td>${escapeHtml(d.transporterName || '-')}</td>
         <td>${escapeHtml(d.billNo || '-')}</td>
         <td style="text-align: center;"><span class="badge ${d.status === 'DELIVERED' ? 'badge-active' : 'badge-draft'}">${d.status}</span></td>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+            <a href="/deliveries/${d.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${d.id}" data-entity="deliveries">${Icons.trash}</button>
+          </div>
+        </td>
       </tr>
     `);
 
     const rowsHtml = renderRows(delList);
 
-    container.innerHTML = `
-      <div style="overflow-x: auto;">
-        <table id="delivery-register-table">
-          <thead>
-            <tr>
-              <th>Dispatch No</th>
-              <th>Dispatch Date</th>
-              <th>Sauda Link</th>
-              <th>Lorry/Truck No</th>
-              <th>Transporter</th>
-              <th>Bill Ref</th>
-              <th style="text-align: center;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml.length === 0 
-              ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No deliveries found.</td></tr>`
-              : rowsHtml.join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+    container.innerHTML = DataTable({
+      id: 'delivery-register-table',
+      count: delList.length,
+      headers: [
+        { label: 'Dispatch No' },
+        { label: 'Dispatch Date' },
+        { label: 'Sauda Link' },
+        { label: 'Lorry/Truck No' },
+        { label: 'Transporter' },
+        { label: 'Bill Ref' },
+        { label: 'Status', align: 'center' },
+        { label: 'Actions', style: 'text-align:right; width: 100px;' }
+      ],
+      rows: rowsHtml
+    });
 
     attachTableSearch('search-report', document.querySelector('#delivery-register-table tbody'), delList, renderRows);
   } catch (err) {
@@ -413,41 +415,43 @@ async function renderPaymentRegisterGrid(container) {
         <td>${escapeHtml(p.instrumentNo || '-')}</td>
         <td>${escapeHtml(p.depositedBank || '-')}</td>
         <td style="text-align: right; font-weight: 600; color: var(--primary);" class="mono">${formatCurrency(p.amount)}</td>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+            <a href="/payments/${p.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${p.id}" data-entity="payments">${Icons.trash}</button>
+          </div>
+        </td>
       </tr>
     `);
 
     const totalPaid = payList.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
     const rowsHtml = renderRows(payList);
 
-    container.innerHTML = `
-      <div style="overflow-x: auto;">
-        <table id="payment-register-table">
-          <thead>
-            <tr>
-              <th>Payment Date</th>
-              <th>Party / Client</th>
-              <th>Type</th>
-              <th>Ref / Cheque No</th>
-              <th>Deposited Bank</th>
-              <th style="text-align: right;">Amount Paid</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml.length === 0 
-              ? `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No payments found.</td></tr>`
-              : rowsHtml.join('')}
-          </tbody>
-          ${rowsHtml.length > 0 ? `
-            <tfoot>
-              <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
-                <td colspan="5">TOTAL</td>
-                <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalPaid)}</td>
-              </tr>
-            </tfoot>
-          ` : ''}
-        </table>
-      </div>
+    const footerHtml = `
+      <tfoot>
+        <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+          <td colspan="5">TOTAL</td>
+          <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalPaid)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
     `;
+
+    container.innerHTML = DataTable({
+      id: 'payment-register-table',
+      count: payList.length,
+      headers: [
+        { label: 'Payment Date' },
+        { label: 'Party / Client' },
+        { label: 'Type' },
+        { label: 'Ref / Cheque No' },
+        { label: 'Deposited Bank' },
+        { label: 'Amount Paid', align: 'right' },
+        { label: 'Actions', style: 'text-align:right; width: 100px;' }
+      ],
+      rows: rowsHtml,
+      footer: footerHtml
+    });
 
     attachTableSearch('search-report', document.querySelector('#payment-register-table tbody'), payList, renderRows);
   } catch (err) {
@@ -469,6 +473,12 @@ function renderInterestCalculationGrid(container, items) {
         <td style="text-align: center; font-weight: 600;" class="mono">${item.overDays}</td>
         <td style="text-align: center;" class="mono">12%</td>
         <td style="text-align: right; font-weight: 700; color: var(--primary);" class="mono">${formatCurrency(interest)}</td>
+        <td style="text-align: right;" onclick="event.stopPropagation()">
+          <div style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+            <a href="/bills/${item.billId}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small danger delete-row-btn" data-id="${item.billId}" data-entity="bills">${Icons.trash}</button>
+          </div>
+        </td>
       </tr>
     `;
   });
@@ -478,38 +488,34 @@ function renderInterestCalculationGrid(container, items) {
 
   const rowsHtml = renderRows(items);
 
-  container.innerHTML = `
-    <div style="overflow-x: auto;">
-      <table id="interest-calculation-table">
-        <thead>
-          <tr>
-            <th>Bill Date</th>
-            <th>Bill No</th>
-            <th>Party / Client</th>
-            <th style="text-align: right;">Outstanding Principal</th>
-            <th style="text-align: center;">Delay (Days)</th>
-            <th style="text-align: center;">Interest Rate</th>
-            <th style="text-align: right;">Calculated Interest</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml.length === 0 
-            ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted-foreground)">No outstanding bills to compute interest on.</td></tr>`
-            : rowsHtml.join('')}
-        </tbody>
-        ${rowsHtml.length > 0 ? `
-          <tfoot>
-            <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
-              <td colspan="3">TOTALS</td>
-              <td style="text-align: right;" class="mono">${formatCurrency(totalPrincipal).replace('₹ ', '')}</td>
-              <td colspan="2"></td>
-              <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalInterest)}</td>
-            </tr>
-          </tfoot>
-        ` : ''}
-      </table>
-    </div>
+  const footerHtml = `
+    <tfoot>
+      <tr style="font-weight: 700; background: var(--faint); border-top: 2px solid var(--border);">
+        <td colspan="3">TOTALS</td>
+        <td style="text-align: right;" class="mono">${formatCurrency(totalPrincipal).replace('₹ ', '')}</td>
+        <td colspan="2"></td>
+        <td style="text-align: right; color: var(--primary);" class="mono">${formatCurrency(totalInterest)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
   `;
+
+  container.innerHTML = DataTable({
+    id: 'interest-calculation-table',
+    count: items.length,
+    headers: [
+      { label: 'Bill Date' },
+      { label: 'Bill No' },
+      { label: 'Party / Client' },
+      { label: 'Outstanding Principal', align: 'right' },
+      { label: 'Delay (Days)', align: 'center' },
+      { label: 'Interest Rate', align: 'center' },
+      { label: 'Calculated Interest', align: 'right' },
+      { label: 'Actions', style: 'text-align:right; width: 100px;' }
+    ],
+    rows: rowsHtml,
+    footer: footerHtml
+  });
 
   attachTableSearch('search-report', document.querySelector('#interest-calculation-table tbody'), items, renderRows);
 }

@@ -66,9 +66,15 @@ export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No 
     </div>` : ''}
     <div style="overflow-x:auto">
       <table id="${id || ''}">
-        <thead><tr>${headers.map(h =>
-          `<th${h.align ? ` style="text-align:${h.align}"` : ''}>${escapeHtml(h.label)}</th>`
-        ).join('')}</tr></thead>
+        <thead><tr>${headers.map(h => {
+          let styleAttr = '';
+          if (h.style) {
+            styleAttr = ` style="${h.style}"`;
+          } else if (h.align) {
+            styleAttr = ` style="text-align:${h.align}"`;
+          }
+          return `<th${styleAttr}>${escapeHtml(h.label)}</th>`;
+        }).join('')}</tr></thead>
         <tbody>
           ${rows.length === 0 
             ? `<tr><td colspan="${headers.length}" style="text-align:center;padding:2rem;color:var(--muted-foreground)">${emptyMessage}</td></tr>`
