@@ -22,6 +22,7 @@ import { renderBatchBilling } from './views/batch_billing.js';
 import { renderPaymentOutstanding } from './views/payment_outstanding.js';
 import { renderUserList, renderUserForm, renderAuditLogs } from './views/admin.js';
 import { renderAnalytics } from './views/analytics.js';
+import * as api from './lib/api.js';
 import { isAuthenticated, clearAuth, triggerWarmup, clientCache } from './lib/api.js';
 import { Icons, showToast } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
@@ -971,9 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setInterval(async () => {
         if (!isAuthenticated()) return;
         try {
-          const res = await fetch('/api/status');
-          if (!res.ok) return;
-          const data = await res.json();
+          const data = await api.get('/status');
           if (currentChecksum && data.checksum !== currentChecksum) {
             console.log('Background sync: data changed. Refreshing cache silently...');
             await triggerWarmup();
