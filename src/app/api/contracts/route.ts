@@ -14,6 +14,7 @@ import { contracts, contractParties, contractLines, parties, commodities, commod
 import { desc, eq, and, ilike, sql, or, exists } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -386,6 +387,7 @@ export async function POST(req: NextRequest) {
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(result);
   } catch (err: any) {
     console.error('POST /api/contracts error:', err);

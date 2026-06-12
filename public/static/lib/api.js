@@ -238,6 +238,11 @@ export async function login(username, password) {
  * Populates both list and detail routes in the client cache instantly.
  */
 export async function triggerWarmup(options = {}) {
+  // Guard: Don't attempt warmup if no company is selected — the API needs x-company-id
+  if (!sessionStorage.getItem('active_company_id')) {
+    console.warn('[api.js] triggerWarmup skipped: no active company selected.');
+    return;
+  }
   try {
     // 1. Check if we already downloaded the mega payload in this session
     let payload = null;

@@ -9,6 +9,7 @@ import { bills, billLines, ledger, parties } from '@/db/schema';
 import { desc, eq, and, or, ilike } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -183,6 +184,7 @@ export async function POST(req: NextRequest) {
     cacheInvalidate('bills');
     cacheInvalidate('ledger');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(result);
   } catch (err: any) {
     console.error('POST /api/bills error:', err);

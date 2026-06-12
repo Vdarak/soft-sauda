@@ -9,6 +9,7 @@ import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, con
 import { desc, eq, and, or, ilike, sql } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -245,6 +246,7 @@ export async function POST(req: NextRequest) {
 
     cacheInvalidate('deliveries');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(result);
   } catch (err) {
     console.error('POST /api/deliveries error:', err);

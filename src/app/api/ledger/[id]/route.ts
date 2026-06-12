@@ -10,6 +10,7 @@ import { ledger, parties } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
@@ -88,6 +89,7 @@ export async function PUT(req: NextRequest, context: Params) {
     });
 
     cacheInvalidate('ledger');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     const updated = await db.select().from(ledger).where(eq(ledger.id, id)).limit(1);
     return ok(stripAuditFields(updated[0], role));
   } catch (err) {
@@ -123,6 +125,7 @@ export async function DELETE(req: NextRequest, context: Params) {
     });
 
     cacheInvalidate('ledger');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });
   } catch (err) {
     console.error('DELETE /api/ledger/[id] error:', err);

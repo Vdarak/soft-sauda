@@ -365,11 +365,15 @@ export async function warmCache(
             bLinesMap[line.billId].push(line);
           }
         }
-        data.forEach(b => { cacheSet(`bills:${b.id}`, { ...b, lines: bLinesMap[b.id] || [] }, TTL); });
-        cacheSet(`bills:all:${companyId}:${fiscalYearId}`, data, TTL);
-        paginateIntoCache('bills', companyId, fiscalYearId, data, TTL);
-        paginateIntoPayload('bills', data, payload);
-        payload['/bills'] = data;
+        const enriched = data.map(b => ({
+          ...b,
+          lines: bLinesMap[b.id] || []
+        }));
+        enriched.forEach(b => { cacheSet(`bills:${b.id}`, b, TTL); });
+        cacheSet(`bills:all:${companyId}:${fiscalYearId}`, enriched, TTL);
+        paginateIntoCache('bills', companyId, fiscalYearId, enriched, TTL);
+        paginateIntoPayload('bills', enriched, payload);
+        payload['/bills'] = enriched;
       },
       payloadFn: () => {
         const all = cacheGet<any[]>(`bills:all:${companyId}:${fiscalYearId}`) || [];
@@ -754,5 +758,76 @@ export async function warmCache(
   });
 
   await Promise.all(promises);
+  payload['/search/packaging'] = [];
   return { payload, warmed, skipped };
+}
+
+const ACTIVE_WORKSPACES_TTL = 15 * 60 * 1000; // 15 minutes of inactivity before eviction
+const activeWorkspaces = new Map<string, number>(); // key: "companyId:fiscalYearId", value: lastAccessedTimestamp
+
+export function markWorkspaceActive(companyId: number, fiscalYearId: number): void {
+  const key = `${companyId}:${fiscalYearId}`;
+  activeWorkspaces.set(key, Date.now());
+}
+
+/** Get pre-computed warmup payload or compute and cache it if absent */
+export async function getCachedWarmup(companyId: number, fiscalYearId: number) {
+  markWorkspaceActive(companyId, fiscalYearId);
+  const cacheKey = `warmup:payload:${companyId}:${fiscalYearId}`;
+  const cached = cacheGet<Record<string, any>>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const result = await warmCache(companyId, fiscalYearId);
+  cacheSet(cacheKey, result.payload, DEFAULT_TTL);
+  return result.payload;
+}
+
+/** Trigger background, non-blocking cache re-warming for a workspace */
+export function triggerBackgroundWarmup(companyId: number | null | undefined, fiscalYearId: number | null | undefined): void {
+  if (!companyId || !fiscalYearId) return;
+  
+  markWorkspaceActive(companyId, fiscalYearId);
+  const cacheKey = `warmup:payload:${companyId}:${fiscalYearId}`;
+
+  Promise.resolve().then(async () => {
+    try {
+      console.log(`[Eager Cache] Triggering background re-warm for company: ${companyId}, FY: ${fiscalYearId}`);
+      const result = await warmCache(companyId, fiscalYearId);
+      cacheSet(cacheKey, result.payload, DEFAULT_TTL);
+      console.log(`[Eager Cache] Background re-warm successful for company: ${companyId}, FY: ${fiscalYearId}`);
+    } catch (err) {
+      console.error(`[Eager Cache] Background re-warm failed for company: ${companyId}, FY: ${fiscalYearId}`, err);
+    }
+  });
+}
+
+// Background scheduler
+if (typeof globalThis !== 'undefined') {
+  const globalAny = globalThis as any;
+  if (!globalAny.warmupSchedulerStarted) {
+    globalAny.warmupSchedulerStarted = true;
+    setInterval(() => {
+      const now = Date.now();
+      for (const [workspaceKey, lastAccessed] of activeWorkspaces.entries()) {
+        if (now - lastAccessed > ACTIVE_WORKSPACES_TTL) {
+          activeWorkspaces.delete(workspaceKey);
+          console.log(`[Warmup Scheduler] Evicting inactive workspace: ${workspaceKey}`);
+          continue;
+        }
+        const [companyIdStr, fiscalYearIdStr] = workspaceKey.split(':');
+        const companyId = parseInt(companyIdStr, 10);
+        const fiscalYearId = parseInt(fiscalYearIdStr, 10);
+        
+        console.log(`[Warmup Scheduler] Periodically re-warming active workspace: ${workspaceKey}`);
+        warmCache(companyId, fiscalYearId)
+          .then((res) => {
+            const cacheKey = `warmup:payload:${companyId}:${fiscalYearId}`;
+            cacheSet(cacheKey, res.payload, DEFAULT_TTL);
+          })
+          .catch(err => console.error(`[Warmup Scheduler] Error warming workspace ${workspaceKey}:`, err));
+      }
+    }, 5 * 60 * 1000); // every 5 minutes
+    console.log('[Warmup Scheduler] Periodic background re-warming scheduler initialized.');
+  }
 }

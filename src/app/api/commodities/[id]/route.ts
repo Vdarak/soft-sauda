@@ -9,6 +9,8 @@ import { commodities, commodityPackaging, commoditySpecifications } from '@/db/s
 import { eq } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
+import { getRequestContext } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -42,6 +44,10 @@ export async function PUT(req: NextRequest, context: Params) {
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid commodity ID');
+
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
 
     const body = await parseBody<Record<string, any>>(req);
     if (!body || !body.name) return badRequest('Commodity name is required');
@@ -85,6 +91,7 @@ export async function PUT(req: NextRequest, context: Params) {
     });
 
     cacheInvalidate('commodities');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     const updated = await db.select().from(commodities).where(eq(commodities.id, id)).limit(1);
     return ok(updated[0]);
   } catch (err) {
@@ -95,11 +102,16 @@ export async function PUT(req: NextRequest, context: Params) {
 
 export async function DELETE(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
+
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid ID');
     await db.delete(commodities).where(eq(commodities.id, id));
     cacheInvalidate('commodities');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });
   } catch (err) {
     console.error('DELETE /api/commodities/[id] error:', err);

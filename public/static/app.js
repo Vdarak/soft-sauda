@@ -965,17 +965,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initMobileMenu();
   initDualPaneObserver();
 
-  // If already logged in (e.g. page refresh), warm the server cache
-  if (isAuthenticated()) {
+  // If already logged in AND a company is selected, warm the server cache.
+  // Without active_company_id the warmup/status endpoints return 401.
+  if (isAuthenticated() && sessionStorage.getItem('active_company_id')) {
     triggerWarmup().then(() => {
       // Start background polling
       let currentChecksum = null;
       setInterval(async () => {
         if (!isAuthenticated()) return;
-        // ONLY poll if active company is selected, to prevent unauthorized (401) errors on company selection page
         if (!sessionStorage.getItem('active_company_id')) return;
         try {
-          // Use apiGet to automatically inject Authorization token and company/FY headers
           const data = await apiGet('/status');
           if (currentChecksum && data.checksum !== currentChecksum) {
             console.log('Background sync: data changed. Refreshing cache silently...');

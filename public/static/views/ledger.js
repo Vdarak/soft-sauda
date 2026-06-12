@@ -17,27 +17,31 @@ export async function renderLedgerList(ctx) {
   try {
     const data = await api.get('/ledger');
     
-    const renderRows = (items) => items.map(c => `
-      <tr>
-        <td>${formatDate(c.voucherDate)}</td>
-        <td>
-          <div style="font-weight:600">${escapeHtml(c.accountName || '')}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Ref: ${c.refNo || '-'}</div>
-        </td>
-        <td>${escapeHtml(c.particulars || '')}</td>
-        <td style="text-align:right" class="mono">${c.drCr === 'Dr' ? formatCurrency(c.amount) : '-'}</td>
-        <td style="text-align:right" class="mono">${c.drCr === 'Cr' ? formatCurrency(c.amount) : '-'}</td>
-        <td style="text-align:right" onclick="event.stopPropagation()">
-          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
-            <a href="/ledger/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
-            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="ledger">${Icons.trash}</button>
-          </div>
-        </td>
-      </tr>
-    `);
+    const renderRows = (items) => items.map(c => {
+      const isDr = parseFloat(c.debit || '0') > 0;
+      const isCr = parseFloat(c.credit || '0') > 0;
+      return `
+        <tr>
+          <td>${formatDate(c.transactionDate)}</td>
+          <td>
+            <div style="font-weight:600">${escapeHtml(c.accountName || '')}</div>
+            <div style="font-size:0.6875rem;color:var(--muted-foreground)">Ref: ${c.sourceId || '-'}</div>
+          </td>
+          <td>${escapeHtml(c.narration || '')}</td>
+          <td style="text-align:right" class="mono">${isDr ? formatCurrency(c.debit) : '-'}</td>
+          <td style="text-align:right" class="mono">${isCr ? formatCurrency(c.credit) : '-'}</td>
+          <td style="text-align:right" onclick="event.stopPropagation()">
+            <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
+              <a href="/ledger/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+              <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="ledger">${Icons.trash}</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
 
-    const totalDr = data.reduce((sum, c) => sum + (c.drCr === 'Dr' ? parseFloat(c.amount || '0') : 0), 0);
-    const totalCr = data.reduce((sum, c) => sum + (c.drCr === 'Cr' ? parseFloat(c.amount || '0') : 0), 0);
+    const totalDr = data.reduce((sum, c) => sum + parseFloat(c.debit || '0'), 0);
+    const totalCr = data.reduce((sum, c) => sum + parseFloat(c.credit || '0'), 0);
     const footerHtml = `
       <tfoot>
         <tr style="font-weight: bold; background: var(--faint);">
@@ -104,7 +108,7 @@ export async function renderLedgerForm(id) {
             ${allLedger.map(c => `
               <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}">
                 <div class="title">${escapeHtml(c.accountName || 'Entry')}</div>
-                <div class="subtitle">Particulars: ${escapeHtml(c.particulars || '-')} (${formatDate(c.voucherDate)})</div>
+                <div class="subtitle">Particulars: ${escapeHtml(c.narration || '-')} (${formatDate(c.transactionDate)})</div>
               </div>
             `).join('')}
           </div>

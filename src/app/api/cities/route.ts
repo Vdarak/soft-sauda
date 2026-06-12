@@ -8,6 +8,8 @@ import { db } from '@/db';
 import { cities, districts, states } from '@/db/schema';
 import { desc, eq, ilike, sql, and } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
+import { getRequestContext } from '@/lib/middleware';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +83,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
+
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
     if (!body.name) return badRequest('City name is required');
@@ -97,6 +103,7 @@ export async function POST(req: NextRequest) {
       stdCode: body.stdCode || null,
     }).returning();
 
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(city);
   } catch (err) {
     console.error('POST /api/cities error:', err);

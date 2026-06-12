@@ -4,6 +4,7 @@ import { bills, billLines, ledger, parties, deliveries, deliveryLines, contracts
 import { eq, and, desc, sql, notExists, inArray } from 'drizzle-orm';
 import { ok, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -315,6 +316,7 @@ export async function POST(req: NextRequest) {
 
     cacheInvalidate('bills');
     cacheInvalidate('ledger');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
 
     return ok({ success: true, count: generatedBills.length, bills: generatedBills });
   } catch (err: any) {

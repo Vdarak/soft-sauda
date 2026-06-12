@@ -10,6 +10,8 @@ import { parties, partyTaxIds, partyBankDetails, partyContacts, partyDeliveryAdd
 import { eq } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
+import { getRequestContext } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -54,6 +56,10 @@ export async function PUT(req: NextRequest, context: Params) {
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid party ID');
+
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
 
     const body = await parseBody<Record<string, any>>(req);
     if (!body || !body.name) return badRequest('Party name is required');
@@ -137,6 +143,7 @@ export async function PUT(req: NextRequest, context: Params) {
     });
 
     cacheInvalidate('parties');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
 
     const updated = await db.select().from(parties).where(eq(parties.id, id)).limit(1);
     return ok(updated[0]);
@@ -148,6 +155,10 @@ export async function PUT(req: NextRequest, context: Params) {
 
 export async function DELETE(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
+
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid party ID');
@@ -160,6 +171,7 @@ export async function DELETE(req: NextRequest, context: Params) {
     }).where(eq(parties.id, id));
 
     cacheInvalidate('parties');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });
   } catch (err) {
     console.error('DELETE /api/parties/[id] error:', err);

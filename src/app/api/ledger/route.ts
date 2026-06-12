@@ -9,6 +9,7 @@ import { ledger, parties } from '@/db/schema';
 import { desc, eq, and, or, ilike } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     });
 
     cacheInvalidate('ledger');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(stripAuditFields(entry, ctx.role));
   } catch (err) {
     console.error('POST /api/ledger error:', err);

@@ -9,6 +9,8 @@ import { parties, partyTaxIds, partyRoles, partyContacts, partyBankDetails, part
 import { desc, eq, ilike, sql } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
+import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +49,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    const companyId = ctx?.companyId;
+    const fiscalYearId = ctx?.fiscalYearId;
+
     const body = await parseBody<Record<string, any>>(req);
     if (!body || !body.name) {
       return badRequest('Party name is required');
@@ -129,6 +135,7 @@ export async function POST(req: NextRequest) {
     });
 
     cacheInvalidate('parties');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return created(result);
   } catch (err: any) {
     console.error('POST /api/parties error:', err);

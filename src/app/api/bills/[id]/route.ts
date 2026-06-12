@@ -10,6 +10,7 @@ import { bills, billLines, parties, paymentAllocations, users } from '@/db/schem
 import { eq, and, aliasedTable } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
@@ -158,6 +159,7 @@ export async function PUT(req: NextRequest, context: Params) {
     });
 
     cacheInvalidate('bills');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     const updated = await db.select().from(bills).where(eq(bills.id, id)).limit(1);
     return ok(stripAuditFields(updated[0], role));
   } catch (err) {
@@ -194,6 +196,7 @@ export async function DELETE(req: NextRequest, context: Params) {
 
     cacheInvalidate('bills');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });
   } catch (err: any) {
     console.error('DELETE /api/bills/[id] error:', err);

@@ -10,6 +10,7 @@ import { contracts, contractParties, contractLines, parties, commodities, commod
 import { eq, and, aliasedTable } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
@@ -246,6 +247,7 @@ export async function PUT(req: NextRequest, context: Params) {
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     const updated = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
     return ok(stripAuditFields(updated[0], role));
   } catch (err) {
@@ -284,6 +286,7 @@ export async function DELETE(req: NextRequest, context: Params) {
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
     cacheInvalidate('dashboard');
+    triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });
   } catch (err: any) {
     console.error('DELETE /api/contracts/[id] error:', err);
