@@ -64,17 +64,16 @@ export function renderLogin() {
     submitBtn.innerHTML = '<span class="spinner"></span> Signing in…';
 
     try {
-      // Step 1: authenticate only (fast)
+      // Step 1: authenticate only (fast) and get details
       const data = await api.post('/auth/login', { username, password });
       api.setToken(data.token);
       localStorage.setItem('ss_user', data.username);
+      localStorage.setItem('ss_companies', JSON.stringify(data.companies || []));
+      localStorage.setItem('ss_role', data.role || 'EMPLOYEE');
+      localStorage.setItem('ss_permissions', JSON.stringify(data.permissions || {}));
+      localStorage.setItem('ss_display_name', data.displayName || data.username);
 
-      // Step 2: show loading overlay while warmup runs
-      app.innerHTML = warmupOverlayHTML();
-      await api.triggerWarmup();
-
-      // Step 3: navigate into the app
-      document.body.removeAttribute('data-page');
+      // Step 2: navigate to home (which triggers company selection)
       showToast('Welcome back!', 'success');
       window.history.pushState({}, '', '/');
       window.dispatchEvent(new PopStateEvent('popstate'));

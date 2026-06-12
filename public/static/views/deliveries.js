@@ -3,7 +3,7 @@
  * 
  * WS2: Loading Days column, Bill No column, unified Lorry/Truck label
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
@@ -227,6 +227,8 @@ export async function renderDeliveryForm(id) {
                 <span id="sum-net-freight">₹ 0.00</span>
               </div>
             </div>
+
+            ${isEdit ? AuditMetadataBlock(delivery) : ''}
 
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Delivery</button>

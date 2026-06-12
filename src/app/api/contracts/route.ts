@@ -1,17 +1,20 @@
 /**
- * GET  /api/contracts  — List contracts with enriched party/commodity data
+ * GET  /api/contracts  — List contracts with enriched party/commodity data (company+FY scoped)
  * POST /api/contracts  — Create contract with parties and line items
  * 
  * PERFORMANCE: The GET route uses SQL JOINs to fetch all data in 2 queries
  * instead of N+1. This brings load time from ~8s down to ~50ms.
+ * 
+ * SCOPING: All queries are scoped by company_id + fiscal_year_id from request context.
  */
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, deliveries, deliveryLines } from '@/db/schema';
 import { desc, eq, and, ilike, sql, or, exists } from 'drizzle-orm';
-import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
+import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,12 +53,22 @@ async function resolvePackaging(commodityId: number, packName: string | null | u
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId } = ctx;
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
     const statusFilter = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
+
+    // Base scoping conditions
+    const scopeConditions = [
+      eq(contracts.companyId, companyId),
+      eq(contracts.fiscalYearId, fiscalYearId),
+    ];
 
     // ── Search Mode ──
     if (q) {
@@ -69,6 +82,9 @@ export async function GET(req: NextRequest) {
         deliveryTerm: contracts.deliveryTerm,
         customRemarks: contracts.customRemarks,
         createdAt: contracts.createdAt,
+        updatedAt: contracts.updatedAt,
+        createdBy: contracts.createdBy,
+        updatedBy: contracts.updatedBy,
         // Line data
         amount: contractLines.amount,
         weight: contractLines.weightQuintals,
@@ -80,21 +96,24 @@ export async function GET(req: NextRequest) {
         .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
         .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
         .where(
-          or(
-            sql`CAST(${contracts.saudaNo} AS TEXT) ILIKE ${searchPattern}`,
-            ilike(contracts.saudaBook, searchPattern),
-            ilike(contracts.deliveryTerm, searchPattern),
-            ilike(contracts.customRemarks, searchPattern),
-            ilike(commodities.name, searchPattern),
-            exists(
-              db.select().from(contractParties)
-                .leftJoin(parties, eq(contractParties.partyId, parties.id))
-                .where(
-                  and(
-                    eq(contractParties.contractId, contracts.id),
-                    ilike(parties.name, searchPattern)
+          and(
+            ...scopeConditions,
+            or(
+              sql`CAST(${contracts.saudaNo} AS TEXT) ILIKE ${searchPattern}`,
+              ilike(contracts.saudaBook, searchPattern),
+              ilike(contracts.deliveryTerm, searchPattern),
+              ilike(contracts.customRemarks, searchPattern),
+              ilike(commodities.name, searchPattern),
+              exists(
+                db.select().from(contractParties)
+                  .leftJoin(parties, eq(contractParties.partyId, parties.id))
+                  .where(
+                    and(
+                      eq(contractParties.contractId, contracts.id),
+                      ilike(parties.name, searchPattern)
+                    )
                   )
-                )
+              )
             )
           )
         )
@@ -129,22 +148,22 @@ export async function GET(req: NextRequest) {
           brokerName: partiesForContract.find(p => p.role === 'BROKER')?.name || null,
         };
       });
-      return ok(formatted);
+      return ok(stripAuditFields(formatted, ctx.role));
     }
 
     // ── Standard Paginated Mode ──
-    const cacheKey = `contracts:list:${page}:${limit}:${statusFilter || 'ALL'}`;
+    const cacheKey = `contracts:list:${companyId}:${fiscalYearId}:${page}:${limit}:${statusFilter || 'ALL'}`;
     const cached = cacheGet<unknown[]>(cacheKey);
-    if (cached) return ok(cached);
+    if (cached) return ok(stripAuditFields(cached, ctx.role));
 
     // Build WHERE conditions for status filtering
-    const whereConditions: any[] = [];
+    const whereConditions: any[] = [...scopeConditions];
     if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'DELIVERY_PENDING') {
       whereConditions.push(eq(contracts.status, statusFilter as any));
     }
 
     // ── Single query: fetch contracts with first line item + commodity name ──
-    let query = db.select({
+    const rawContracts = await db.select({
       id: contracts.id,
       saudaNo: contracts.saudaNo,
       saudaBook: contracts.saudaBook,
@@ -156,6 +175,9 @@ export async function GET(req: NextRequest) {
       paymentDays: contracts.paymentDays,
       customRemarks: contracts.customRemarks,
       createdAt: contracts.createdAt,
+      updatedAt: contracts.updatedAt,
+      createdBy: contracts.createdBy,
+      updatedBy: contracts.updatedBy,
       // Line data
       contractLineId: contractLines.id,
       amount: contractLines.amount,
@@ -167,11 +189,11 @@ export async function GET(req: NextRequest) {
     })
       .from(contracts)
       .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
-      .leftJoin(commodities, eq(commodities.id, contractLines.commodityId));
-
-    const rawContracts = whereConditions.length > 0
-      ? await query.where(and(...whereConditions)).orderBy(desc(contracts.saudaNo)).limit(limit).offset(offset)
-      : await query.orderBy(desc(contracts.saudaNo)).limit(limit).offset(offset);
+      .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
+      .where(and(...whereConditions))
+      .orderBy(desc(contracts.saudaNo))
+      .limit(limit)
+      .offset(offset);
 
     // ── Batch fetch all party associations for these contracts ──
     const contractIds = [...new Set(rawContracts.map(c => c.id))];
@@ -236,6 +258,9 @@ export async function GET(req: NextRequest) {
         paymentDays: c.paymentDays,
         customRemarks: c.customRemarks,
         createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        createdBy: c.createdBy,
+        updatedBy: c.updatedBy,
         sellerName: cParties.find(p => p.role === 'SELLER')?.name || 'Unknown',
         buyerName: cParties.find(p => p.role === 'BUYER')?.name || 'Unknown',
         sellerBroker: cParties.find(p => p.role === 'SELLER_BROKER')?.name || null,
@@ -252,9 +277,8 @@ export async function GET(req: NextRequest) {
     });
 
     cacheSet(cacheKey, enriched, 60);
-    return ok(enriched);
+    return ok(stripAuditFields(enriched, ctx.role));
   } catch (err: any) {
-    require('fs').writeFileSync('/tmp/err.log', String(err.stack || err));
     console.error('GET /api/contracts error:', err);
     return serverError('Failed to fetch contracts');
   }
@@ -262,6 +286,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId } = ctx;
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
     if (!body.saudaNo) return badRequest('Sauda No is required');
@@ -276,6 +304,8 @@ export async function POST(req: NextRequest) {
       const buyerBrokerId = await resolveParty(body.buyerBroker, tx);
 
       const [contract] = await tx.insert(contracts).values({
+        companyId,
+        fiscalYearId,
         saudaNo: parseInt(body.saudaNo, 10),
         saudaBook: body.saudaBook || 'Main Book',
         saudaPrefix: body.saudaPrefix || null,
@@ -295,6 +325,8 @@ export async function POST(req: NextRequest) {
         termsAndConditions: body.termsAndConditions || null,
         status: 'ACTIVE',
         customRemarks: body.remarks || null,
+        createdBy: userId,
+        updatedBy: userId,
       }).returning();
 
       const partyInserts: any[] = [];
@@ -341,6 +373,13 @@ export async function POST(req: NextRequest) {
       }
 
       result = contract;
+    });
+
+    // Audit log
+    writeAuditLog({
+      userId, companyId, action: 'CREATE',
+      entityType: 'contract', entityId: result.id,
+      changes: { saudaNo: body.saudaNo, sellerName: body.sellerName, buyerName: body.buyerName },
     });
 
     cacheInvalidate('contracts');

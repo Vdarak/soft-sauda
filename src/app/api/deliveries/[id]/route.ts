@@ -1,38 +1,62 @@
 /**
- * GET /api/deliveries/:id — Get delivery with lines
+ * GET /api/deliveries/:id — Get delivery with lines (company+FY scoped)
  * PUT /api/deliveries/:id — Update delivery
+ * DELETE /api/deliveries/:id — Delete delivery
  */
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts, commodities } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
+import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts, commodities, users } from '@/db/schema';
+import { eq, and, aliasedTable } from 'drizzle-orm';
+import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
 
-async function resolveParty(name: string | null | undefined): Promise<number | null> {
+async function resolveParty(name: string | null | undefined, tx?: any): Promise<number | null> {
   if (!name?.trim()) return null;
   const clean = name.trim();
-  const existing = await db.select({ id: parties.id }).from(parties).where(eq(parties.name, clean)).limit(1);
+  const dbCtx = tx || db;
+  const existing = await dbCtx.select({ id: parties.id }).from(parties).where(eq(parties.name, clean)).limit(1);
   if (existing.length > 0) return existing[0].id;
-  const [inserted] = await db.insert(parties).values({ name: clean }).returning({ id: parties.id });
+  const [inserted] = await dbCtx.insert(parties).values({ name: clean }).returning({ id: parties.id });
   return inserted.id;
 }
 
 export async function GET(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, role } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid delivery ID');
 
     const cacheKey = `deliveries:${id}`;
     const cached = cacheGet(cacheKey);
-    if (cached) return ok(cached);
+    if (cached) return ok(stripAuditFields(cached, role));
 
-    const delivery = await db.select().from(deliveries).where(eq(deliveries.id, id)).limit(1);
-    if (delivery.length === 0) return notFound('Delivery not found');
+    const creator = aliasedTable(users, 'creator');
+    const updater = aliasedTable(users, 'updater');
+
+    const deliveryRows = await db.select({
+      delivery: deliveries,
+      createdByUsername: creator.username,
+      createdByDisplayName: creator.displayName,
+      updatedByUsername: updater.username,
+      updatedByDisplayName: updater.displayName,
+    })
+      .from(deliveries)
+      .leftJoin(creator, eq(deliveries.createdBy, creator.id))
+      .leftJoin(updater, eq(deliveries.updatedBy, updater.id))
+      .where(and(eq(deliveries.id, id), eq(deliveries.companyId, companyId), eq(deliveries.fiscalYearId, fiscalYearId)))
+      .limit(1);
+
+    if (deliveryRows.length === 0) return notFound('Delivery not found');
+
+    const deliveryData = deliveryRows[0].delivery;
 
     const lines = await db.select().from(deliveryLines).where(eq(deliveryLines.deliveryId, id));
     const charges = await db.select().from(deliveryCharges).where(eq(deliveryCharges.deliveryId, id));
@@ -67,23 +91,27 @@ export async function GET(req: NextRequest, context: Params) {
     }
 
     let transporterName = null;
-    if (delivery[0].transporterId) {
-      const t = await db.select({ name: parties.name }).from(parties).where(eq(parties.id, delivery[0].transporterId)).limit(1);
+    if (deliveryData.transporterId) {
+      const t = await db.select({ name: parties.name }).from(parties).where(eq(parties.id, deliveryData.transporterId)).limit(1);
       transporterName = t[0]?.name || null;
     }
 
     const result = {
-      ...delivery[0],
+      ...deliveryData,
       transporterName,
-      billNo: delivery[0].billNo,
+      billNo: deliveryData.billNo,
       lines: enrichedLines,
       charges,
       saudaNo,
       saudaDate,
       contractId,
+      createdByUsername: deliveryRows[0].createdByUsername,
+      createdByDisplayName: deliveryRows[0].createdByDisplayName,
+      updatedByUsername: deliveryRows[0].updatedByUsername,
+      updatedByDisplayName: deliveryRows[0].updatedByDisplayName,
     };
     cacheSet(cacheKey, result, 120);
-    return ok(result);
+    return ok(stripAuditFields(result, role));
   } catch (err) {
     console.error('GET /api/deliveries/[id] error:', err);
     return serverError('Failed to fetch delivery');
@@ -92,6 +120,10 @@ export async function GET(req: NextRequest, context: Params) {
 
 export async function PUT(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId, role } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid delivery ID');
@@ -99,9 +131,15 @@ export async function PUT(req: NextRequest, context: Params) {
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
 
-    const transporterId = await resolveParty(body.transporterName);
+    // Verify ownership/scoping before update
+    const existingDelivery = await db.select().from(deliveries)
+      .where(and(eq(deliveries.id, id), eq(deliveries.companyId, companyId), eq(deliveries.fiscalYearId, fiscalYearId)))
+      .limit(1);
+    if (existingDelivery.length === 0) return notFound('Delivery not found or does not belong to active company/fiscal year');
 
     await db.transaction(async (tx) => {
+      const transporterId = await resolveParty(body.transporterName, tx);
+
       await tx.update(deliveries).set({
         dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
         truckNo: body.truckNo || null,
@@ -110,13 +148,13 @@ export async function PUT(req: NextRequest, context: Params) {
         transporterId,
         advancePaymentCollected: body.advancePaymentCollected ? parseFloat(body.advancePaymentCollected).toString() : null,
         status: body.status || 'DISPATCHED',
+        updatedAt: new Date(),
+        updatedBy: userId,
       }).where(eq(deliveries.id, id));
 
-      // Wipe existing lines & charges
       await tx.delete(deliveryLines).where(eq(deliveryLines.deliveryId, id));
       await tx.delete(deliveryCharges).where(eq(deliveryCharges.deliveryId, id));
 
-      // Re-insert lines
       const lines = body.lines && Array.isArray(body.lines) ? body.lines : [];
       if (lines.length > 0) {
         for (const line of lines) {
@@ -129,7 +167,6 @@ export async function PUT(req: NextRequest, context: Params) {
           });
         }
       } else if (body.contractLineId && body.dispatchedWeight) {
-        // Fallback for single line inputs
         await tx.insert(deliveryLines).values({
           deliveryId: id,
           contractLineId: parseInt(body.contractLineId, 10),
@@ -138,7 +175,6 @@ export async function PUT(req: NextRequest, context: Params) {
         });
       }
 
-      // Re-insert charges
       const charges = body.charges && Array.isArray(body.charges) ? body.charges : [];
       for (const charge of charges) {
         if (!charge.chargeType || charge.amount === undefined || charge.amount === null) continue;
@@ -151,10 +187,19 @@ export async function PUT(req: NextRequest, context: Params) {
       }
     });
 
+    writeAuditLog({
+      userId,
+      companyId,
+      action: 'UPDATE',
+      entityType: 'delivery',
+      entityId: id,
+      changes: { truckNo: body.truckNo, status: body.status || 'DISPATCHED' },
+    });
+
     cacheInvalidate('deliveries');
     cacheInvalidate(`deliveries:${id}`);
     const updated = await db.select().from(deliveries).where(eq(deliveries.id, id)).limit(1);
-    return ok(updated[0]);
+    return ok(stripAuditFields(updated[0], role));
   } catch (err) {
     console.error('PUT /api/deliveries/[id] error:', err);
     return serverError('Failed to update delivery');
@@ -163,14 +208,39 @@ export async function PUT(req: NextRequest, context: Params) {
 
 export async function DELETE(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid ID');
+
+    // Verify ownership/scoping before delete
+    const existingDelivery = await db.select().from(deliveries)
+      .where(and(eq(deliveries.id, id), eq(deliveries.companyId, companyId), eq(deliveries.fiscalYearId, fiscalYearId)))
+      .limit(1);
+    if (existingDelivery.length === 0) return notFound('Delivery not found or does not belong to active company/fiscal year');
+
     await db.delete(deliveries).where(eq(deliveries.id, id));
+
+    writeAuditLog({
+      userId,
+      companyId,
+      action: 'DELETE',
+      entityType: 'delivery',
+      entityId: id,
+    });
+
     cacheInvalidate('deliveries');
+    cacheInvalidate(`deliveries:${id}`);
+    cacheInvalidate('dashboard');
     return ok({ success: true, id });
-  } catch (err) {
+  } catch (err: any) {
     console.error('DELETE /api/deliveries/[id] error:', err);
+    if (err.code === '23503') {
+      return badRequest('Cannot delete delivery: it has associated bills. Please delete the bills first.');
+    }
     return serverError('Failed to delete');
   }
 }

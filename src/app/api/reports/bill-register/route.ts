@@ -1,13 +1,18 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { bills, parties } from '@/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
-import { ok, serverError } from '@/lib/api-helpers';
+import { eq, desc, and } from 'drizzle-orm';
+import { ok, serverError, unauthorized } from '@/lib/api-helpers';
+import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId } = ctx;
     const { searchParams } = new URL(req.url);
     const sortBy = searchParams.get('sortBy') || 'date'; // date, city, proprietor, type
 
@@ -24,7 +29,8 @@ export async function GET(req: NextRequest) {
       designation: parties.designation,
     })
     .from(bills)
-    .innerJoin(parties, eq(parties.id, bills.partyId));
+    .innerJoin(parties, eq(parties.id, bills.partyId))
+    .where(and(eq(bills.companyId, companyId), eq(bills.fiscalYearId, fiscalYearId)));
 
     // Apply sorting in SQL
     if (sortBy === 'city') {

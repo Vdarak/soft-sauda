@@ -2,13 +2,18 @@ import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { bills, billLines, ledger, parties, deliveries, deliveryLines, contracts, contractLines, contractParties, commodities } from '@/db/schema';
 import { eq, and, desc, sql, notExists, inArray } from 'drizzle-orm';
-import { ok, badRequest, serverError, parseBody } from '@/lib/api-helpers';
+import { ok, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheInvalidate } from '@/lib/cache';
+import { getRequestContext, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+    const { companyId, fiscalYearId } = ctx;
+
     const { searchParams } = new URL(req.url);
     const basis = searchParams.get('basis') || 'DELIVERY'; // DELIVERY or CONTRACT
     const fromDateStr = searchParams.get('fromDate');
@@ -49,6 +54,8 @@ export async function GET(req: NextRequest) {
         .innerJoin(commodities, eq(commodities.id, contractLines.commodityId))
         .where(
           and(
+            eq(deliveries.companyId, companyId),
+            eq(deliveries.fiscalYearId, fiscalYearId),
             sql`${deliveries.dispatchDate} >= ${fromDate.toISOString()}`,
             sql`${deliveries.dispatchDate} <= ${toDate.toISOString()}`,
             notExists(
@@ -102,6 +109,8 @@ export async function GET(req: NextRequest) {
         .innerJoin(commodities, eq(commodities.id, contractLines.commodityId))
         .where(
           and(
+            eq(contracts.companyId, companyId),
+            eq(contracts.fiscalYearId, fiscalYearId),
             sql`${contracts.saudaDate} >= ${fromDate.toISOString()}`,
             sql`${contracts.saudaDate} <= ${toDate.toISOString()}`,
             notExists(
@@ -139,6 +148,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+    const { companyId, fiscalYearId, userId } = ctx;
+
     const body = await parseBody<Record<string, any>>(req);
     if (!body || !body.selectedIds || !Array.isArray(body.selectedIds) || body.selectedIds.length === 0) {
       return badRequest('No transactions selected for billing');
@@ -248,6 +261,8 @@ export async function POST(req: NextRequest) {
 
         // Insert Bill
         const [bill] = await tx.insert(bills).values({
+          companyId,
+          fiscalYearId,
           billNo,
           billDate,
           partyId,
@@ -255,6 +270,8 @@ export async function POST(req: NextRequest) {
           totalAmount: totalAmount.toFixed(2),
           balanceAmount: totalAmount.toFixed(2),
           creditDays,
+          createdBy: userId,
+          updatedBy: userId,
         }).returning();
 
         // Insert Bill Line
@@ -269,6 +286,8 @@ export async function POST(req: NextRequest) {
         // Post to Ledger
         const isBuyer = scope !== 'SELLER_WISE';
         await tx.insert(ledger).values({
+          companyId,
+          fiscalYearId,
           transactionDate: billDate,
           accountId: partyId,
           sourceType: 'BILL',
@@ -276,11 +295,23 @@ export async function POST(req: NextRequest) {
           debit: isBuyer ? totalAmount.toFixed(2) : '0.00',
           credit: isBuyer ? '0.00' : totalAmount.toFixed(2),
           narration: `Batch Invoiced: #${billNo} Basis: ${basis} (${description})`,
+          createdBy: userId,
+          updatedBy: userId,
         });
 
         generatedBills.push(bill);
       }
     });
+
+    if (generatedBills.length > 0) {
+      writeAuditLog({
+        userId,
+        companyId,
+        action: 'CREATE',
+        entityType: 'batch_billing',
+        changes: { count: generatedBills.length, billIds: generatedBills.map(b => b.id) }
+      });
+    }
 
     cacheInvalidate('bills');
     cacheInvalidate('ledger');

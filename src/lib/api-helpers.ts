@@ -2,13 +2,15 @@
  * API Route Helpers
  * 
  * Provides:
- * - Standardized JSON responses (ok, created, error, notFound)
- * - JWT authentication check for protected routes
+ * - Standardized JSON responses (ok, created, error, notFound, forbidden)
+ * - JWT authentication with uid, role, displayName in payload
  * - Request body parsing helper
+ * - Password hashing utilities
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
+import * as crypto from 'crypto';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.AUTH_JWT_SECRET || 'soft-sauda-default-secret-change-me'
@@ -37,6 +39,11 @@ export function unauthorized(message = 'Unauthorized') {
   return NextResponse.json({ error: message }, { status: 401 });
 }
 
+/** 403 Forbidden */
+export function forbidden(message = 'Forbidden') {
+  return NextResponse.json({ error: message }, { status: 403 });
+}
+
 /** 404 Not Found */
 export function notFound(message = 'Not found') {
   return NextResponse.json({ error: message }, { status: 404 });
@@ -49,9 +56,19 @@ export function serverError(message = 'Internal server error') {
 
 // ── Auth Helpers ──
 
-/** Create a signed JWT token for a given username */
-export async function createToken(username: string): Promise<string> {
-  return new SignJWT({ sub: username })
+/** Create a signed JWT token with full user context */
+export async function createToken(params: {
+  username: string;
+  uid: number;
+  role: string;
+  displayName: string;
+}): Promise<string> {
+  return new SignJWT({
+    sub: params.username,
+    uid: params.uid,
+    role: params.role,
+    displayName: params.displayName,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
@@ -78,6 +95,23 @@ export async function authenticateRequest(req: NextRequest) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   return verifyToken(token);
+}
+
+// ── Password Helpers ──
+
+/** Hash a password with SHA-256 + random salt */
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.createHash('sha256').update(salt + password).digest('hex');
+  return `${salt}:${hash}`;
+}
+
+/** Verify a password against a stored hash */
+export function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const computedHash = crypto.createHash('sha256').update(salt + password).digest('hex');
+  return computedHash === hash;
 }
 
 // ── Body Parsing ──

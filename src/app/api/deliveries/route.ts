@@ -1,38 +1,48 @@
 /**
- * GET  /api/deliveries  — List deliveries with transporter + lines (JOIN, no N+1)
+ * GET  /api/deliveries  — List deliveries with transporter + lines (company+FY scoped)
  * POST /api/deliveries  — Create delivery linked to contract line
  */
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts } from '@/db/schema';
-import { desc, eq, sql } from 'drizzle-orm';
-import { ok, created, badRequest, serverError, parseBody } from '@/lib/api-helpers';
+import { desc, eq, and, or, ilike, sql } from 'drizzle-orm';
+import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
-async function resolveParty(name: string | null | undefined): Promise<number | null> {
+async function resolveParty(name: string | null | undefined, tx?: any): Promise<number | null> {
   if (!name?.trim()) return null;
   const clean = name.trim();
-  const existing = await db.select({ id: parties.id }).from(parties).where(eq(parties.name, clean)).limit(1);
+  const dbCtx = tx || db;
+  const existing = await dbCtx.select({ id: parties.id }).from(parties).where(eq(parties.name, clean)).limit(1);
   if (existing.length > 0) return existing[0].id;
-  const [inserted] = await db.insert(parties).values({ name: clean }).returning({ id: parties.id });
+  const [inserted] = await dbCtx.insert(parties).values({ name: clean }).returning({ id: parties.id });
   return inserted.id;
 }
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId } = ctx;
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
+    const scopeConditions = [
+      eq(deliveries.companyId, companyId),
+      eq(deliveries.fiscalYearId, fiscalYearId),
+    ];
+
     // ── Search Mode ──
     if (q) {
       const searchPattern = `%${q}%`;
-      const { or, ilike } = require('drizzle-orm');
       const rawDeliveries = await db.select({
         id: deliveries.id,
         dispatchDate: deliveries.dispatchDate,
@@ -43,14 +53,20 @@ export async function GET(req: NextRequest) {
         advancePaymentCollected: deliveries.advancePaymentCollected,
         status: deliveries.status,
         createdAt: deliveries.createdAt,
+        updatedAt: deliveries.updatedAt,
+        createdBy: deliveries.createdBy,
+        updatedBy: deliveries.updatedBy,
         transporterName: parties.name,
       })
         .from(deliveries)
         .leftJoin(parties, eq(parties.id, deliveries.transporterId))
         .where(
-          or(
-            ilike(deliveries.truckNo, searchPattern),
-            ilike(parties.name, searchPattern)
+          and(
+            ...scopeConditions,
+            or(
+              ilike(deliveries.truckNo, searchPattern),
+              ilike(parties.name, searchPattern)
+            )
           )
         )
         .orderBy(desc(deliveries.id))
@@ -73,13 +89,13 @@ export async function GET(req: NextRequest) {
         ...d,
         lines: linesMap[d.id] || []
       }));
-      return ok(formatted);
+      return ok(stripAuditFields(formatted, ctx.role));
     }
 
     // ── Standard Paginated Mode ──
-    const cacheKey = `deliveries:list:${page}:${limit}`;
+    const cacheKey = `deliveries:list:${companyId}:${fiscalYearId}:${page}:${limit}`;
     const cached = cacheGet<unknown[]>(cacheKey);
-    if (cached) return ok(cached);
+    if (cached) return ok(stripAuditFields(cached, ctx.role));
 
     // ── Single JOIN for delivery + transporter name ──
     const rawDeliveries = await db.select({
@@ -92,10 +108,14 @@ export async function GET(req: NextRequest) {
       advancePaymentCollected: deliveries.advancePaymentCollected,
       status: deliveries.status,
       createdAt: deliveries.createdAt,
+      updatedAt: deliveries.updatedAt,
+      createdBy: deliveries.createdBy,
+      updatedBy: deliveries.updatedBy,
       transporterName: parties.name,
     })
       .from(deliveries)
       .leftJoin(parties, eq(parties.id, deliveries.transporterId))
+      .where(and(...scopeConditions))
       .orderBy(desc(deliveries.id))
       .limit(limit)
       .offset(offset);
@@ -143,7 +163,7 @@ export async function GET(req: NextRequest) {
     }
 
     cacheSet(cacheKey, enriched, 30);
-    return ok(enriched);
+    return ok(stripAuditFields(enriched, ctx.role));
   } catch (err) {
     console.error('GET /api/deliveries error:', err);
     return serverError('Failed to fetch deliveries');
@@ -152,14 +172,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId } = ctx;
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
 
     // Retrieve the active transaction database
     const result = await db.transaction(async (tx) => {
-      const transporterId = await resolveParty(body.transporterName);
+      const transporterId = await resolveParty(body.transporterName, tx);
 
       const [delivery] = await tx.insert(deliveries).values({
+        companyId,
+        fiscalYearId,
         dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : new Date(),
         truckNo: body.truckNo || null,
         billNo: body.billNo || null,
@@ -167,6 +193,8 @@ export async function POST(req: NextRequest) {
         transporterId,
         advancePaymentCollected: body.advancePaymentCollected ? parseFloat(body.advancePaymentCollected).toString() : null,
         status: body.status || 'DISPATCHED',
+        createdBy: userId,
+        updatedBy: userId,
       }).returning();
 
       // Write multi-line deliveryLines
@@ -206,7 +234,17 @@ export async function POST(req: NextRequest) {
       return delivery;
     });
 
+    writeAuditLog({
+      userId,
+      companyId,
+      action: 'CREATE',
+      entityType: 'delivery',
+      entityId: result.id,
+      changes: { truckNo: body.truckNo, status: body.status || 'DISPATCHED' },
+    });
+
     cacheInvalidate('deliveries');
+    cacheInvalidate('dashboard');
     return created(result);
   } catch (err) {
     console.error('POST /api/deliveries error:', err);

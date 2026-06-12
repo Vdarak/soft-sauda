@@ -1,7 +1,7 @@
 /**
  * Bills View — List + Create/Edit form with ledger posting & reference auto-fills
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
@@ -157,39 +157,25 @@ export async function renderBillList(ctx) {
         ` 
       })}
       
-      <div class="form-grid layout-200-1fr">
-        <!-- Left Sidebar: Sorting Macros -->
-        <div class="table-container" style="padding: 1.25rem; background: var(--card);">
-          <h3 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">Sort Register</h3>
-          
-          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
-              <input type="radio" name="sorting" value="date" checked> Date Wise
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
-              <input type="radio" name="sorting" value="city"> City / Station Wise
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
-              <input type="radio" name="sorting" value="proprietor"> Proprietor Wise
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8125rem;">
-              <input type="radio" name="sorting" value="type"> Billing Basis Wise
-            </label>
+      <!-- Filter Pills for Sorting -->
+      <div class="filter-pills">
+        <button class="filter-pill active" data-sort="date">Date Wise</button>
+        <button class="filter-pill" data-sort="city">City / Station Wise</button>
+        <button class="filter-pill" data-sort="proprietor">Proprietor Wise</button>
+        <button class="filter-pill" data-sort="type">Billing Basis Wise</button>
+      </div>
+
+      <!-- Main Content Area -->
+      <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+        <div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem; width:100%">
+          <div class="form-group" style="margin:0; flex:1; position:relative">
+            <input type="text" id="search-bills" placeholder="Search bills..." style="padding-left:2.5rem; width:100%">
+            <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
           </div>
         </div>
 
-        <!-- Right Content: Report Grid -->
-        <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
-          <div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem; width:100%">
-            <div class="form-group" style="margin:0; flex:1; position:relative">
-              <input type="text" id="search-bills" placeholder="Search bills..." style="padding-left:2.5rem; width:100%">
-              <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
-            </div>
-          </div>
-
-          <div id="bills-table-container" class="table-container" style="background: var(--card);">
-            <!-- Render bills table here -->
-          </div>
+        <div id="bills-table-container" class="table-container" style="background: var(--card);">
+          <!-- Render bills table here -->
         </div>
       </div>
     `;
@@ -197,9 +183,13 @@ export async function renderBillList(ctx) {
     updateView(data);
 
     // Bind Sorting changes
-    document.querySelectorAll('input[name="sorting"]').forEach(radio => {
-      radio.addEventListener('change', async (e) => {
-        sortBy = e.target.value;
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        // Toggle active class on pills
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+
+        sortBy = btn.getAttribute('data-sort');
         const container = document.getElementById('bills-table-container');
         if (container) {
           container.innerHTML = `<div style="padding: 2rem; text-align: center;"><span class="spinner"></span> Sorting bills...</div>`;
@@ -303,6 +293,8 @@ export async function renderBillForm(id) {
               ${FormGroup({ id: 'creditDays', label: 'Credit Days', value: bill.creditDays || '', type: 'number' })}
               ${FormGroup({ id: 'description', label: 'Description', value: firstLine.description || '', type: 'textarea' })}
             </div>
+            ${isEdit ? AuditMetadataBlock(bill) : ''}
+
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
               ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}

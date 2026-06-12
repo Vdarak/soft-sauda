@@ -1,16 +1,13 @@
 /**
  * GET /api/warmup — Pre-cache all data AND warm Turbopack compilation.
  * 
- * Two-phase warmup:
- * 1. Data warmup: Runs all DB queries in parallel → populates the in-memory cache
- * 2. Route warmup: Hits each API route internally → forces Turbopack to compile them
- * 
- * After this completes, every subsequent request returns in <30ms because
- * both the route code AND the data are already hot.
+ * SCOPING: Scoped by company_id and fiscal_year_id from request context.
  */
 
-import { ok, serverError } from '@/lib/api-helpers';
+import { NextRequest } from 'next/server';
+import { ok, serverError, unauthorized } from '@/lib/api-helpers';
 import { warmCache } from '@/lib/warmup';
+import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,28 +33,17 @@ const ROUTES_TO_WARM = [
   '/api/search/packaging',
 ];
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId } = ctx;
     const t0 = Date.now();
 
-    const cacheResult = await warmCache();
+    const cacheResult = await warmCache(companyId, fiscalYearId);
     const dataDone = Date.now() - t0;
 
-    // Phase 2: Hit each API route to force Turbopack to compile the handler code.
-    // In production this is unnecessary (routes are pre-compiled), but in dev
-    // it eliminates the 2-3s "first hit" delay per route.
-    const origin = new URL(req.url).origin;
-    const routePromises = ROUTES_TO_WARM.map(async (route) => {
-      try {
-        await fetch(`${origin}${route}`, {
-          headers: { 'x-warmup': '1' }, // marker so logs are clear
-        }).catch(() => {});
-      } catch { }
-    });
-
-    // We don't need to await the Turbopack route compilation, it can happen in the background.
-    // We just return the unified payload immediately!
-    
     const timeMs = Date.now() - t0;
     
     return ok({

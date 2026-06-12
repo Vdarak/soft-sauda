@@ -11,10 +11,19 @@ import * as schema from './schema';
 
 const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres';
 
-const client = postgres(connectionString, {
-  max: 5,             // Limit pool size for serverless
-  idle_timeout: 120,  // Keep connections alive for 120s (browser timers throttle to ~60s in background tabs)
+const globalForDb = globalThis as unknown as {
+  postgresClient: any;
+};
+
+const client = globalForDb.postgresClient || postgres(connectionString, {
+  max: 15,            // Slightly higher pool size to accommodate concurrent queries
+  idle_timeout: 120,  // Keep connections alive for 120s
   connect_timeout: 10,
 });
 
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb.postgresClient = client;
+}
+
 export const db = drizzle(client, { schema });
+

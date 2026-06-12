@@ -1,14 +1,16 @@
 /**
- * GET /api/contracts/:id — Get single contract with all relations
+ * GET /api/contracts/:id — Get single contract with all relations (company+FY scoped)
  * PUT /api/contracts/:id — Update contract (wipe & rewrite parties/lines)
+ * DELETE /api/contracts/:id — Delete contract
  */
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, partyTaxIds } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { ok, badRequest, notFound, serverError, parseBody } from '@/lib/api-helpers';
+import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, partyTaxIds, users } from '@/db/schema';
+import { eq, and, aliasedTable } from 'drizzle-orm';
+import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
+import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -42,16 +44,37 @@ async function resolvePackaging(commodityId: number, packName: string | null | u
 
 export async function GET(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, role } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid contract ID');
 
     const cacheKey = `contracts:${id}`;
     const cached = cacheGet(cacheKey);
-    if (cached) return ok(cached);
+    if (cached) return ok(stripAuditFields(cached, role));
 
-    const contract = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
-    if (contract.length === 0) return notFound('Contract not found');
+    const creator = aliasedTable(users, 'creator');
+    const updater = aliasedTable(users, 'updater');
+
+    const contractRows = await db.select({
+      contract: contracts,
+      createdByUsername: creator.username,
+      createdByDisplayName: creator.displayName,
+      updatedByUsername: updater.username,
+      updatedByDisplayName: updater.displayName,
+    })
+      .from(contracts)
+      .leftJoin(creator, eq(contracts.createdBy, creator.id))
+      .leftJoin(updater, eq(contracts.updatedBy, updater.id))
+      .where(and(eq(contracts.id, id), eq(contracts.companyId, companyId), eq(contracts.fiscalYearId, fiscalYearId)))
+      .limit(1);
+
+    if (contractRows.length === 0) return notFound('Contract not found');
+
+    const contractData = contractRows[0].contract;
 
     const partiesRows = await db.select({ role: contractParties.role, name: parties.name, partyId: contractParties.partyId })
       .from(contractParties)
@@ -60,14 +83,12 @@ export async function GET(req: NextRequest, context: Params) {
 
     const lines = await db.select().from(contractLines).where(eq(contractLines.contractId, id));
 
-    // Enrich lines with commodity names
     const enrichedLines = [];
     for (const line of lines) {
       const comm = await db.select({ name: commodities.name }).from(commodities).where(eq(commodities.id, line.commodityId)).limit(1);
       enrichedLines.push({ ...line, commodityName: comm[0]?.name || 'Unknown' });
     }
 
-    // Fetch party tax IDs for buyer/seller (WS8: Party GST on Documents)
     const buyerParty = partiesRows.find(p => p.role === 'BUYER');
     const sellerParty = partiesRows.find(p => p.role === 'SELLER');
     let buyerGstin = null, sellerGstin = null;
@@ -81,7 +102,7 @@ export async function GET(req: NextRequest, context: Params) {
     }
 
     const result = {
-      ...contract[0],
+      ...contractData,
       parties: partiesRows,
       lines: enrichedLines,
       sellerName: partiesRows.find(p => p.role === 'SELLER')?.name || null,
@@ -90,10 +111,14 @@ export async function GET(req: NextRequest, context: Params) {
       buyerBroker: partiesRows.find(p => p.role === 'BUYER_BROKER')?.name || null,
       buyerGstin,
       sellerGstin,
+      createdByUsername: contractRows[0].createdByUsername,
+      createdByDisplayName: contractRows[0].createdByDisplayName,
+      updatedByUsername: contractRows[0].updatedByUsername,
+      updatedByDisplayName: contractRows[0].updatedByDisplayName,
     };
 
     cacheSet(cacheKey, result, 120);
-    return ok(result);
+    return ok(stripAuditFields(result, role));
   } catch (err) {
     console.error('GET /api/contracts/[id] error:', err);
     return serverError('Failed to fetch contract');
@@ -102,12 +127,22 @@ export async function GET(req: NextRequest, context: Params) {
 
 export async function PUT(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId, role } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid contract ID');
 
     const body = await parseBody<Record<string, any>>(req);
     if (!body) return badRequest('Request body is required');
+
+    // Verify ownership/scoping before update
+    const existingContract = await db.select().from(contracts)
+      .where(and(eq(contracts.id, id), eq(contracts.companyId, companyId), eq(contracts.fiscalYearId, fiscalYearId)))
+      .limit(1);
+    if (existingContract.length === 0) return notFound('Contract not found or does not belong to active company/fiscal year');
 
     await db.transaction(async (tx) => {
       await tx.update(contracts).set({
@@ -130,9 +165,9 @@ export async function PUT(req: NextRequest, context: Params) {
         termsAndConditions: body.termsAndConditions || null,
         customRemarks: body.remarks || null,
         updatedAt: new Date(),
+        updatedBy: userId,
       }).where(eq(contracts.id, id));
 
-      // Wipe & rewrite parties
       await tx.delete(contractParties).where(eq(contractParties.contractId, id));
       const sellerId = await resolveParty(body.sellerName, tx);
       const buyerId = await resolveParty(body.buyerName, tx);
@@ -146,7 +181,6 @@ export async function PUT(req: NextRequest, context: Params) {
       if (buyerBrokerId && buyerBrokerId !== sellerBrokerId) partyInserts.push({ contractId: id, partyId: buyerBrokerId, role: 'BUYER_BROKER' as const });
       if (partyInserts.length > 0) await tx.insert(contractParties).values(partyInserts);
 
-      // Support multi-line items update/delete
       const lines = body.lines && Array.isArray(body.lines) ? body.lines : [{
         id: body.contractLineId || null,
         commodity: body.commodity,
@@ -162,7 +196,6 @@ export async function PUT(req: NextRequest, context: Params) {
       const existingIds = existingLines.map(l => l.id);
       const incomingIds = lines.map(l => l.id).filter(Boolean);
 
-      // Delete existing lines not present in incoming request
       const toDelete = existingIds.filter(exId => !incomingIds.includes(exId));
       for (const delId of toDelete) {
         try {
@@ -200,12 +233,21 @@ export async function PUT(req: NextRequest, context: Params) {
       }
     });
 
+    writeAuditLog({
+      userId,
+      companyId,
+      action: 'UPDATE',
+      entityType: 'contract',
+      entityId: id,
+      changes: { saudaNo: body.saudaNo, sellerName: body.sellerName, buyerName: body.buyerName },
+    });
+
     cacheInvalidate('contracts');
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
     cacheInvalidate('dashboard');
     const updated = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
-    return ok(updated[0]);
+    return ok(stripAuditFields(updated[0], role));
   } catch (err) {
     console.error('PUT /api/contracts/[id] error:', err);
     return serverError('Failed to update contract');
@@ -214,17 +256,40 @@ export async function PUT(req: NextRequest, context: Params) {
 
 export async function DELETE(req: NextRequest, context: Params) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId, userId } = ctx;
     const { id: idStr } = await context.params;
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid ID');
+
+    // Verify ownership/scoping
+    const existingContract = await db.select().from(contracts)
+      .where(and(eq(contracts.id, id), eq(contracts.companyId, companyId), eq(contracts.fiscalYearId, fiscalYearId)))
+      .limit(1);
+    if (existingContract.length === 0) return notFound('Contract not found or does not belong to active company/fiscal year');
+
     await db.delete(contracts).where(eq(contracts.id, id));
+
+    writeAuditLog({
+      userId,
+      companyId,
+      action: 'DELETE',
+      entityType: 'contract',
+      entityId: id,
+    });
+
     cacheInvalidate('contracts');
     cacheInvalidate('parties');
     cacheInvalidate('commodities');
     cacheInvalidate('dashboard');
     return ok({ success: true, id });
-  } catch (err) {
+  } catch (err: any) {
     console.error('DELETE /api/contracts/[id] error:', err);
+    if (err.code === '23503') {
+      return badRequest('Cannot delete contract: it has active dispatches/deliveries associated with it. Please delete the deliveries first.');
+    }
     return serverError('Failed to delete');
   }
 }

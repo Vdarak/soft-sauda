@@ -1,7 +1,7 @@
 /**
  * Contracts View — Sauda Register List + Create/Edit form
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp, attachCommodityAutocomp, attachCityAutocomp } from '../lib/autocomplete.js';
 
@@ -229,16 +229,6 @@ export async function renderContractForm(id) {
                 Immediate Payment
               </label>
             </div>
-            <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-              <input type="radio" name="paymentTermType" value="CREDIT" ${ptType === 'CREDIT' ? 'checked' : ''}>
-              Credit Period
-            </label>
-            <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-              <input type="radio" name="paymentTermType" value="PAYMENT" ${ptType === 'PAYMENT' ? 'checked' : ''}>
-              Immediate Payment
-            </label>
-          </div>
-          
           <div class="form-grid" id="payment-fields">
             <div class="form-group" id="discount-percent-group">
               <label for="paymentPercent">Discount %</label>
@@ -262,6 +252,8 @@ export async function renderContractForm(id) {
 
           <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Remarks</h3>
           ${FormGroup({ id: 'remarks', label: 'Internal Custom Remarks', value: contract.customRemarks || '', type: 'textarea' })}
+
+          ${isEdit ? AuditMetadataBlock(contract) : ''}
 
           <div class="form-actions">
             <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Sauda</button>

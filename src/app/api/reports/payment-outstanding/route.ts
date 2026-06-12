@@ -1,14 +1,21 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { bills, billLines, parties, contracts, contractLines, contractParties, deliveries, deliveryLines, commodities } from '@/db/schema';
-import { eq, and, sql, desc, ne } from 'drizzle-orm';
-import { ok, serverError } from '@/lib/api-helpers';
+import { bills, billLines, parties, contracts, contractLines, contractParties, deliveryLines, commodities } from '@/db/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
+import { ok, serverError, unauthorized } from '@/lib/api-helpers';
+import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+
+    const { companyId, fiscalYearId } = ctx;
+
     // Select all bills that have an outstanding balance (balanceAmount > 0)
+    // and belong to this company + FY
     const outstandingBills = await db.select({
       id: bills.id,
       billNo: bills.billNo,
@@ -20,17 +27,19 @@ export async function GET(req: NextRequest) {
       billedPartyId: bills.partyId,
       billedPartyName: parties.name,
       creditLimit: parties.creditLimit,
-      // References from bill lines
       refType: billLines.referenceType,
       refId: billLines.referenceId,
     })
     .from(bills)
     .innerJoin(parties, eq(parties.id, bills.partyId))
     .leftJoin(billLines, eq(billLines.billId, bills.id))
-    .where(sql`balance_amount::numeric > 0`)
+    .where(and(
+      eq(bills.companyId, companyId),
+      eq(bills.fiscalYearId, fiscalYearId),
+      sql`balance_amount::numeric > 0`
+    ))
     .orderBy(desc(bills.billDate));
 
-    // Enrich the bills with contract and commodity details in parallel/batch
     const enriched = [];
 
     for (const b of outstandingBills) {
@@ -76,7 +85,6 @@ export async function GET(req: NextRequest) {
           saudaNo = con[0].saudaNo;
         }
 
-        // Get parties for this contract
         const cParties = await db
           .select({ role: contractParties.role, name: parties.name })
           .from(contractParties)
@@ -88,7 +96,6 @@ export async function GET(req: NextRequest) {
         sellerBrokerName = cParties.find(p => p.role === 'SELLER_BROKER')?.name || '-';
         buyerBrokerName = cParties.find(p => p.role === 'BUYER_BROKER')?.name || '-';
 
-        // Get commodity details
         const conLine = await db
           .select({ name: commodities.name })
           .from(contractLines)
@@ -118,7 +125,7 @@ export async function GET(req: NextRequest) {
         billAmount: total,
         balanceAmount: balance,
         receivedAmount: received,
-        deductions: 0, // Deductions can be added later or calculated as a subtraction if any
+        deductions: 0,
         creditDays: b.creditDays,
         overDays,
         billedPartyName: b.billedPartyName,

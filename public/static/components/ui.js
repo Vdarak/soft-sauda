@@ -275,3 +275,27 @@ export async function exportToExcel(apiPath, filename = 'export') {
     showToast('Export failed: ' + err.message, 'error');
   }
 }
+
+/* ── Audit Metadata Block (Admin Only) ── */
+export function AuditMetadataBlock(record) {
+  const isAdmin = localStorage.getItem('ss_role') === 'ADMIN';
+  if (!isAdmin || !record) return '';
+
+  const createdBy = record.createdByDisplayName || record.createdByUsername || 'System';
+  const createdAt = record.createdAt ? formatDate(record.createdAt) : '-';
+  const updatedBy = record.updatedByDisplayName || record.updatedByUsername || createdBy;
+  const updatedAt = record.updatedAt ? formatDate(record.updatedAt) : createdAt;
+
+  return `
+    <div class="audit-metadata-block" style="margin-top: 2rem; padding: 1rem; background: var(--faint); border: 1px dashed var(--border); border-radius: 0.5rem; font-size: 0.75rem; color: var(--muted-foreground); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; clear: both;">
+      <div>
+        <strong>Created By:</strong> ${escapeHtml(createdBy)}<br>
+        <strong>Created At:</strong> ${createdAt}
+      </div>
+      <div>
+        <strong>Last Modified By:</strong> ${escapeHtml(updatedBy)}<br>
+        <strong>Last Modified At:</strong> ${updatedAt}
+      </div>
+    </div>
+  `;
+}

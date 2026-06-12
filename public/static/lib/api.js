@@ -23,6 +23,17 @@ export function setToken(token) {
 export function clearAuth() {
   localStorage.removeItem('ss_token');
   localStorage.removeItem('ss_user');
+  localStorage.removeItem('ss_companies');
+  localStorage.removeItem('ss_role');
+  localStorage.removeItem('ss_permissions');
+  localStorage.removeItem('ss_display_name');
+  sessionStorage.removeItem('active_company_id');
+  sessionStorage.removeItem('active_company_name');
+  sessionStorage.removeItem('active_company_code');
+  sessionStorage.removeItem('active_fiscal_year_id');
+  sessionStorage.removeItem('active_fiscal_year_label');
+  sessionStorage.removeItem('gcc_mega_payload');
+  clientCache.clear();
 }
 
 /** Check if user is authenticated */
@@ -36,8 +47,17 @@ function headers(contentType = 'application/json') {
   if (contentType) h['Content-Type'] = contentType;
   const token = getToken();
   if (token) h['Authorization'] = `Bearer ${token}`;
+  
+  // Inject active company and fiscal year headers if set
+  const activeCompanyId = sessionStorage.getItem('active_company_id');
+  if (activeCompanyId) h['x-company-id'] = activeCompanyId;
+  
+  const activeFiscalYearId = sessionStorage.getItem('active_fiscal_year_id');
+  if (activeFiscalYearId) h['x-fiscal-year-id'] = activeFiscalYearId;
+  
   return h;
 }
+
 
 export const clientCache = new Map();
 
@@ -145,6 +165,11 @@ async function request(method, path, body = null, options = {}) {
   const data = await res.json();
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuth();
+      window.location.href = '/login';
+      return;
+    }
     throw new Error(data.error || `Request failed: ${res.status}`);
   }
 
@@ -225,13 +250,24 @@ export async function triggerWarmup(options = {}) {
     if (cachedPayload) {
       payload = JSON.parse(cachedPayload);
     } else {
-      // 2. Otherwise fetch it and save to session storage
-      const res = await fetch('/api/warmup', { headers: headers() });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.payload) {
-        payload = data.payload;
-        sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
+      // 2. Otherwise fetch it with a timeout to prevent hanging the UI
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout safeguard
+      try {
+        const res = await fetch('/api/warmup', { 
+          headers: headers(),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.payload) {
+          payload = data.payload;
+          sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
+        }
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        console.warn('[api.js] Warmup fetch timed out or failed. Falling back to on-demand data loads.', fetchErr);
       }
     }
 
@@ -241,6 +277,9 @@ export async function triggerWarmup(options = {}) {
         clientCache.set(route, arrayData);
         if (Array.isArray(arrayData)) {
           const basePath = route.split('?')[0];
+          if (route.includes('page=1') || !route.includes('?')) {
+            clientCache.set(basePath, arrayData);
+          }
           arrayData.forEach(item => {
             if (item && item.id) {
               clientCache.set(`${basePath}/${item.id}`, item);

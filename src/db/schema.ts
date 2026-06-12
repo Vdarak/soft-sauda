@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, pgEnum, uniqueIndex, index, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, pgEnum, uniqueIndex, index, boolean, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // ==========================================
@@ -10,6 +10,75 @@ export const contractStatusEnum = pgEnum('contract_status', ['DRAFT', 'ACTIVE', 
 export const deliveryStatusEnum = pgEnum('delivery_status', ['PENDING', 'DISPATCHED', 'DELIVERED', 'CANCELLED']);
 export const billBasisEnum = pgEnum('bill_basis', ['CONTRACT', 'DELIVERY', 'DIRECT', 'DALALI']);
 export const paymentTermTypeEnum = pgEnum('payment_term_type', ['DISCOUNT', 'CREDIT', 'PAYMENT']);
+export const userRoleEnum = pgEnum('user_role', ['ADMIN', 'EMPLOYEE']);
+export const auditActionEnum = pgEnum('audit_action', ['CREATE', 'UPDATE', 'DELETE']);
+
+// ==========================================
+// 0. COMPANIES & USERS & FISCAL YEARS
+// ==========================================
+
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  shortCode: text("short_code").notNull().unique(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const fiscalYears = pgTable("fiscal_years", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  label: text("label").notNull(),           // e.g. "FY 2025-26"
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  isCurrent: boolean("is_current").default(false).notNull(),
+  isLocked: boolean("is_locked").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  unqCompanyLabel: uniqueIndex("unq_fy_company_label").on(t.companyId, t.label),
+  idxCompanyId: index("idx_fy_company_id").on(t.companyId),
+}));
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
+  role: userRoleEnum("role").default('EMPLOYEE').notNull(),
+  permissions: jsonb("permissions").$type<Record<string, Record<string, boolean>>>(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const userCompanyAccess = pgTable("user_company_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+}, (t) => ({
+  unqUserCompany: uniqueIndex("unq_user_company").on(t.userId, t.companyId),
+}));
+
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  companyId: integer("company_id").references(() => companies.id),
+  action: auditActionEnum("action").notNull(),
+  entityType: text("entity_type").notNull(),  // 'contract', 'delivery', etc.
+  entityId: integer("entity_id"),
+  changes: jsonb("changes").$type<Record<string, any>>(),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxUserId: index("idx_audit_log_user_id").on(t.userId),
+  idxCompanyId: index("idx_audit_log_company_id").on(t.companyId),
+  idxEntityType: index("idx_audit_log_entity").on(t.entityType, t.entityId),
+  idxCreatedAt: index("idx_audit_log_created_at").on(t.createdAt),
+}));
 
 // ==========================================
 // 1. PARTIES DOMAIN
@@ -33,13 +102,19 @@ export const parties = pgTable("parties", {
   fax: text("fax"),
   emailIds: text("email_ids"),
   designation: text("designation"),
+  // Sharing & Isolation (future-proof)
+  isShared: boolean("is_shared").default(true).notNull(),
+  companyId: integer("company_id").references(() => companies.id),  // nullable: only set when isShared=false
   // Audit & Status
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
 }, (t) => ({
-  nameTrgmIdx: index("idx_parties_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`)
+  nameTrgmIdx: index("idx_parties_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+  idxCompanyId: index("idx_parties_company_id").on(t.companyId),
 }));
 
 export const partyRoles = pgTable("party_roles", {
@@ -103,8 +178,12 @@ export const commodities = pgTable("commodities", {
   shortName: text("short_name"),
   unit: text("unit"),
   hsnCode: text("hsn_code"),
+  // Sharing & Isolation (future-proof)
+  isShared: boolean("is_shared").default(true).notNull(),
+  companyId: integer("company_id").references(() => companies.id),  // nullable: only set when isShared=false
 }, (t) => ({
-  nameTrgmIdx: index("idx_commodities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`)
+  nameTrgmIdx: index("idx_commodities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+  idxCompanyId: index("idx_commodities_company_id").on(t.companyId),
 }));
 
 export const commodityPackaging = pgTable("commodity_packaging", {
@@ -133,6 +212,10 @@ export const commoditySpecifications = pgTable("commodity_specifications", {
 // ==========================================
 export const contracts = pgTable("contracts", {
   id: serial("id").primaryKey(),
+  // Company & Fiscal Year Scoping
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  // Business Fields
   saudaNo: integer("sauda_no").notNull(),
   saudaBook: text("sauda_book").notNull(),
   saudaPrefix: text("sauda_prefix"),
@@ -153,10 +236,16 @@ export const contracts = pgTable("contracts", {
   poDate: timestamp("po_date"),
   termsAndConditions: text("terms_and_conditions"),
   customRemarks: text("custom_remarks"),
+  // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
 }, (t) => ({
-  unqSauda: uniqueIndex("unq_sauda_book_no").on(t.saudaBook, t.saudaNo)
+  unqSauda: uniqueIndex("unq_sauda_book_no").on(t.companyId, t.fiscalYearId, t.saudaBook, t.saudaNo),
+  idxCompanyId: index("idx_contracts_company_id").on(t.companyId),
+  idxFiscalYearId: index("idx_contracts_fiscal_year_id").on(t.fiscalYearId),
+  idxCompanyFy: index("idx_contracts_company_fy").on(t.companyId, t.fiscalYearId),
 }));
 
 export const contractParties = pgTable("contract_parties", {
@@ -190,6 +279,10 @@ export const contractLines = pgTable("contract_lines", {
 // ==========================================
 export const deliveries = pgTable("deliveries", {
   id: serial("id").primaryKey(),
+  // Company & Fiscal Year Scoping
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  // Business Fields
   dispatchDate: timestamp("dispatch_date").defaultNow().notNull(),
   truckNo: text("truck_no"),
   billNo: text("bill_no"),  // WS2: seller's bill number accompanying the truck
@@ -197,8 +290,16 @@ export const deliveries = pgTable("deliveries", {
   transporterId: integer("transporter_id").references(() => parties.id),
   advancePaymentCollected: numeric("advance_payment_collected", { precision: 15, scale: 2 }),
   status: deliveryStatusEnum("status").default('PENDING').notNull(),
+  // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
+}, (t) => ({
+  idxCompanyId: index("idx_deliveries_company_id").on(t.companyId),
+  idxFiscalYearId: index("idx_deliveries_fiscal_year_id").on(t.fiscalYearId),
+  idxCompanyFy: index("idx_deliveries_company_fy").on(t.companyId, t.fiscalYearId),
+}));
 
 export const deliveryLines = pgTable("delivery_lines", {
   id: serial("id").primaryKey(),
@@ -223,15 +324,28 @@ export const deliveryCharges = pgTable("delivery_charges", {
 // ==========================================
 export const bills = pgTable("bills", {
   id: serial("id").primaryKey(),
-  billNo: text("bill_no").unique().notNull(),
+  // Company & Fiscal Year Scoping
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  // Business Fields
+  billNo: text("bill_no").notNull(),
   billDate: timestamp("bill_date").defaultNow().notNull(),
   partyId: integer("party_id").references(() => parties.id).notNull(),
   basis: billBasisEnum("basis").notNull(),
   totalAmount: numeric("total_amount", { precision: 15, scale: 2 }).notNull(),
   balanceAmount: numeric("balance_amount", { precision: 15, scale: 2 }).notNull(),
   creditDays: integer("credit_days"),
+  // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
+}, (t) => ({
+  unqBillNo: uniqueIndex("unq_bill_no_company_fy").on(t.companyId, t.fiscalYearId, t.billNo),
+  idxCompanyId: index("idx_bills_company_id").on(t.companyId),
+  idxFiscalYearId: index("idx_bills_fiscal_year_id").on(t.fiscalYearId),
+  idxCompanyFy: index("idx_bills_company_fy").on(t.companyId, t.fiscalYearId),
+}));
 
 export const billLines = pgTable("bill_lines", {
   id: serial("id").primaryKey(),
@@ -246,14 +360,26 @@ export const billLines = pgTable("bill_lines", {
 
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
+  // Company & Fiscal Year Scoping
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  // Business Fields
   paymentDate: timestamp("payment_date").defaultNow().notNull(),
   partyId: integer("party_id").references(() => parties.id).notNull(),
   instrumentType: text("instrument_type").notNull(), // 'CHEQUE', 'NEFT', 'CASH'
   instrumentNo: text("instrument_no"),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   depositedBank: text("deposited_bank"),
+  // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
+}, (t) => ({
+  idxCompanyId: index("idx_payments_company_id").on(t.companyId),
+  idxFiscalYearId: index("idx_payments_fiscal_year_id").on(t.fiscalYearId),
+  idxCompanyFy: index("idx_payments_company_fy").on(t.companyId, t.fiscalYearId),
+}));
 
 export const paymentAllocations = pgTable("payment_allocations", {
   id: serial("id").primaryKey(),
@@ -270,6 +396,10 @@ export const paymentAllocations = pgTable("payment_allocations", {
 // ==========================================
 export const ledger = pgTable("ledger", {
   id: serial("id").primaryKey(),
+  // Company & Fiscal Year Scoping
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  // Business Fields
   transactionDate: timestamp("transaction_date").defaultNow().notNull(),
   accountId: integer("account_id").references(() => parties.id).notNull(),
   sourceType: text("source_type").notNull(), // 'BILL', 'PAYMENT', 'MANUAL'
@@ -277,11 +407,18 @@ export const ledger = pgTable("ledger", {
   debit: numeric("debit", { precision: 15, scale: 2 }).default('0.00'),
   credit: numeric("credit", { precision: 15, scale: 2 }).default('0.00'),
   narration: text("narration"),
+  // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
 }, (t) => ({
   idxAccountId: index("idx_ledger_account_id").on(t.accountId),
   idxSourceType: index("idx_ledger_source_type").on(t.sourceType),
   idxTransDate: index("idx_ledger_transaction_date").on(t.transactionDate),
+  idxCompanyId: index("idx_ledger_company_id").on(t.companyId),
+  idxFiscalYearId: index("idx_ledger_fiscal_year_id").on(t.fiscalYearId),
+  idxCompanyFy: index("idx_ledger_company_fy").on(t.companyId, t.fiscalYearId),
 }));
 
 // ==========================================

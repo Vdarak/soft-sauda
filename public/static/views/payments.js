@@ -1,7 +1,7 @@
 /**
  * Payments View — List + Create/Edit form with bill allocation and outstanding auto-fills
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
@@ -131,6 +131,8 @@ export async function renderPaymentForm(id) {
               ${FormGroup({ id: 'instrumentNo', label: 'Reference No.', value: payment.instrumentNo || '' })}
               ${FormGroup({ id: 'depositedBank', label: 'Deposited Bank', value: payment.depositedBank || '' })}
             </div>
+            ${isEdit ? AuditMetadataBlock(payment) : ''}
+
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
               ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
