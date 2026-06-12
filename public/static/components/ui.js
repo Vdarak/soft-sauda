@@ -216,8 +216,8 @@ export function formatDate(dateStr) {
 /* ── Currency formatting ── */
 export function formatCurrency(amount) {
   const num = Number(amount);
-  if (isNaN(num)) return '₹ 0';
-  return `₹ ${num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  if (isNaN(num)) return '₹\u00A00';
+  return `₹\u00A0${num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 /* ── Collect form data as object ── */

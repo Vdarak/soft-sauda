@@ -95,8 +95,8 @@ function renderCompanySelector() {
     `).join('');
 
     let icon = '🌾';
-    if (comp.shortCode === 'SOYBEAN') icon = '🌻';
-    else if (comp.shortCode === 'OIL') icon = '🫒';
+    if (comp.shortCode === 'SOYWHEAT' || comp.shortCode === 'SOYBEAN') icon = '🌻';
+    else if (comp.shortCode === 'OILCAKE' || comp.shortCode === 'OIL') icon = '🫒';
     else if (comp.shortCode === 'MAFI') icon = '🏭';
 
     return `

@@ -1,7 +1,7 @@
 /**
  * Business Analytics View — Rich Interactive Visual Dashboard
  */
-import { Icons, PageHeader, Spinner, formatCurrency } from '../components/ui.js';
+import { Icons, PageHeader, Spinner, formatCurrency, escapeHtml } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 export async function renderAnalytics() {

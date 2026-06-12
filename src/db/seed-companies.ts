@@ -44,8 +44,8 @@ function dateToISO(d: Date): string { return d.toISOString(); }
 // ── Data Constants ──
 const COMPANIES = [
   { name: 'GCC Pulses', shortCode: 'PULSES', description: 'Pulses division - Moong, Chana, Tur, Urad, Masoor' },
-  { name: 'GCC Soybean & Wheat', shortCode: 'SOYWHEAT', description: 'Soybean, Wheat, and Bajra trading' },
-  { name: 'GCC Oil & Cottonseed Cake', shortCode: 'OILCAKE', description: 'Edible oils and cottonseed oil cake' },
+  { name: 'GCC Soywheat', shortCode: 'SOYWHEAT', description: 'Soybean, Wheat, and Bajra trading' },
+  { name: 'GCC Oilcake', shortCode: 'OILCAKE', description: 'Edible oils and cottonseed oil cake' },
   { name: 'MAFI', shortCode: 'MAFI', description: 'MAFI commodity trading' },
 ];
 
@@ -130,7 +130,7 @@ const FY_RANGES = [
 
 async function seed() {
   console.log('🧹 Wiping all existing data...');
-  
+
   // Drop all tables in dependency order
   await db.execute(sql`
     DROP TABLE IF EXISTS audit_log CASCADE;
@@ -707,7 +707,7 @@ async function seed() {
 
     const [row] = await db.execute(sql`
       INSERT INTO parties (name, place, state_name, phone, sms_mobile, credit_limit, address, created_by)
-      VALUES (${name}, ${place}, ${state}, ${phone}, ${mobile}, ${creditLimit}, ${`${randomInt(1,500)}, Market Yard, ${place}`}, ${adminId})
+      VALUES (${name}, ${place}, ${state}, ${phone}, ${mobile}, ${creditLimit}, ${`${randomInt(1, 500)}, Market Yard, ${place}`}, ${adminId})
       RETURNING id
     `);
     const partyId = (row as any).id;
@@ -726,7 +726,7 @@ async function seed() {
 
     // Add a GSTIN for some
     if (i < 30) {
-      const gstin = `27${String(i).padStart(10, '0')}${randomInt(1,9)}Z${randomInt(1,9)}`;
+      const gstin = `27${String(i).padStart(10, '0')}${randomInt(1, 9)}Z${randomInt(1, 9)}`;
       await db.execute(sql`INSERT INTO party_tax_ids (party_id, tax_type, tax_value) VALUES (${partyId}, 'GSTIN', ${gstin})`);
     }
   }
