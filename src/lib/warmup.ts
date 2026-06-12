@@ -13,7 +13,7 @@ import {
   bills, billLines, payments, paymentAllocations, ledger,
   cities, districts, states,
 } from '@/db/schema';
-import { desc, eq, and, sql } from 'drizzle-orm';
+import { desc, eq, and, sql, aliasedTable } from 'drizzle-orm';
 import { cacheSet, cacheHas, cacheGet, DEFAULT_TTL } from '@/lib/cache';
 
 const PAGE_SIZE = 50;
@@ -615,6 +615,13 @@ export async function warmCache(
     {
       key: `reports:payment-outstanding:${companyId}:${fiscalYearId}`,
       fn: async () => {
+        const c_direct = aliasedTable(contracts, 'c_direct');
+        const c_via_del = aliasedTable(contracts, 'c_via_del');
+        const cl_direct = aliasedTable(contractLines, 'cl_direct');
+        const cl_via_del = aliasedTable(contractLines, 'cl_via_del');
+        const comm_direct = aliasedTable(commodities, 'comm_direct');
+        const comm_via_del = aliasedTable(commodities, 'comm_via_del');
+
         const outstandingBills = await db.select({
           id: bills.id,
           billNo: bills.billNo,
@@ -628,10 +635,26 @@ export async function warmCache(
           creditLimit: parties.creditLimit,
           refType: billLines.referenceType,
           refId: billLines.referenceId,
+          
+          directContractId: c_direct.id,
+          directSaudaNo: c_direct.saudaNo,
+          directCommodityName: comm_direct.name,
+          
+          viaDelContractId: c_via_del.id,
+          viaDelSaudaNo: c_via_del.saudaNo,
+          viaDelCommodityName: comm_via_del.name,
         })
         .from(bills)
         .innerJoin(parties, eq(parties.id, bills.partyId))
         .leftJoin(billLines, eq(billLines.billId, bills.id))
+        .leftJoin(c_direct, and(eq(billLines.referenceType, 'CONTRACT'), eq(c_direct.id, billLines.referenceId)))
+        .leftJoin(cl_direct, eq(cl_direct.contractId, c_direct.id))
+        .leftJoin(comm_direct, eq(comm_direct.id, cl_direct.commodityId))
+        .leftJoin(deliveries, and(eq(billLines.referenceType, 'DELIVERY'), eq(deliveries.id, billLines.referenceId)))
+        .leftJoin(deliveryLines, eq(deliveryLines.deliveryId, deliveries.id))
+        .leftJoin(cl_via_del, eq(cl_via_del.id, deliveryLines.contractLineId))
+        .leftJoin(c_via_del, eq(c_via_del.id, cl_via_del.contractId))
+        .leftJoin(comm_via_del, eq(comm_via_del.id, cl_via_del.commodityId))
         .where(and(
           eq(bills.companyId, companyId),
           eq(bills.fiscalYearId, fiscalYearId),
@@ -639,72 +662,15 @@ export async function warmCache(
         ))
         .orderBy(desc(bills.billDate));
 
-        const enriched = [];
+        const billMap = new Map<number, any>();
         for (const b of outstandingBills) {
-          let contractId: number | null = null;
-          let saudaNo: number | null = null;
-          let commodityName: string | null = null;
-
-          if (b.refType === 'CONTRACT' && b.refId) {
-            contractId = b.refId;
-          } else if (b.refType === 'DELIVERY' && b.refId) {
-            const delLines = await db
-              .select({ contractLineId: deliveryLines.contractLineId })
-              .from(deliveryLines)
-              .where(eq(deliveryLines.deliveryId, b.refId))
-              .limit(1);
-
-            if (delLines.length > 0) {
-              const conLines = await db
-                .select({ contractId: contractLines.contractId })
-                .from(contractLines)
-                .where(eq(contractLines.id, delLines[0].contractLineId))
-                .limit(1);
-
-              if (conLines.length > 0) {
-                contractId = conLines[0].contractId;
-              }
-            }
+          if (billMap.has(b.id)) {
+            continue;
           }
 
-          let buyerName = 'Unknown';
-          let sellerName = 'Unknown';
-          let sellerBrokerName = '-';
-          let buyerBrokerName = '-';
-
-          if (contractId) {
-            const con = await db
-              .select({ saudaNo: contracts.saudaNo })
-              .from(contracts)
-              .where(eq(contracts.id, contractId))
-              .limit(1);
-
-            if (con.length > 0) {
-              saudaNo = con[0].saudaNo;
-            }
-
-            const cParties = await db
-              .select({ role: contractParties.role, name: parties.name })
-              .from(contractParties)
-              .innerJoin(parties, eq(parties.id, contractParties.partyId))
-              .where(eq(contractParties.contractId, contractId));
-
-            buyerName = cParties.find(p => p.role === 'BUYER')?.name || 'Unknown';
-            sellerName = cParties.find(p => p.role === 'SELLER')?.name || 'Unknown';
-            sellerBrokerName = cParties.find(p => p.role === 'SELLER_BROKER')?.name || '-';
-            buyerBrokerName = cParties.find(p => p.role === 'BUYER_BROKER')?.name || '-';
-
-            const conLine = await db
-              .select({ name: commodities.name })
-              .from(contractLines)
-              .innerJoin(commodities, eq(commodities.id, contractLines.commodityId))
-              .where(eq(contractLines.contractId, contractId))
-              .limit(1);
-
-            if (conLine.length > 0) {
-              commodityName = conLine[0].name;
-            }
-          }
+          const contractId = b.directContractId || b.viaDelContractId || null;
+          const saudaNo = b.directSaudaNo || b.viaDelSaudaNo || null;
+          const commodityName = b.directCommodityName || b.viaDelCommodityName || null;
 
           const overDays = Math.max(
             0,
@@ -715,7 +681,7 @@ export async function warmCache(
           const balance = parseFloat(b.balanceAmount);
           const received = total - balance;
 
-          enriched.push({
+          billMap.set(b.id, {
             billId: b.id,
             billNo: b.billNo,
             billDate: b.billDate,
@@ -729,13 +695,48 @@ export async function warmCache(
             billedPartyName: b.billedPartyName,
             creditLimit: b.creditLimit ? parseFloat(b.creditLimit) : 0,
             contractNo: saudaNo || '-',
-            buyerName,
-            sellerName,
-            sellerBrokerName,
-            buyerBrokerName,
+            contractId,
+            buyerName: 'Unknown',
+            sellerName: 'Unknown',
+            sellerBrokerName: '-',
+            buyerBrokerName: '-',
             commodityName: commodityName || '-',
           });
         }
+
+        const enriched = Array.from(billMap.values());
+        const contractIds = [...new Set(enriched.map(item => item.contractId).filter(Boolean))] as number[];
+
+        if (contractIds.length > 0) {
+          const partyRows = await db
+            .select({
+              contractId: contractParties.contractId,
+              role: contractParties.role,
+              name: parties.name,
+            })
+            .from(contractParties)
+            .innerJoin(parties, eq(parties.id, contractParties.partyId))
+            .where(sql`${contractParties.contractId} IN (${sql.join(contractIds.map(id => sql`${id}`), sql`, `)})`);
+
+          const contractPartiesMap: Record<number, { role: string; name: string }[]> = {};
+          for (const row of partyRows) {
+            if (!contractPartiesMap[row.contractId]) {
+              contractPartiesMap[row.contractId] = [];
+            }
+            contractPartiesMap[row.contractId].push({ role: row.role, name: row.name || 'Unknown' });
+          }
+
+          for (const item of enriched) {
+            if (item.contractId) {
+              const cParties = contractPartiesMap[item.contractId] || [];
+              item.buyerName = cParties.find(p => p.role === 'BUYER')?.name || 'Unknown';
+              item.sellerName = cParties.find(p => p.role === 'SELLER')?.name || 'Unknown';
+              item.sellerBrokerName = cParties.find(p => p.role === 'SELLER_BROKER')?.name || '-';
+              item.buyerBrokerName = cParties.find(p => p.role === 'BUYER_BROKER')?.name || '-';
+            }
+          }
+        }
+
         cacheSet(`reports:payment-outstanding:${companyId}:${fiscalYearId}`, enriched, TTL);
         payload['/reports/payment-outstanding'] = enriched;
       },
@@ -743,21 +744,30 @@ export async function warmCache(
     },
   ];
 
+  const startTotal = Date.now();
+  console.log(`[Warmup] Starting cache compile for Company: ${companyId}, FY: ${fiscalYearId}`);
+
   const promises = tasks.map(async (task) => {
+    const t0 = Date.now();
     if (!cacheHas(task.key)) {
       try {
+        console.log(`[Warmup Task] MISS: ${task.key} - Querying database...`);
         await task.fn();
+        const duration = Date.now() - t0;
+        console.log(`[Warmup Task] DONE: ${task.key} took ${duration}ms`);
         warmed.push(task.key);
       } catch (err) {
-        console.error(`Warmup failed for ${task.key}:`, err);
+        console.error(`[Warmup Task] FAILED for ${task.key}:`, err);
       }
     } else {
+      console.log(`[Warmup Task] HIT: ${task.key} - Using cached value`);
       skipped.push(task.key);
       task.payloadFn();
     }
   });
 
   await Promise.all(promises);
+  console.log(`[Warmup] Completed total cache compile in ${Date.now() - startTotal}ms (Warmed: ${warmed.length}, Skipped: ${skipped.length})`);
   payload['/search/packaging'] = [];
   return { payload, warmed, skipped };
 }
@@ -770,36 +780,74 @@ export function markWorkspaceActive(companyId: number, fiscalYearId: number): vo
   activeWorkspaces.set(key, Date.now());
 }
 
+const ongoingWarmups = new Map<string, Promise<Record<string, any>>>();
+
 /** Get pre-computed warmup payload or compute and cache it if absent */
 export async function getCachedWarmup(companyId: number, fiscalYearId: number) {
   markWorkspaceActive(companyId, fiscalYearId);
   const cacheKey = `warmup:payload:${companyId}:${fiscalYearId}`;
+  const workspaceKey = `${companyId}:${fiscalYearId}`;
+  
+  console.log(`[Warmup Route] getCachedWarmup called for workspace: ${workspaceKey}`);
   const cached = cacheGet<Record<string, any>>(cacheKey);
   if (cached) {
+    console.log(`[Warmup Route] Warmup payload CACHE HIT for workspace: ${workspaceKey}`);
     return cached;
   }
-  const result = await warmCache(companyId, fiscalYearId);
-  cacheSet(cacheKey, result.payload, DEFAULT_TTL);
-  return result.payload;
+  
+  const ongoing = ongoingWarmups.get(workspaceKey);
+  if (ongoing) {
+    console.log(`[Warmup Route] Found ongoing re-warm promise for workspace: ${workspaceKey}. Waiting for it...`);
+    const payload = await ongoing;
+    console.log(`[Warmup Route] Resolved ongoing re-warm promise for workspace: ${workspaceKey}`);
+    return payload;
+  }
+
+  console.log(`[Warmup Route] Warmup payload CACHE MISS for workspace: ${workspaceKey}. Compiling now...`);
+  const promise = (async () => {
+    try {
+      const result = await warmCache(companyId, fiscalYearId);
+      cacheSet(cacheKey, result.payload, DEFAULT_TTL);
+      return result.payload;
+    } finally {
+      ongoingWarmups.delete(workspaceKey);
+    }
+  })();
+
+  ongoingWarmups.set(workspaceKey, promise);
+  return await promise;
 }
 
 /** Trigger background, non-blocking cache re-warming for a workspace */
 export function triggerBackgroundWarmup(companyId: number | null | undefined, fiscalYearId: number | null | undefined): void {
   if (!companyId || !fiscalYearId) return;
   
+  const workspaceKey = `${companyId}:${fiscalYearId}`;
   markWorkspaceActive(companyId, fiscalYearId);
   const cacheKey = `warmup:payload:${companyId}:${fiscalYearId}`;
 
-  Promise.resolve().then(async () => {
+  if (ongoingWarmups.has(workspaceKey)) {
+    console.log(`[Eager Cache] Warmup already in progress for workspace ${workspaceKey}. Joining ongoing flight.`);
+    return;
+  }
+
+  const promise = (async () => {
     try {
       console.log(`[Eager Cache] Triggering background re-warm for company: ${companyId}, FY: ${fiscalYearId}`);
+      const t0 = Date.now();
       const result = await warmCache(companyId, fiscalYearId);
       cacheSet(cacheKey, result.payload, DEFAULT_TTL);
-      console.log(`[Eager Cache] Background re-warm successful for company: ${companyId}, FY: ${fiscalYearId}`);
+      console.log(`[Eager Cache] Background re-warm successful for company: ${companyId}, FY: ${fiscalYearId} in ${Date.now() - t0}ms`);
+      return result.payload;
     } catch (err) {
       console.error(`[Eager Cache] Background re-warm failed for company: ${companyId}, FY: ${fiscalYearId}`, err);
+      throw err;
+    } finally {
+      ongoingWarmups.delete(workspaceKey);
     }
-  });
+  })();
+
+  ongoingWarmups.set(workspaceKey, promise);
 }
 
 // Background scheduler

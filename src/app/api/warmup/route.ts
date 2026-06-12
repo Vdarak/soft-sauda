@@ -14,13 +14,18 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const ctx = await getRequestContext(req);
-    if (!ctx) return unauthorized();
+    if (!ctx) {
+      console.warn('[API /api/warmup] Unauthorized access attempt');
+      return unauthorized();
+    }
 
     const { companyId, fiscalYearId } = ctx;
     const t0 = Date.now();
 
+    console.log(`[API /api/warmup] GET request received for Company: ${companyId}, FY: ${fiscalYearId}`);
     const payload = await getCachedWarmup(companyId, fiscalYearId);
     const dataDone = Date.now() - t0;
+    console.log(`[API /api/warmup] GET response ready in ${dataDone}ms`);
     
     return ok({
       success: true,
@@ -28,7 +33,7 @@ export async function GET(req: NextRequest) {
       stats: { timeMs: dataDone, dataDone }
     });
   } catch (err) {
-    console.error('GET /api/warmup error:', err);
+    console.error('[API /api/warmup] GET error:', err);
     return serverError('Warmup failed');
   }
 }
