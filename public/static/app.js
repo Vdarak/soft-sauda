@@ -22,7 +22,7 @@ import { renderBatchBilling } from './views/batch_billing.js';
 import { renderPaymentOutstanding } from './views/payment_outstanding.js';
 import { renderUserList, renderUserForm, renderAuditLogs } from './views/admin.js';
 import { renderAnalytics } from './views/analytics.js';
-import { isAuthenticated, clearAuth, triggerWarmup, clientCache } from './lib/api.js';
+import { isAuthenticated, clearAuth, triggerWarmup, clientCache, get as apiGet } from './lib/api.js';
 import { Icons, showToast } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
 
@@ -947,6 +947,8 @@ document.addEventListener('click', async (e) => {
     const api = await import('./lib/api.js');
     await api.del(`/${entity}/${id}`);
     showToast(`${entityNameSingular.charAt(0).toUpperCase() + entityNameSingular.slice(1)} deleted successfully`);
+    // Re-render the current view so the deleted row is removed from the DOM
+    window.dispatchEvent(new PopStateEvent('popstate'));
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
@@ -970,17 +972,18 @@ document.addEventListener('DOMContentLoaded', () => {
       let currentChecksum = null;
       setInterval(async () => {
         if (!isAuthenticated()) return;
+        // ONLY poll if active company is selected, to prevent unauthorized (401) errors on company selection page
+        if (!sessionStorage.getItem('active_company_id')) return;
         try {
-          const res = await fetch('/api/status');
-          if (!res.ok) return;
-          const data = await res.json();
+          // Use apiGet to automatically inject Authorization token and company/FY headers
+          const data = await apiGet('/status');
           if (currentChecksum && data.checksum !== currentChecksum) {
             console.log('Background sync: data changed. Refreshing cache silently...');
             await triggerWarmup();
             window.dispatchEvent(new PopStateEvent('popstate'));
           }
           currentChecksum = data.checksum;
-        } catch (err) { /* ignore network blips */ }
+        } catch (err) { /* ignore network blips or temporary 401/403s on expire */ }
       }, 15000);
     });
   }
