@@ -96,6 +96,7 @@ export async function renderBillList(ctx) {
         <td style="text-align: right;" onclick="event.stopPropagation()">
           <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
             <a href="/bills/${b.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small secondary print-row-btn" data-id="${b.id}" data-entity="bills">${Icons.printer}</button>
             <button class="small danger delete-row-btn" data-id="${b.id}" data-entity="bills">${Icons.trash}</button>
           </div>
         </td>
@@ -255,17 +256,21 @@ export async function renderBillForm(id) {
     }
 
     app.innerHTML = `
+      <a href="/bills" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Bills</a>
       <div class="dual-pane-container">
-        <!-- Left Sidebar: SELECT BILL TO ALTER -->
+        <!-- Left Sidebar -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT BILL TO ALTER</h3>
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT BILL</h3>
             <input type="text" id="alter-bill-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
           <div id="alter-bills-list" style="flex: 1; overflow-y: auto;">
             ${allBills.map(b => `
               <div class="alter-list-item ${b.id == id ? 'active-item' : ''}" data-id="${b.id}">
-                <div class="title">Bill #${b.billNo}</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Bill #${b.billNo}</div>
+                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${b.id}</div>
+                </div>
                 <div class="subtitle">${escapeHtml(b.partyName || 'Direct')} (${formatDate(b.billDate)})</div>
               </div>
             `).join('')}
@@ -274,7 +279,6 @@ export async function renderBillForm(id) {
 
         <!-- Right Pane: Master Form -->
         <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          ${PageHeader({ title: isEdit ? `Edit Bill: ${bill.billNo}` : 'New Bill', backHref: '/bills' })}
           
           <form id="bill-form">
             <div class="form-grid">
@@ -297,6 +301,7 @@ export async function renderBillForm(id) {
 
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Bill</button>
+              ${isEdit ? `<button type="button" class="secondary" id="btn-print-bill">${Icons.printer} Print</button>` : ''}
               ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
               <a href="/bills" data-route><button type="button" class="secondary">Cancel</button></a>
             </div>
@@ -407,8 +412,11 @@ export async function renderBillForm(id) {
     });
 
     if (isEdit) {
+      document.getElementById('btn-print-bill')?.addEventListener('click', () => {
+        if (id) window.open(`/api/pdf/bill/${id}`, '_blank');
+      });
+
       document.getElementById('btn-delete').addEventListener('click', async (e) => {
-        if (!confirm('Are you sure you want to delete this bill?')) return;
         const btn = e.target.closest('button');
         const ogHtml = btn.innerHTML;
         btn.disabled = true;

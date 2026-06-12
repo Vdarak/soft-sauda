@@ -87,107 +87,155 @@ export async function renderPartyForm(id) {
     const cstTin = party.taxIds?.find(t => t.taxType === 'CST_TIN')?.taxValue || '';
     const cstNo = party.taxIds?.find(t => t.taxType === 'CST_NO')?.taxValue || '';
 
-    // Extract roles
     const activeRoles = party.roles?.map(r => r.role) || [];
 
     app.innerHTML = `
+      <a href="/parties" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Parties</a>
       <div class="dual-pane-container">
         
-        <!-- Left Sidebar: SELECT ACCOUNT TO ALTER -->
+        <!-- Left Sidebar -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT ACCOUNT TO ALTER</h3>
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT ACCOUNT</h3>
             <input type="text" id="alter-party-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
           <div id="alter-parties-list" style="flex: 1; overflow-y: auto;">
             ${allParties.map(p => `
               <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}">
-                <div class="title">${escapeHtml(p.name)}</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</div>
+                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${p.id}</div>
+                </div>
                 <div class="subtitle">${escapeHtml(p.place || 'No location')}</div>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <!-- Right Pane: Master Form -->
+        <!-- Right Pane -->
         <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          ${PageHeader({
-            title: isEdit ? `Alter Account: ${party.name}` : 'New Party Account',
-            subtitle: isEdit ? `Edit details for Party ID #${id}` : 'Create a new client/broker database record',
-            backHref: '/parties'
-          })}
+
+          <!-- Tab Navigation -->
+          <div class="filter-pills" style="margin-bottom: 1.5rem;">
+            <button type="button" class="filter-pill party-tab-btn active" data-tab="general">General Info</button>
+            <button type="button" class="filter-pill party-tab-btn" data-tab="delivery">Delivery Address</button>
+            <button type="button" class="filter-pill party-tab-btn" data-tab="bank">Bank & Other Details</button>
+          </div>
 
           <form id="party-form">
-            <!-- Roles Selector Grid -->
-            <h3 style="margin: 0 0 0.75rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Party Type / Roles</h3>
-            <div style="display: flex; gap: 1.5rem; align-items: center; margin-bottom: 1.5rem; background: var(--background); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); flex-wrap: wrap;">
-              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
-                <input type="checkbox" name="roles" value="BUYER" ${activeRoles.includes('BUYER') ? 'checked' : ''}> Buyer
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
-                <input type="checkbox" name="roles" value="SELLER" ${activeRoles.includes('SELLER') ? 'checked' : ''}> Seller
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
-                <input type="checkbox" name="roles" value="BUYER_BROKER" ${activeRoles.includes('BUYER_BROKER') ? 'checked' : ''}> Buyer Broker
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
-                <input type="checkbox" name="roles" value="SELLER_BROKER" ${activeRoles.includes('SELLER_BROKER') ? 'checked' : ''}> Seller Broker
-              </label>
+
+            <!-- ── Tab 1: General Info ── -->
+            <div id="tab-panel-general" class="party-tab-panel">
+              <div style="display: flex; gap: 1.5rem; align-items: center; margin-bottom: 1.5rem; background: var(--background); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                  <input type="checkbox" name="roles" value="BUYER" ${activeRoles.includes('BUYER') ? 'checked' : ''}> Buyer
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                  <input type="checkbox" name="roles" value="SELLER" ${activeRoles.includes('SELLER') ? 'checked' : ''}> Seller
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                  <input type="checkbox" name="roles" value="BUYER_BROKER" ${activeRoles.includes('BUYER_BROKER') ? 'checked' : ''}> Buyer Broker
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; cursor: pointer;">
+                  <input type="checkbox" name="roles" value="SELLER_BROKER" ${activeRoles.includes('SELLER_BROKER') ? 'checked' : ''}> Seller Broker
+                </label>
+              </div>
+
+              <div class="form-grid">
+                ${FormGroup({ id: 'name', label: 'Party Name', value: party.name || '', required: true, placeholder: 'Company name' })}
+                ${FormGroup({ id: 'designation', label: 'Designation / Note', value: party.designation || '', placeholder: 'e.g. Grain Merchant' })}
+                ${FormGroup({ id: 'phone', label: 'Office Phone', value: party.phone || '', type: 'tel', placeholder: '+91...' })}
+                ${FormGroup({ id: 'phoneRes', label: 'Residential Phone', value: party.phoneRes || '', type: 'tel', placeholder: 'Home phone' })}
+                ${FormGroup({ id: 'emailIds', label: 'Emails (comma-separated)', value: party.emailIds || '', placeholder: 'sales@example.com' })}
+              </div>
+
+              <h3 style="margin: 1.5rem 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Billing Address</h3>
+              <div class="form-grid">
+                ${FormGroup({ id: 'address', label: 'Address Details', type: 'textarea', value: party.address || '', placeholder: 'Street address details' })}
+                ${FormGroup({ id: 'landmark', label: 'Landmark', value: party.landmark || '' })}
+                ${FormGroup({ id: 'place', label: 'Station / City', value: party.place || '', placeholder: 'Place lookup' })}
+                ${FormGroup({ id: 'stateName', label: 'State', value: party.stateName || '' })}
+                ${FormGroup({ id: 'pinCode', label: 'PIN Code', value: party.pinCode || '' })}
+              </div>
+
+              <h3 style="margin: 1.5rem 0 0.5rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Key Contact Persons</h3>
+              <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
+                <table id="contacts-grid" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: var(--faint);">
+                      <th style="padding: 0.5rem 0.75rem;">Name *</th>
+                      <th style="padding: 0.5rem 0.75rem;">Number *</th>
+                      <th style="padding: 0.5rem 0.75rem;">Email</th>
+                      <th style="padding: 0.5rem 0.75rem;">Designation</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="contacts-grid-body"></tbody>
+                </table>
+              </div>
+              <button type="button" id="btn-add-contact" class="secondary small">+ Add Contact</button>
             </div>
 
-            <h3 style="margin: 0 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Basic Information</h3>
-            <div class="form-grid">
-              ${FormGroup({ id: 'name', label: 'Party Name', value: party.name || '', required: true, placeholder: 'Company name' })}
-              ${FormGroup({ id: 'designation', label: 'Designation / Note', value: party.designation || '', placeholder: 'e.g. Grain Merchant' })}
-              ${FormGroup({ id: 'phone', label: 'Office Phone', value: party.phone || '', type: 'tel', placeholder: '+91...' })}
-              ${FormGroup({ id: 'phoneRes', label: 'Residential Phone', value: party.phoneRes || '', type: 'tel', placeholder: 'Home phone' })}
-              ${FormGroup({ id: 'emailIds', label: 'Emails (comma-separated)', value: party.emailIds || '', type: 'email', placeholder: 'sales@example.com' })}
+            <!-- ── Tab 2: Delivery Address ── -->
+            <div id="tab-panel-delivery" class="party-tab-panel" style="display:none;">
+              <p style="font-size:0.8125rem; color:var(--muted-foreground); margin: 0 0 1rem;">Add one or more delivery destinations for this party.</p>
+              <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
+                <table id="delivery-grid" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: var(--faint);">
+                      <th style="padding: 0.5rem 0.75rem;">Address Line *</th>
+                      <th style="padding: 0.5rem 0.75rem;">City</th>
+                      <th style="padding: 0.5rem 0.75rem;">State</th>
+                      <th style="padding: 0.5rem 0.75rem;">Pincode</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="delivery-grid-body"></tbody>
+                </table>
+              </div>
+              <button type="button" id="btn-add-delivery" class="secondary small">+ Add Delivery Address</button>
             </div>
 
-            <h3 style="margin: 1.5rem 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Address</h3>
-            <div class="form-grid">
-              ${FormGroup({ id: 'address', label: 'Address Details', type: 'textarea', value: party.address || '', placeholder: 'Street address details' })}
-              ${FormGroup({ id: 'landmark', label: 'Landmark', value: party.landmark || '' })}
-              ${FormGroup({ id: 'place', label: 'Station / City', value: party.place || '', placeholder: 'Place lookup' })}
-              ${FormGroup({ id: 'stateName', label: 'State', value: party.stateName || '' })}
-              ${FormGroup({ id: 'pinCode', label: 'PIN Code', value: party.pinCode || '' })}
+            <!-- ── Tab 3: Bank & Other Details ── -->
+            <div id="tab-panel-bank" class="party-tab-panel" style="display:none;">
+              <h3 style="margin: 0 0 0.5rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Bank Accounts</h3>
+              <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
+                <table id="bank-grid" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: var(--faint);">
+                      <th style="padding: 0.5rem 0.75rem;">Bank Name</th>
+                      <th style="padding: 0.5rem 0.75rem;">Account No.</th>
+                      <th style="padding: 0.5rem 0.75rem;">IFSC Code</th>
+                      <th style="padding: 0.5rem 0.75rem;">Branch</th>
+                      <th style="width: 50px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="bank-grid-body"></tbody>
+                </table>
+              </div>
+              <button type="button" id="btn-add-bank" class="secondary small" style="margin-bottom: 1.5rem;">+ Add Bank Account</button>
+
+              <h3 style="margin: 0 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Tax Identifiers</h3>
+              <div class="form-grid">
+                ${FormGroup({ id: 'gstin', label: 'GSTIN', value: gstin, placeholder: '22AAAAA0000A1Z5' })}
+                ${FormGroup({ id: 'vatTin', label: 'VAT TIN', value: vatTin })}
+                ${FormGroup({ id: 'cstTin', label: 'CST TIN', value: cstTin })}
+                ${FormGroup({ id: 'cstNo', label: 'CST Number', value: cstNo })}
+              </div>
+
+              <h3 style="margin: 1.5rem 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Business Details</h3>
+              <div class="form-grid">
+                ${FormGroup({ id: 'creditLimit', label: 'Credit Limit (₹)', value: party.creditLimit || '', type: 'number' })}
+                ${FormGroup({ id: 'mill', label: 'Mill Name', value: party.mill || '' })}
+                ${FormGroup({ id: 'fax', label: 'Fax Number', value: party.fax || '' })}
+                ${FormGroup({ id: 'smsMobile', label: 'Automated SMS Mobile', value: party.smsMobile || '', type: 'tel' })}
+              </div>
             </div>
 
-            <h3 style="margin: 1.5rem 0 1rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Tax & Business details</h3>
-            <div class="form-grid">
-              ${FormGroup({ id: 'creditLimit', label: 'Credit Limit (₹)', value: party.creditLimit || '', type: 'number' })}
-              ${FormGroup({ id: 'mill', label: 'Mill Name', value: party.mill || '' })}
-              ${FormGroup({ id: 'fax', label: 'Fax Number', value: party.fax || '' })}
-              ${FormGroup({ id: 'smsMobile', label: 'Automated SMS Mobile', value: party.smsMobile || '', type: 'tel' })}
-              ${FormGroup({ id: 'gstin', label: 'GSTIN', value: gstin, placeholder: '22AAAAA0000A1Z5' })}
-              ${FormGroup({ id: 'vatTin', label: 'VAT TIN', value: vatTin })}
-              ${FormGroup({ id: 'cstTin', label: 'CST TIN', value: cstTin })}
-              ${FormGroup({ id: 'cstNo', label: 'CST Number', value: cstNo })}
-            </div>
-
-            <!-- Contacts Sub-Table Grid -->
-            <h3 style="margin: 1.5rem 0 0.5rem; font-size: 0.8125rem; text-transform: uppercase; color: var(--muted-foreground);">Key Contact Persons (Up to 4)</h3>
-            <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 1rem;">
-              <table id="contacts-grid" style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: var(--faint);">
-                    <th style="padding: 0.5rem 0.75rem;">Name *</th>
-                    <th style="padding: 0.5rem 0.75rem;">Number *</th>
-                    <th style="padding: 0.5rem 0.75rem;">Email</th>
-                    <th style="padding: 0.5rem 0.75rem;">Designation</th>
-                    <th style="width: 50px;"></th>
-                  </tr>
-                </thead>
-                <tbody id="contacts-grid-body">
-                  <!-- Dynamic rows go here -->
-                </tbody>
-              </table>
-            </div>
-            <button type="button" id="btn-add-contact" class="secondary small" style="margin-bottom: 1.5rem;">+ Add Contact Row</button>
-
-            <div class="form-actions">
+            <!-- Always-visible form actions -->
+            <div class="form-actions" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
               <button type="submit" class="primary">${isEdit ? 'Update Party' : 'Create Party'}</button>
-              ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
+              ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash} Delete</button>` : ''}
               <a href="/parties" data-route><button type="button" class="secondary">Cancel</button></a>
             </div>
           </form>
@@ -195,15 +243,25 @@ export async function renderPartyForm(id) {
       </div>
     `;
 
-    // Add styles for active item
+    // ── Styles ──
     const style = document.createElement('style');
     style.innerHTML = `
-      .alter-list-item:hover { background: var(--muted); }
+      .alter-list-item:hover { background: var(--muted); cursor: pointer; }
       .active-item { background: rgba(34, 197, 94, 0.08) !important; border-left: 3px solid var(--primary); }
     `;
     document.head.appendChild(style);
 
-    // Bind city autocomplete for auto-filling state and pincode
+    // ── Tab Switching ──
+    document.querySelectorAll('.party-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.party-tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.party-tab-panel').forEach(p => p.style.display = 'none');
+        btn.classList.add('active');
+        document.getElementById(`tab-panel-${btn.dataset.tab}`).style.display = '';
+      });
+    });
+
+    // ── City Autocomplete ──
     attachCityAutocomp('place', (name, city) => {
       if (city) {
         const stateInput = document.getElementById('stateName');
@@ -213,17 +271,15 @@ export async function renderPartyForm(id) {
       }
     });
 
-    // Bind left sidebar search filter
-
+    // ── Left Sidebar Search ──
     document.getElementById('alter-party-search')?.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase();
       document.querySelectorAll('.alter-list-item').forEach(el => {
-        const txt = el.textContent.toLowerCase();
-        el.style.display = txt.includes(q) ? '' : 'none';
+        el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
       });
     });
 
-    // Bind left sidebar clicks
+    // ── Left Sidebar Clicks ──
     document.querySelectorAll('.alter-list-item').forEach(el => {
       el.addEventListener('click', (e) => {
         const clickedId = e.currentTarget.getAttribute('data-id');
@@ -232,17 +288,15 @@ export async function renderPartyForm(id) {
       });
     });
 
-    // Populate existing contacts
+    // ── Contacts Table ──
     const contactsBody = document.getElementById('contacts-grid-body');
     const existingContacts = party.contacts || [];
 
     const addContactRow = (contact = {}) => {
-      const rowCount = contactsBody.querySelectorAll('tr').length;
-      if (rowCount >= 4) {
+      if (contactsBody.querySelectorAll('tr').length >= 4) {
         showToast('Maximum 4 contact persons allowed per party', 'error');
         return;
       }
-
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="padding: 0.375rem 0.75rem;"><input type="text" class="contact-name" value="${escapeHtml(contact.contactName || '')}" required style="width: 100%;" placeholder="e.g. John Doe"></td>
@@ -251,17 +305,55 @@ export async function renderPartyForm(id) {
         <td style="padding: 0.375rem 0.75rem;"><input type="text" class="contact-designation" value="${escapeHtml(contact.designation || '')}" style="width: 100%;" placeholder="e.g. Director"></td>
         <td style="text-align: center;"><button type="button" class="btn-remove-contact danger small" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">×</button></td>
       `;
-
       tr.querySelector('.btn-remove-contact').addEventListener('click', () => tr.remove());
       contactsBody.appendChild(tr);
     };
 
     existingContacts.forEach(c => addContactRow(c));
-    if (existingContacts.length === 0) addContactRow(); // Render at least one blank row
-
+    if (existingContacts.length === 0) addContactRow();
     document.getElementById('btn-add-contact').addEventListener('click', () => addContactRow());
 
-    // Bind form submit
+    // ── Delivery Addresses Table ──
+    const deliveryBody = document.getElementById('delivery-grid-body');
+    const existingDelivery = party.deliveryAddresses || [];
+
+    const addDeliveryRow = (addr = {}) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="del-address" value="${escapeHtml(addr.addressLine || '')}" style="width: 100%;" placeholder="Street / Area"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="del-city" value="${escapeHtml(addr.city || '')}" style="width: 100%;" placeholder="City"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="del-state" value="${escapeHtml(addr.state || '')}" style="width: 100%;" placeholder="State"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="del-pincode" value="${escapeHtml(addr.pincode || '')}" style="width: 100%;" placeholder="Pincode"></td>
+        <td style="text-align: center;"><button type="button" class="btn-remove-delivery danger small" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">×</button></td>
+      `;
+      tr.querySelector('.btn-remove-delivery').addEventListener('click', () => tr.remove());
+      deliveryBody.appendChild(tr);
+    };
+
+    existingDelivery.forEach(a => addDeliveryRow(a));
+    document.getElementById('btn-add-delivery').addEventListener('click', () => addDeliveryRow());
+
+    // ── Bank Details Table ──
+    const bankBody = document.getElementById('bank-grid-body');
+    const existingBanks = party.bankDetails || [];
+
+    const addBankRow = (bank = {}) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="bank-name" value="${escapeHtml(bank.bankName || '')}" style="width: 100%;" placeholder="e.g. SBI"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="bank-account" value="${escapeHtml(bank.accountNo || '')}" style="width: 100%;" placeholder="Account number"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="bank-ifsc" value="${escapeHtml(bank.ifscCode || '')}" style="width: 100%;" placeholder="IFSC code"></td>
+        <td style="padding: 0.375rem 0.75rem;"><input type="text" class="bank-branch" value="${escapeHtml(bank.branch || '')}" style="width: 100%;" placeholder="Branch name"></td>
+        <td style="text-align: center;"><button type="button" class="btn-remove-bank danger small" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">×</button></td>
+      `;
+      tr.querySelector('.btn-remove-bank').addEventListener('click', () => tr.remove());
+      bankBody.appendChild(tr);
+    };
+
+    existingBanks.forEach(b => addBankRow(b));
+    document.getElementById('btn-add-bank').addEventListener('click', () => addBankRow());
+
+    // ── Form Submit ──
     document.getElementById('party-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button[type="submit"]');
@@ -271,20 +363,32 @@ export async function renderPartyForm(id) {
 
       const formData = collectFormData('party-form');
 
-      // Extract roles checkboxes
-      const roles = Array.from(document.querySelectorAll('input[name="roles"]:checked')).map(el => el.value);
-      formData.roles = roles;
+      // Roles
+      formData.roles = Array.from(document.querySelectorAll('input[name="roles"]:checked')).map(el => el.value);
 
-      // Extract contacts table rows
-      const contactRows = Array.from(contactsBody.querySelectorAll('tr'));
-      const contacts = contactRows.map(row => ({
+      // Contacts
+      formData.contacts = Array.from(contactsBody.querySelectorAll('tr')).map(row => ({
         contactName: row.querySelector('.contact-name').value.trim(),
         contactNumber: row.querySelector('.contact-number').value.trim(),
         emailId: row.querySelector('.contact-email').value.trim() || null,
         designation: row.querySelector('.contact-designation').value.trim() || null,
       })).filter(c => c.contactName && c.contactNumber);
 
-      formData.contacts = contacts;
+      // Delivery Addresses
+      formData.deliveryAddresses = Array.from(deliveryBody.querySelectorAll('tr')).map(row => ({
+        addressLine: row.querySelector('.del-address').value.trim(),
+        city: row.querySelector('.del-city').value.trim() || null,
+        state: row.querySelector('.del-state').value.trim() || null,
+        pincode: row.querySelector('.del-pincode').value.trim() || null,
+      })).filter(d => d.addressLine);
+
+      // Bank Details
+      formData.bankDetails = Array.from(bankBody.querySelectorAll('tr')).map(row => ({
+        bankName: row.querySelector('.bank-name').value.trim() || null,
+        accountNo: row.querySelector('.bank-account').value.trim() || null,
+        ifscCode: row.querySelector('.bank-ifsc').value.trim() || null,
+        branch: row.querySelector('.bank-branch').value.trim() || null,
+      })).filter(d => d.bankName || d.accountNo || d.ifscCode || d.branch);
 
       try {
         if (isEdit) {
@@ -294,7 +398,6 @@ export async function renderPartyForm(id) {
           await api.post('/parties', formData);
           showToast('Party created successfully');
         }
-        
         window.history.pushState({}, '', '/parties');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {

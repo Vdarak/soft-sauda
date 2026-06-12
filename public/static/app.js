@@ -17,7 +17,7 @@ import { renderDeliveryList, renderDeliveryForm } from './views/deliveries.js';
 import { renderBillList, renderBillForm } from './views/bills.js';
 import { renderPaymentList, renderPaymentForm } from './views/payments.js';
 import { renderLedgerList, renderLedgerForm } from './views/ledger.js';
-import { renderCityList, renderCityForm } from './views/cities.js';
+import { renderCityList, renderCityForm } from './views/cities.js'; // renderCityForm(id?) supports create + edit
 import { renderBatchBilling } from './views/batch_billing.js';
 import { renderPaymentOutstanding } from './views/payment_outstanding.js';
 import { renderUserList, renderUserForm, renderAuditLogs } from './views/admin.js';
@@ -384,6 +384,7 @@ function initRouter() {
   // City Master
   r.on('/cities',             requireAuth((ctx) => renderCityList(ctx)));
   r.on('/cities/new',         requireAuth(() => renderCityForm()));
+  r.on('/cities/{id}',        requireAuth((ctx) => renderCityForm(ctx.params.id)));
 
   // Reports
   r.on('/reports/payment-outstanding', requireAuth((ctx) => renderPaymentOutstanding(ctx)));
@@ -923,7 +924,23 @@ function initKeyboardShortcuts() {
   });
 }
 
-// Global click delegator for row deletion
+// Global click delegator for row print
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.print-row-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = btn.getAttribute('data-id');
+  const entity = btn.getAttribute('data-entity');
+  if (!id || !entity) return;
+  const urlMap = { deliveries: 'delivery', bills: 'bill', payments: 'payment', contracts: 'contract' };
+  const seg = urlMap[entity];
+  if (!seg) return;
+  // contracts use saudaNo not id — handled separately via onclick in list
+  window.open(`/api/pdf/${seg}/${id}`, '_blank');
+}, true);
+
+// Global click delegator for row deletion — uses capture phase so td's stopPropagation doesn't block it
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.delete-row-btn');
   if (!btn) return;
@@ -947,13 +964,16 @@ document.addEventListener('click', async (e) => {
   try {
     const api = await import('./lib/api.js');
     await api.del(`/${entity}/${id}`);
+    // Remove the table row from the DOM immediately
+    const row = btn.closest('tr');
+    if (row) row.remove();
     showToast(`${entityNameSingular.charAt(0).toUpperCase() + entityNameSingular.slice(1)} deleted successfully`);
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
     showToast(err.message, 'error');
   }
-});
+}, true); // capture: true — fires before inline onclick handlers
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {

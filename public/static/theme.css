@@ -800,7 +800,14 @@ button.small svg {
     pointer-events: auto;
   }
 
-  /* Show floating toggle button */
+  /* Show floating toggle button — mobile only */
+  .dual-pane-drawer-toggle {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Show floating toggle button on phones */
   .dual-pane-drawer-toggle {
     display: flex !important;
     flex-direction: column;
@@ -1123,6 +1130,11 @@ button.danger:hover {
   gap: 1.5rem;
   height: calc(100vh - 100px);
   align-items: stretch;
+}
+
+/* Hidden by default everywhere; shown only on phones via @media (max-width: 640px) */
+.dual-pane-drawer-toggle {
+  display: none !important;
 }
 
 .alter-list-item {

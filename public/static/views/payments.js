@@ -31,6 +31,7 @@ export async function renderPaymentList(ctx) {
         <td style="text-align:right" onclick="event.stopPropagation()">
           <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
             <a href="/payments/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small secondary print-row-btn" data-id="${c.id}" data-entity="payments">${Icons.printer}</button>
             <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="payments">${Icons.trash}</button>
           </div>
         </td>
@@ -94,17 +95,21 @@ export async function renderPaymentForm(id) {
     const allocatedBillId = payment.allocations?.[0]?.billId || '';
 
     app.innerHTML = `
+      <a href="/payments" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Payments</a>
       <div class="dual-pane-container">
-        <!-- Left Sidebar: SELECT PAYMENT TO ALTER -->
+        <!-- Left Sidebar -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT PAYMENT TO ALTER</h3>
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT PAYMENT</h3>
             <input type="text" id="alter-payment-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
           <div id="alter-payments-list" style="flex: 1; overflow-y: auto;">
             ${allPayments.map(p => `
               <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}">
-                <div class="title">Ref #${p.id}</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Ref #${p.id}</div>
+                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${p.id}</div>
+                </div>
                 <div class="subtitle">${escapeHtml(p.partyName || 'Unknown')} (Amt: ₹${p.amount})</div>
               </div>
             `).join('')}
@@ -113,7 +118,6 @@ export async function renderPaymentForm(id) {
 
         <!-- Right Pane: Master Form -->
         <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          ${PageHeader({ title: isEdit ? 'Edit Payment' : 'New Payment', backHref: '/payments' })}
           
           <form id="payment-form">
             <div class="form-grid">
@@ -135,6 +139,7 @@ export async function renderPaymentForm(id) {
 
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
+              ${isEdit ? `<button type="button" class="secondary" id="btn-print-payment">${Icons.printer} Print</button>` : ''}
               ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
               <a href="/payments" data-route><button type="button" class="secondary">Cancel</button></a>
             </div>
@@ -287,8 +292,11 @@ export async function renderPaymentForm(id) {
     });
 
     if (isEdit) {
+      document.getElementById('btn-print-payment')?.addEventListener('click', () => {
+        if (id) window.open(`/api/pdf/payment/${id}`, '_blank');
+      });
+
       document.getElementById('btn-delete').addEventListener('click', async (e) => {
-        if (!confirm('Are you sure you want to delete this payment?')) return;
         const btn = e.target.closest('button');
         const ogHtml = btn.innerHTML;
         btn.disabled = true;

@@ -97,17 +97,21 @@ export async function renderLedgerForm(id) {
     }
 
     app.innerHTML = `
+      <a href="/ledger" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Ledger</a>
       <div class="dual-pane-container">
-        <!-- Left Sidebar: SELECT LEDGER ENTRY TO ALTER -->
+        <!-- Left Sidebar -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT ENTRY TO ALTER</h3>
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT ENTRY</h3>
             <input type="text" id="alter-ledger-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
           <div id="alter-ledger-list" style="flex: 1; overflow-y: auto;">
             ${allLedger.map(c => `
               <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}">
-                <div class="title">${escapeHtml(c.accountName || 'Entry')}</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.accountName || 'Entry')}</div>
+                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${c.id}</div>
+                </div>
                 <div class="subtitle">Particulars: ${escapeHtml(c.narration || '-')} (${formatDate(c.transactionDate)})</div>
               </div>
             `).join('')}
@@ -116,7 +120,6 @@ export async function renderLedgerForm(id) {
 
         <!-- Right Pane: Master Form -->
         <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          ${PageHeader({ title: isEdit ? 'Edit Entry' : 'New Journal Entry', backHref: '/ledger' })}
           
           <form id="ledger-form">
             <div class="form-grid">

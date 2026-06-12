@@ -45,6 +45,7 @@ export async function renderDeliveryList(ctx) {
         <td style="text-align:right" onclick="event.stopPropagation()">
           <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
             <a href="/deliveries/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
+            <button class="small secondary print-row-btn" data-entity="deliveries" data-id="${c.id}">${Icons.printer}</button>
             <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="deliveries">${Icons.trash}</button>
           </div>
         </td>
@@ -101,17 +102,21 @@ export async function renderDeliveryForm(id) {
     }
 
     app.innerHTML = `
+      <a href="/deliveries" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Deliveries</a>
       <div class="dual-pane-container">
-        <!-- Left Sidebar: SELECT DELIVERY TO ALTER -->
+        <!-- Left Sidebar -->
         <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT DELIVERY TO ALTER</h3>
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT DELIVERY</h3>
             <input type="text" id="alter-delivery-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
           </div>
           <div id="alter-deliveries-list" style="flex: 1; overflow-y: auto;">
             ${allDeliveries.map(d => `
               <div class="alter-list-item ${d.id == id ? 'active-item' : ''}" data-id="${d.id}">
-                <div class="title">Disp #${d.dispatchNo || d.id}</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Disp #${d.dispatchNo || d.id}</div>
+                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${d.id}</div>
+                </div>
                 <div class="subtitle">Truck: ${escapeHtml(d.truckNo || '-')} (${formatDate(d.dispatchDate)})</div>
               </div>
             `).join('')}
@@ -120,10 +125,9 @@ export async function renderDeliveryForm(id) {
 
         <!-- Right Pane: Master Form -->
         <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          ${PageHeader({ title: isEdit ? 'Edit Delivery' : 'New Delivery', backHref: '/deliveries' })}
           
           <form id="delivery-form">
-            <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Link Contract (Sauda) & Status</h3>
+            <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Link Contract (Sauda) &amp; Status</h3>
             <div class="form-grid" style="align-items: end;">
               ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: delivery.saudaNo || '', required: true, placeholder: 'Search Sauda by number, party or commodity...' })}
               
@@ -232,6 +236,7 @@ export async function renderDeliveryForm(id) {
 
             <div class="form-actions">
               <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Delivery</button>
+              ${isEdit ? `<button type="button" class="secondary" id="btn-print-delivery">${Icons.printer} Print</button>` : ''}
               ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
               <a href="/deliveries" data-route><button type="button" class="secondary">Cancel</button></a>
             </div>
@@ -548,6 +553,10 @@ export async function renderDeliveryForm(id) {
     });
 
     if (isEdit) {
+      document.getElementById('btn-print-delivery')?.addEventListener('click', () => {
+        if (id) window.open(`/api/pdf/delivery/${id}`, '_blank');
+      });
+
       document.getElementById('btn-delete').addEventListener('click', async (e) => {
         if (!confirm('Are you sure you want to delete this delivery?')) return;
         const btn = e.target.closest('button');
