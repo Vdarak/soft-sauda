@@ -22,14 +22,22 @@ export const DEFAULT_TTL = 600;
 const MAX_ENTRIES = 20000;
 const store = new Map<string, CacheEntry<unknown>>();
 
+let cacheHits = 0;
+let cacheMisses = 0;
+
 /** Get a cached value. Returns null if expired or missing. */
 export function cacheGet<T>(key: string): T | null {
   const entry = store.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    store.delete(key);
+  if (!entry) {
+    cacheMisses++;
     return null;
   }
+  if (Date.now() > entry.expiresAt) {
+    store.delete(key);
+    cacheMisses++;
+    return null;
+  }
+  cacheHits++;
   return entry.data as T;
 }
 
@@ -66,4 +74,24 @@ export function cacheClear(): void {
 /** Check if a key exists and is not expired. */
 export function cacheHas(key: string): boolean {
   return cacheGet(key) !== null;
+}
+
+/** Get metrics and active keys in the cache */
+export function getCacheStats() {
+  const keys = Array.from(store.keys());
+  const now = Date.now();
+  const activeEntries = keys.map(k => {
+    const entry = store.get(k);
+    return {
+      key: k,
+      expired: entry ? now > entry.expiresAt : true,
+      expiresInMs: entry ? entry.expiresAt - now : 0,
+    };
+  });
+  return {
+    totalEntries: store.size,
+    cacheHits,
+    cacheMisses,
+    entries: activeEntries,
+  };
 }

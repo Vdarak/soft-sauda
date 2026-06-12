@@ -879,3 +879,21 @@ if (typeof globalThis !== 'undefined') {
     console.log('[Warmup Scheduler] Periodic background re-warming scheduler initialized.');
   }
 }
+
+/** Get status of all proactive caches and active re-warming tasks */
+export function getWarmupStatus() {
+  const now = Date.now();
+  const active = Array.from(activeWorkspaces.entries()).map(([key, lastAccessed]) => ({
+    workspace: key,
+    lastAccessedAt: new Date(lastAccessed).toISOString(),
+    idleMinutes: ((now - lastAccessed) / (60 * 1000)).toFixed(2),
+  }));
+
+  const ongoing = Array.from(ongoingWarmups.keys());
+
+  return {
+    activeWorkspaces: active,
+    ongoingWarmups: ongoing,
+  };
+}
+
