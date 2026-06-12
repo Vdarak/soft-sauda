@@ -922,7 +922,7 @@ function initKeyboardShortcuts() {
   });
 }
 
-// Global click delegator for row deletion
+// Global click delegator for row deletion (using capture phase to bypass inline stopPropagation)
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.delete-row-btn');
   if (!btn) return;
@@ -954,7 +954,7 @@ document.addEventListener('click', async (e) => {
     btn.innerHTML = originalHtml;
     showToast(err.message, 'error');
   }
-});
+}, true);
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {
