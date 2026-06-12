@@ -220,6 +220,15 @@ export function formatCurrency(amount) {
   return `₹\u00A0${num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+/* ── Compact currency (e.g. ₹ 1.56 CR, ₹ 45.2 L) ── */
+export function formatCurrencyCompact(amount) {
+  const num = Number(amount);
+  if (isNaN(num)) return '₹\u00A00';
+  if (num >= 1e7) return `₹\u00A0${(num / 1e7).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00A0CR`;
+  if (num >= 1e5) return `₹\u00A0${(num / 1e5).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00A0L`;
+  return `₹\u00A0${num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
 /* ── Collect form data as object ── */
 export function collectFormData(formId) {
   const form = document.getElementById(formId);

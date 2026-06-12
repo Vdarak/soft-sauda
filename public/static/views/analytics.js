@@ -1,7 +1,7 @@
 /**
  * Business Analytics View — Rich Interactive Visual Dashboard
  */
-import { Icons, PageHeader, Spinner, formatCurrency, escapeHtml } from '../components/ui.js';
+import { Icons, PageHeader, Spinner, formatCurrency, formatCurrencyCompact, escapeHtml } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 export async function renderAnalytics() {
@@ -159,7 +159,7 @@ export async function renderAnalytics() {
       <div class="stats-grid" style="margin-bottom: 1.5rem;">
         <div class="stat-card">
           <div class="stat-icon" style="color:var(--primary)">${Icons.receipt}</div>
-          <div class="stat-value">${formatCurrency(totalRev)}</div>
+          <div class="stat-value">${formatCurrencyCompact(totalRev)}</div>
           <div class="stat-label">Total Revenue Billed</div>
           <div class="stat-desc">Sum of bills in active FY</div>
         </div>
@@ -171,7 +171,7 @@ export async function renderAnalytics() {
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="color:var(--danger)">${Icons.bookOpen}</div>
-          <div class="stat-value">${formatCurrency(totalOutstanding)}</div>
+          <div class="stat-value">${formatCurrencyCompact(totalOutstanding)}</div>
           <div class="stat-label">Division Outstanding</div>
           <div class="stat-desc">Aging dues needing recovery</div>
         </div>

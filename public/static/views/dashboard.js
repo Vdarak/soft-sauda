@@ -1,7 +1,7 @@
 /**
  * Dashboard View — Shows key ERP metrics in a stats grid
  */
-import { Icons, StatsCard, PageHeader, Spinner, formatCurrency } from '../components/ui.js';
+import { Icons, StatsCard, PageHeader, Spinner, formatCurrency, formatCurrencyCompact } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 export async function renderDashboard() {
@@ -57,7 +57,7 @@ export async function renderDashboard() {
 
         ${StatsCard({
           icon: Icons.bookOpen,
-          value: formatCurrency(metrics.outstandingBalance),
+          value: formatCurrencyCompact(metrics.outstandingBalance),
           label: 'Outstanding',
           desc: 'Total balance due',
           href: '/ledger'

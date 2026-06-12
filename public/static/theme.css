@@ -256,28 +256,16 @@ body, button, input, select, textarea {
 /* ── Stats Cards (Dashboard) ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
-}
-
-@media (min-width: 600px) {
-  .stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .stats-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
 }
 
 .stat-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-base);
-  padding: 1rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -286,6 +274,7 @@ body, button, input, select, textarea {
   text-decoration: none;
   color: inherit;
   min-width: 0;
+  overflow: hidden;
 }
 
 .stat-card:hover {
@@ -302,11 +291,11 @@ body, button, input, select, textarea {
 }
 
 .stat-card .stat-value {
-  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-size: 1.75rem;
   font-weight: 800;
   font-family: var(--font-family-mono);
   color: var(--foreground);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -329,10 +318,6 @@ table {
   border-collapse: collapse;
   font-size: 0.8125rem;
   letter-spacing: -0.01em;
-}
-
-table td.mono {
-  white-space: nowrap !important;
 }
 
 table thead th {
@@ -616,7 +601,6 @@ button.small svg {
     cursor: pointer;
     margin-right: 0.5rem;
     outline: none;
-    flex-shrink: 0 !important;
   }
   .mobile-menu-toggle:hover {
     color: var(--primary);
@@ -1441,12 +1425,6 @@ button.danger:hover {
 [data-theme="light"] .nav-dropdown-content a.active {
   background-color: rgba(22, 163, 74, 0.05) !important;
   color: var(--primary) !important;
-}
-
-@media (max-width: 768px) {
-  #header-user-badge {
-    display: none !important;
-  }
 }
 
 

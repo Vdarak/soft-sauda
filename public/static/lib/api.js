@@ -238,11 +238,6 @@ export async function login(username, password) {
  * Populates both list and detail routes in the client cache instantly.
  */
 export async function triggerWarmup(options = {}) {
-  // Guard: Don't attempt warmup if no company is selected — the API needs x-company-id
-  if (!sessionStorage.getItem('active_company_id')) {
-    console.warn('[api.js] triggerWarmup skipped: no active company selected.');
-    return;
-  }
   try {
     // 1. Check if we already downloaded the mega payload in this session
     let payload = null;
@@ -255,24 +250,13 @@ export async function triggerWarmup(options = {}) {
     if (cachedPayload) {
       payload = JSON.parse(cachedPayload);
     } else {
-      // 2. Otherwise fetch it with a timeout to prevent hanging the UI
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout safeguard
-      try {
-        const res = await fetch('/api/warmup', { 
-          headers: headers(),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.payload) {
-          payload = data.payload;
-          sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
-        }
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
-        console.warn('[api.js] Warmup fetch timed out or failed. Falling back to on-demand data loads.', fetchErr);
+      // 2. Otherwise fetch it and save to session storage
+      const res = await fetch('/api/warmup', { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.payload) {
+        payload = data.payload;
+        sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
       }
     }
 
@@ -282,9 +266,6 @@ export async function triggerWarmup(options = {}) {
         clientCache.set(route, arrayData);
         if (Array.isArray(arrayData)) {
           const basePath = route.split('?')[0];
-          if (route.includes('page=1') || !route.includes('?')) {
-            clientCache.set(basePath, arrayData);
-          }
           arrayData.forEach(item => {
             if (item && item.id) {
               clientCache.set(`${basePath}/${item.id}`, item);
