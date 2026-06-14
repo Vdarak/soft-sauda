@@ -10,8 +10,8 @@ import * as api from '../lib/api.js';
 function warmupOverlayHTML() {
   return `
     <div class="warmup-overlay">
-      <img src="/gcc-logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
-      <div class="warmup-overlay-title">Soft Sauda</div>
+      <img src="/gcc-logo.svg" alt="GCC" onerror="this.style.display='none'">
+      <div class="warmup-overlay-title">GCC</div>
       <div class="warmup-overlay-sub">Preparing your workspace…</div>
       <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
     </div>
@@ -27,8 +27,8 @@ export function renderLogin() {
     <div class="login-page">
       <div class="login-card">
         <div class="logo">
-          <img src="/gcc-logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
-          <h1>Soft Sauda</h1>
+          <img src="/gcc-logo.svg" alt="GCC" onerror="this.style.display='none'">
+          <h1>GCC</h1>
         </div>
 
         <form id="login-form">

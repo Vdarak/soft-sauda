@@ -12,7 +12,7 @@ export async function renderDashboard() {
     const metrics = await api.get('/dashboard');
 
     app.innerHTML = `
-      ${PageHeader({ title: 'Dashboard', subtitle: 'Soft Sauda ERP — Overview' })}
+      ${PageHeader({ title: 'Dashboard', subtitle: 'GCC — Overview' })}
 
       <div class="stats-grid">
         ${StatsCard({

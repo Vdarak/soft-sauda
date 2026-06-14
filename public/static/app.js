@@ -1,5 +1,5 @@
 /**
- * Soft Sauda ERP — Main Application Controller
+ * GCC ERP — Main Application Controller
  * 
  * Orchestrates:
  * - SPA routing via tinyrouter.js
@@ -166,8 +166,8 @@ function renderCompanySelector() {
       // Show loader overlay
       app.innerHTML = `
         <div class="warmup-overlay">
-          <img src="/gcc-logo.svg" alt="Soft Sauda" onerror="this.style.display='none'">
-          <div class="warmup-overlay-title">Soft Sauda</div>
+          <img src="/gcc-logo.svg" alt="GCC" onerror="this.style.display='none'">
+          <div class="warmup-overlay-title">GCC</div>
           <div class="warmup-overlay-sub">Preparing ${company.name} workspace…</div>
           <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
         </div>
@@ -271,7 +271,7 @@ function updateHeaderWithActiveContext() {
           const app = document.getElementById('app');
           app.innerHTML = `
             <div class="warmup-overlay">
-              <div class="warmup-overlay-title">Soft Sauda</div>
+              <div class="warmup-overlay-title">GCC</div>
               <div class="warmup-overlay-sub">Switching to ${newFy.label}…</div>
               <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
             </div>
