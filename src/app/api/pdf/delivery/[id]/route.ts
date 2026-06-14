@@ -105,7 +105,7 @@ export async function GET(req: NextRequest, context: Params) {
 
   const body = `
     <div class="grid-3 section">
-      <div class="field"><div class="field-label">Dispatch No.</div><div class="field-value">Disp #${d.dispatchNo || d.id}</div></div>
+      <div class="field"><div class="field-label">Dispatch No.</div><div class="field-value">Disp #${d.id}</div></div>
       <div class="field"><div class="field-label">Dispatch Date</div><div class="field-value">${fmtDate(d.dispatchDate)}</div></div>
       <div class="field"><div class="field-label">Sauda Reference</div><div class="field-value">${saudaNo ? `Sauda #${saudaNo}` : '—'}</div></div>
       <div class="field"><div class="field-label">Lorry / Truck No.</div><div class="field-value">${d.truckNo || '—'}</div></div>
@@ -120,8 +120,8 @@ export async function GET(req: NextRequest, context: Params) {
   `;
 
   const html = printPage(
-    `Delivery Order — Disp #${d.dispatchNo || d.id}`,
-    `Disp #${d.dispatchNo || d.id}${saudaNo ? ` · Sauda #${saudaNo}` : ''}`,
+    `Delivery Order — Disp #${d.id}`,
+    `Disp #${d.id}${saudaNo ? ` · Sauda #${saudaNo}` : ''}`,
     fmtDate(d.dispatchDate),
     body
   );
