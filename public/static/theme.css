@@ -594,6 +594,9 @@ button.small svg {
     display: flex !important;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
     background: none;
     border: none;
     color: var(--muted-foreground);
@@ -601,6 +604,13 @@ button.small svg {
     cursor: pointer;
     margin-right: 0.5rem;
     outline: none;
+  }
+  /* Lock icon size so the vendor `svg { max-width: 100% }` rule and flex
+     shrinking can't collapse it on narrow viewports */
+  .mobile-menu-toggle svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
   }
   .mobile-menu-toggle:hover {
     color: var(--primary);
