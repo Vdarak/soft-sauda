@@ -1,11 +1,14 @@
 /**
- * Seed Script — Multi-Company Data Seeder
+ * Seed Script — Multi-Company & Marketplace Data Seeder
  * 
  * Wipes ALL existing data and seeds:
  * - 4 Companies (GCC Pulses, GCC Soybean & Wheat, GCC Oil & Cottonseed Cake, MAFI)
  * - 3 Fiscal Years per company (FY 2023-24 locked, FY 2024-25 locked, FY 2025-26 active)
  * - 1 Admin user (gccnanded / gccnanded@123)
+ * - Realistic location masters (Maharashtra, MP states, districts, cities)
  * - Realistic parties, commodities, contracts, deliveries, bills, payments, ledger
+ * - Marketplace Members (buyer, seller, trader)
+ * - Marketplace Listings (open, tenders), Bids, Chats, and Chat Messages
  * 
  * Run: npx tsx src/db/seed-companies.ts
  */
@@ -39,7 +42,6 @@ function randomDate(start: Date, end: Date): string {
   const d = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
   return d.toISOString();
 }
-function dateToISO(d: Date): string { return d.toISOString(); }
 
 // ── Data Constants ──
 const COMPANIES = [
@@ -61,8 +63,6 @@ const COMMODITIES_PER_COMPANY: Record<string, { name: string; unit: string; hsnC
     { name: 'Urad Whole', unit: 'Quintal', hsnCode: '07133100', shortName: 'URAD-W' },
     { name: 'Masoor Dal', unit: 'Quintal', hsnCode: '07134000', shortName: 'MASOOR' },
     { name: 'Masoor Whole', unit: 'Quintal', hsnCode: '07134000', shortName: 'MASOOR-W' },
-    { name: 'Moth Dal', unit: 'Quintal', hsnCode: '07139090', shortName: 'MOTH' },
-    { name: 'Rajma', unit: 'Quintal', hsnCode: '07133200', shortName: 'RAJMA' },
   ],
   'SOYWHEAT': [
     { name: 'Soybean', unit: 'Quintal', hsnCode: '12011000', shortName: 'SOY' },
@@ -70,28 +70,17 @@ const COMMODITIES_PER_COMPANY: Record<string, { name: string; unit: string; hsnC
     { name: 'Wheat', unit: 'Quintal', hsnCode: '10011990', shortName: 'WHEAT' },
     { name: 'Wheat Flour (Atta)', unit: 'Quintal', hsnCode: '11010000', shortName: 'ATTA' },
     { name: 'Bajra', unit: 'Quintal', hsnCode: '10082900', shortName: 'BAJRA' },
-    { name: 'Maize', unit: 'Quintal', hsnCode: '10051000', shortName: 'MAIZE' },
-    { name: 'Jowar', unit: 'Quintal', hsnCode: '10070090', shortName: 'JOWAR' },
-    { name: 'Ragi', unit: 'Quintal', hsnCode: '10082100', shortName: 'RAGI' },
   ],
   'OILCAKE': [
     { name: 'Groundnut Oil', unit: 'Litre', hsnCode: '15081000', shortName: 'GNOIL' },
     { name: 'Soybean Oil', unit: 'Litre', hsnCode: '15071000', shortName: 'SOYOIL' },
     { name: 'Cottonseed Oil', unit: 'Litre', hsnCode: '15122100', shortName: 'CSOL' },
     { name: 'Cottonseed Cake', unit: 'Quintal', hsnCode: '23061000', shortName: 'CSCAKE' },
-    { name: 'Mustard Oil', unit: 'Litre', hsnCode: '15141100', shortName: 'MUSTOIL' },
-    { name: 'Sunflower Oil', unit: 'Litre', hsnCode: '15121100', shortName: 'SUNOIL' },
-    { name: 'Sesame Oil (Til)', unit: 'Litre', hsnCode: '15151100', shortName: 'TILOIL' },
-    { name: 'Groundnut Cake', unit: 'Quintal', hsnCode: '23050000', shortName: 'GNCAKE' },
-    { name: 'Rapeseed Cake', unit: 'Quintal', hsnCode: '23064100', shortName: 'RAPCAKE' },
   ],
   'MAFI': [
     { name: 'MAFI Grade A', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-A' },
     { name: 'MAFI Grade B', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-B' },
     { name: 'MAFI Premium', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-P' },
-    { name: 'MAFI Standard', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-S' },
-    { name: 'MAFI Export Quality', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-EQ' },
-    { name: 'MAFI Industrial', unit: 'Quintal', hsnCode: '23099090', shortName: 'MAFI-I' },
   ],
 };
 
@@ -101,25 +90,23 @@ const PARTY_NAMES = [
   'Gupta & Sons', 'Maheshwari Brothers', 'Rajasthan Dal Mills',
   'Mumbai Grain Traders', 'Delhi Pulse House', 'Indore Agri Corp',
   'Hyderabad Oil Mills', 'Jain Udyog', 'National Commodities',
-  'Pioneer Agro Industries', 'Shree Ganesh Trading', 'K.L. Agrawal & Co.',
   // Sellers
   'Nanded Farmers Coop', 'Latur Krushi Mandal', 'Marathwada Grain Assoc',
   'Vidarbha Agro Traders', 'Solapur Seeds Ltd', 'Nagpur Oil Millers',
   'Washim Traders Pvt Ltd', 'Akola Agri Produce', 'Amravati Grain Market',
-  'Yavatmal Kisan Sangh', 'Beed Commodity House', 'Osmanabad Agro Trading',
   // Brokers
   'R.K. Brokerage Services', 'S.S. Commission Agent', 'Madhav Dalali Services',
-  'Vijay Brokerage House', 'Ashok Commission Agency', 'Nanded Broking Co.',
+  'Vijay Brokerage House', 'Ashok Commission Agency',
   // Transporters
   'Shri Ram Transport', 'Jai Bhavani Logistics', 'Mahalaxmi Carriers',
-  'Deccan Transport Co.', 'Godavari Freight Services', 'Sahyadri Logistics',
+  'Deccan Transport Co.',
 ];
 
-const PLACES = ['Nanded', 'Latur', 'Mumbai', 'Pune', 'Indore', 'Delhi', 'Hyderabad', 'Nagpur', 'Solapur', 'Akola', 'Amravati', 'Aurangabad'];
-const STATES = ['Maharashtra', 'Madhya Pradesh', 'Delhi', 'Telangana', 'Rajasthan', 'Gujarat', 'Karnataka'];
-const DELIVERY_TERMS = ['Ex-Mill', 'Ex-Godown', 'FOR Destination', 'FCA Origin', 'CIF Nanded', 'Ex-Factory'];
-const TRUCK_PREFIXES = ['MH26', 'MH24', 'MH31', 'MH12', 'MH04', 'MH14', 'MP09', 'RJ14', 'GJ03'];
-const BANKS = ['SBI', 'Bank of Maharashtra', 'HDFC Bank', 'ICICI Bank', 'PNB', 'Axis Bank', 'Union Bank'];
+const PLACES = ['Nanded', 'Latur', 'Mumbai', 'Pune', 'Indore', 'Delhi', 'Hyderabad', 'Nagpur', 'Solapur', 'Akola'];
+const STATES = ['Maharashtra', 'Madhya Pradesh', 'Delhi', 'Telangana', 'Rajasthan', 'Gujarat'];
+const DELIVERY_TERMS = ['Ex-Mill', 'Ex-Godown', 'FOR Destination', 'FCA Origin', 'Ex-Factory'];
+const TRUCK_PREFIXES = ['MH26', 'MH24', 'MH31', 'MH12', 'MH04', 'MP09', 'RJ14'];
+const BANKS = ['SBI', 'Bank of Maharashtra', 'HDFC Bank', 'ICICI Bank', 'Axis Bank'];
 
 // ── Fiscal Year Boundaries ──
 const FY_RANGES = [
@@ -129,516 +116,65 @@ const FY_RANGES = [
 ];
 
 async function seed() {
-  console.log('🧹 Wiping all existing data...');
+  console.log('🧹 Wiping all existing data via Truncation...');
 
-  // Drop all tables in dependency order
-  await db.execute(sql`
-    DROP TABLE IF EXISTS audit_log CASCADE;
-    DROP TABLE IF EXISTS payment_allocations CASCADE;
-    DROP TABLE IF EXISTS bill_lines CASCADE;
-    DROP TABLE IF EXISTS delivery_charges CASCADE;
-    DROP TABLE IF EXISTS delivery_lines CASCADE;
-    DROP TABLE IF EXISTS contract_lines CASCADE;
-    DROP TABLE IF EXISTS contract_parties CASCADE;
-    DROP TABLE IF EXISTS ledger CASCADE;
-    DROP TABLE IF EXISTS payments CASCADE;
-    DROP TABLE IF EXISTS bills CASCADE;
-    DROP TABLE IF EXISTS deliveries CASCADE;
-    DROP TABLE IF EXISTS contracts CASCADE;
-    DROP TABLE IF EXISTS commodity_specifications CASCADE;
-    DROP TABLE IF EXISTS commodity_packaging CASCADE;
-    DROP TABLE IF EXISTS commodities CASCADE;
-    DROP TABLE IF EXISTS commodity_groups CASCADE;
-    DROP TABLE IF EXISTS party_contacts CASCADE;
-    DROP TABLE IF EXISTS party_bank_details CASCADE;
-    DROP TABLE IF EXISTS party_delivery_addresses CASCADE;
-    DROP TABLE IF EXISTS party_tax_ids CASCADE;
-    DROP TABLE IF EXISTS party_roles CASCADE;
-    DROP TABLE IF EXISTS parties CASCADE;
-    DROP TABLE IF EXISTS cities CASCADE;
-    DROP TABLE IF EXISTS districts CASCADE;
-    DROP TABLE IF EXISTS states CASCADE;
-    DROP TABLE IF EXISTS user_company_access CASCADE;
-    DROP TABLE IF EXISTS fiscal_years CASCADE;
-    DROP TABLE IF EXISTS users CASCADE;
-    DROP TABLE IF EXISTS companies CASCADE;
-  `);
-
-  // Drop enums (they might conflict)
-  await db.execute(sql`
-    DROP TYPE IF EXISTS party_role CASCADE;
-    DROP TYPE IF EXISTS tax_id_type CASCADE;
-    DROP TYPE IF EXISTS contract_status CASCADE;
-    DROP TYPE IF EXISTS delivery_status CASCADE;
-    DROP TYPE IF EXISTS bill_basis CASCADE;
-    DROP TYPE IF EXISTS payment_term_type CASCADE;
-    DROP TYPE IF EXISTS user_role CASCADE;
-    DROP TYPE IF EXISTS audit_action CASCADE;
-  `);
-
-  console.log('✅ All tables dropped');
-  console.log('🔧 Pushing fresh schema via drizzle-kit...');
-
-  // We need to push the schema first. We'll use drizzle-kit push programmatically
-  // But since we're in a script, let's just create tables manually using raw SQL
-  // Actually, let's just let the script push schema first, then seed.
-  // The caller should run `npx drizzle-kit push` before this script.
-  // For safety, let's try to create what we need:
-
-  console.log('📦 Creating enums...');
-  await db.execute(sql`CREATE TYPE party_role AS ENUM ('BUYER', 'SELLER', 'BUYER_BROKER', 'SELLER_BROKER')`);
-  await db.execute(sql`CREATE TYPE tax_id_type AS ENUM ('GSTIN', 'VAT_TIN', 'CST_TIN', 'CST_NO', 'PAN')`);
-  await db.execute(sql`CREATE TYPE contract_status AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED')`);
-  await db.execute(sql`CREATE TYPE delivery_status AS ENUM ('PENDING', 'DISPATCHED', 'DELIVERED', 'CANCELLED')`);
-  await db.execute(sql`CREATE TYPE bill_basis AS ENUM ('CONTRACT', 'DELIVERY', 'DIRECT', 'DALALI')`);
-  await db.execute(sql`CREATE TYPE payment_term_type AS ENUM ('DISCOUNT', 'CREDIT', 'PAYMENT')`);
-  await db.execute(sql`CREATE TYPE user_role AS ENUM ('ADMIN', 'EMPLOYEE')`);
-  await db.execute(sql`CREATE TYPE audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE')`);
-
-  console.log('📦 Creating tables...');
-
-  // Companies
-  await db.execute(sql`
-    CREATE TABLE companies (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
-      short_code TEXT NOT NULL UNIQUE,
-      description TEXT,
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  // Fiscal Years
-  await db.execute(sql`
-    CREATE TABLE fiscal_years (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-      label TEXT NOT NULL,
-      start_date TIMESTAMP NOT NULL,
-      end_date TIMESTAMP NOT NULL,
-      is_current BOOLEAN NOT NULL DEFAULT false,
-      is_locked BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_fy_company_label ON fiscal_years(company_id, label)`);
-  await db.execute(sql`CREATE INDEX idx_fy_company_id ON fiscal_years(company_id)`);
-
-  // Users
-  await db.execute(sql`
-    CREATE TABLE users (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      display_name TEXT,
-      role user_role NOT NULL DEFAULT 'EMPLOYEE',
-      permissions JSONB,
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      last_login TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  // User Company Access
-  await db.execute(sql`
-    CREATE TABLE user_company_access (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-      granted_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_user_company ON user_company_access(user_id, company_id)`);
-
-  // Audit Log
-  await db.execute(sql`
-    CREATE TABLE audit_log (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id),
-      company_id INTEGER REFERENCES companies(id),
-      action audit_action NOT NULL,
-      entity_type TEXT NOT NULL,
-      entity_id INTEGER,
-      changes JSONB,
-      ip_address TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_audit_log_user_id ON audit_log(user_id)`);
-  await db.execute(sql`CREATE INDEX idx_audit_log_company_id ON audit_log(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_audit_log_entity ON audit_log(entity_type, entity_id)`);
-  await db.execute(sql`CREATE INDEX idx_audit_log_created_at ON audit_log(created_at)`);
-
-  // States, Districts, Cities
-  await db.execute(sql`CREATE TABLE states (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`);
-  await db.execute(sql`
-    CREATE TABLE districts (
-      id SERIAL PRIMARY KEY,
-      state_id INTEGER NOT NULL REFERENCES states(id) ON DELETE CASCADE,
-      name TEXT NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_district_state ON districts(state_id, name)`);
-  await db.execute(sql`
-    CREATE TABLE cities (
-      id SERIAL PRIMARY KEY,
-      district_id INTEGER NOT NULL REFERENCES districts(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      pincode TEXT,
-      std_code TEXT
-    )
-  `);
-
-  // Parties
-  await db.execute(sql`
-    CREATE TABLE parties (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
-      address TEXT,
-      landmark TEXT,
-      place TEXT,
-      state_name TEXT,
-      pin_code TEXT,
-      city_id INTEGER,
-      credit_limit NUMERIC(15,2),
-      phone TEXT,
-      phone_res TEXT,
-      sms_mobile TEXT,
-      mill TEXT,
-      fax TEXT,
-      email_ids TEXT,
-      designation TEXT,
-      is_shared BOOLEAN NOT NULL DEFAULT true,
-      company_id INTEGER REFERENCES companies(id),
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      deleted_at TIMESTAMP,
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_parties_company_id ON parties(company_id)`);
-
-  // Party sub-tables
-  await db.execute(sql`
-    CREATE TABLE party_roles (
-      id SERIAL PRIMARY KEY,
-      party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-      role party_role NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_party_role ON party_roles(party_id, role)`);
-  await db.execute(sql`CREATE INDEX idx_party_roles_party_id ON party_roles(party_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE party_tax_ids (
-      id SERIAL PRIMARY KEY,
-      party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-      tax_type tax_id_type NOT NULL,
-      tax_value TEXT NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_party_tax_ids_party_id ON party_tax_ids(party_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE party_delivery_addresses (
-      id SERIAL PRIMARY KEY,
-      party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-      address_line TEXT NOT NULL,
-      city TEXT,
-      state TEXT,
-      pincode TEXT
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE party_bank_details (
-      id SERIAL PRIMARY KEY,
-      party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-      bank_name TEXT,
-      account_no TEXT,
-      ifsc_code TEXT,
-      branch TEXT
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE party_contacts (
-      id SERIAL PRIMARY KEY,
-      party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-      contact_name TEXT NOT NULL,
-      contact_number TEXT NOT NULL,
-      email_id TEXT,
-      designation TEXT
-    )
-  `);
-
-  // Commodity Groups & Commodities
-  await db.execute(sql`CREATE TABLE commodity_groups (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`);
-  await db.execute(sql`
-    CREATE TABLE commodities (
-      id SERIAL PRIMARY KEY,
-      group_id INTEGER REFERENCES commodity_groups(id),
-      name TEXT NOT NULL UNIQUE,
-      description TEXT,
-      short_name TEXT,
-      unit TEXT,
-      hsn_code TEXT,
-      is_shared BOOLEAN NOT NULL DEFAULT true,
-      company_id INTEGER REFERENCES companies(id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_commodities_company_id ON commodities(company_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE commodity_packaging (
-      id SERIAL PRIMARY KEY,
-      commodity_id INTEGER NOT NULL REFERENCES commodities(id) ON DELETE CASCADE,
-      packing_weight NUMERIC(10,3) NOT NULL,
-      packing_weight_2 NUMERIC(10,3),
-      packing_type TEXT NOT NULL,
-      seller_brokerage_rate NUMERIC(10,2),
-      seller_brokerage_type TEXT,
-      buyer_brokerage_rate NUMERIC(10,2),
-      buyer_brokerage_type TEXT
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE commodity_specifications (
-      id SERIAL PRIMARY KEY,
-      commodity_id INTEGER NOT NULL REFERENCES commodities(id) ON DELETE CASCADE,
-      specification TEXT NOT NULL,
-      spec_value NUMERIC(10,2),
-      min_max TEXT,
-      remarks TEXT
-    )
-  `);
-
-  // Contracts
-  await db.execute(sql`
-    CREATE TABLE contracts (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id),
-      fiscal_year_id INTEGER NOT NULL REFERENCES fiscal_years(id),
-      sauda_no INTEGER NOT NULL,
-      sauda_book TEXT NOT NULL,
-      sauda_prefix TEXT,
-      sauda_date TIMESTAMP NOT NULL DEFAULT NOW(),
-      status contract_status NOT NULL DEFAULT 'ACTIVE',
-      delivery_term TEXT,
-      payment_term_type payment_term_type DEFAULT 'DISCOUNT',
-      payment_percent NUMERIC(5,2),
-      payment_days INTEGER,
-      delivery_deadline_date TIMESTAMP,
-      approx_weight NUMERIC(15,3),
-      quantity_tolerance NUMERIC(5,2),
-      origin_station TEXT,
-      destination_station TEXT,
-      tax_form_required TEXT,
-      po_number TEXT,
-      po_date TIMESTAMP,
-      terms_and_conditions TEXT,
-      custom_remarks TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_sauda_book_no ON contracts(company_id, fiscal_year_id, sauda_book, sauda_no)`);
-  await db.execute(sql`CREATE INDEX idx_contracts_company_id ON contracts(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_contracts_fiscal_year_id ON contracts(fiscal_year_id)`);
-  await db.execute(sql`CREATE INDEX idx_contracts_company_fy ON contracts(company_id, fiscal_year_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE contract_parties (
-      id SERIAL PRIMARY KEY,
-      contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-      party_id INTEGER NOT NULL REFERENCES parties(id),
-      role party_role NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_contract_parties_contract_id ON contract_parties(contract_id)`);
-  await db.execute(sql`CREATE INDEX idx_contract_parties_party_id ON contract_parties(party_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE contract_lines (
-      id SERIAL PRIMARY KEY,
-      contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-      commodity_id INTEGER NOT NULL REFERENCES commodities(id),
-      packaging_id INTEGER REFERENCES commodity_packaging(id),
-      brand TEXT,
-      number_of_lorries INTEGER,
-      quantity_bags NUMERIC(15,2),
-      weight_quintals NUMERIC(15,3) NOT NULL,
-      rate NUMERIC(15,2) NOT NULL,
-      amount NUMERIC(15,2) NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_contract_lines_contract_id ON contract_lines(contract_id)`);
-  await db.execute(sql`CREATE INDEX idx_contract_lines_commodity_id ON contract_lines(commodity_id)`);
-
-  // Deliveries
-  await db.execute(sql`
-    CREATE TABLE deliveries (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id),
-      fiscal_year_id INTEGER NOT NULL REFERENCES fiscal_years(id),
-      dispatch_date TIMESTAMP NOT NULL DEFAULT NOW(),
-      truck_no TEXT,
-      bill_no TEXT,
-      carrier_bill_date TIMESTAMP,
-      transporter_id INTEGER REFERENCES parties(id),
-      advance_payment_collected NUMERIC(15,2),
-      status delivery_status NOT NULL DEFAULT 'PENDING',
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_deliveries_company_id ON deliveries(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_deliveries_fiscal_year_id ON deliveries(fiscal_year_id)`);
-  await db.execute(sql`CREATE INDEX idx_deliveries_company_fy ON deliveries(company_id, fiscal_year_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE delivery_lines (
-      id SERIAL PRIMARY KEY,
-      delivery_id INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
-      contract_line_id INTEGER NOT NULL REFERENCES contract_lines(id),
-      dispatched_bags NUMERIC(15,2),
-      dispatched_weight NUMERIC(15,3) NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_delivery_lines_delivery_id ON delivery_lines(delivery_id)`);
-  await db.execute(sql`CREATE INDEX idx_delivery_lines_contract_line_id ON delivery_lines(contract_line_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE delivery_charges (
-      id SERIAL PRIMARY KEY,
-      delivery_id INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
-      charge_type TEXT NOT NULL,
-      amount NUMERIC(15,2) NOT NULL
-    )
-  `);
-
-  // Bills
-  await db.execute(sql`
-    CREATE TABLE bills (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id),
-      fiscal_year_id INTEGER NOT NULL REFERENCES fiscal_years(id),
-      bill_no TEXT NOT NULL,
-      bill_date TIMESTAMP NOT NULL DEFAULT NOW(),
-      party_id INTEGER NOT NULL REFERENCES parties(id),
-      basis bill_basis NOT NULL,
-      total_amount NUMERIC(15,2) NOT NULL,
-      balance_amount NUMERIC(15,2) NOT NULL,
-      credit_days INTEGER,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE UNIQUE INDEX unq_bill_no_company_fy ON bills(company_id, fiscal_year_id, bill_no)`);
-  await db.execute(sql`CREATE INDEX idx_bills_company_id ON bills(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_bills_fiscal_year_id ON bills(fiscal_year_id)`);
-  await db.execute(sql`CREATE INDEX idx_bills_company_fy ON bills(company_id, fiscal_year_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE bill_lines (
-      id SERIAL PRIMARY KEY,
-      bill_id INTEGER NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
-      description TEXT NOT NULL,
-      amount NUMERIC(15,2) NOT NULL,
-      reference_type TEXT,
-      reference_id INTEGER
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_bill_lines_bill_id ON bill_lines(bill_id)`);
-
-  // Payments
-  await db.execute(sql`
-    CREATE TABLE payments (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id),
-      fiscal_year_id INTEGER NOT NULL REFERENCES fiscal_years(id),
-      payment_date TIMESTAMP NOT NULL DEFAULT NOW(),
-      party_id INTEGER NOT NULL REFERENCES parties(id),
-      instrument_type TEXT NOT NULL,
-      instrument_no TEXT,
-      amount NUMERIC(15,2) NOT NULL,
-      deposited_bank TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_payments_company_id ON payments(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_payments_fiscal_year_id ON payments(fiscal_year_id)`);
-  await db.execute(sql`CREATE INDEX idx_payments_company_fy ON payments(company_id, fiscal_year_id)`);
-
-  await db.execute(sql`
-    CREATE TABLE payment_allocations (
-      id SERIAL PRIMARY KEY,
-      payment_id INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
-      bill_id INTEGER NOT NULL REFERENCES bills(id),
-      allocated_amount NUMERIC(15,2) NOT NULL
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_payment_alloc_payment_id ON payment_allocations(payment_id)`);
-  await db.execute(sql`CREATE INDEX idx_payment_alloc_bill_id ON payment_allocations(bill_id)`);
-
-  // Ledger
-  await db.execute(sql`
-    CREATE TABLE ledger (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id),
-      fiscal_year_id INTEGER NOT NULL REFERENCES fiscal_years(id),
-      transaction_date TIMESTAMP NOT NULL DEFAULT NOW(),
-      account_id INTEGER NOT NULL REFERENCES parties(id),
-      source_type TEXT NOT NULL,
-      source_id INTEGER,
-      debit NUMERIC(15,2) DEFAULT '0.00',
-      credit NUMERIC(15,2) DEFAULT '0.00',
-      narration TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      created_by INTEGER REFERENCES users(id),
-      updated_by INTEGER REFERENCES users(id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX idx_ledger_account_id ON ledger(account_id)`);
-  await db.execute(sql`CREATE INDEX idx_ledger_source_type ON ledger(source_type)`);
-  await db.execute(sql`CREATE INDEX idx_ledger_transaction_date ON ledger(transaction_date)`);
-  await db.execute(sql`CREATE INDEX idx_ledger_company_id ON ledger(company_id)`);
-  await db.execute(sql`CREATE INDEX idx_ledger_fiscal_year_id ON ledger(fiscal_year_id)`);
-  await db.execute(sql`CREATE INDEX idx_ledger_company_fy ON ledger(company_id, fiscal_year_id)`);
-
-  // Try to create trigram extension (may already exist)
   try {
-    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-    await db.execute(sql`CREATE INDEX idx_parties_name_trgm ON parties USING gin (name gin_trgm_ops)`);
-    await db.execute(sql`CREATE INDEX idx_commodities_name_trgm ON commodities USING gin (name gin_trgm_ops)`);
-    await db.execute(sql`CREATE INDEX idx_cities_name_trgm ON cities USING gin (name gin_trgm_ops)`);
-  } catch (e) {
-    console.log('⚠️ pg_trgm extension not available, skipping trigram indexes');
+    await db.execute(sql`
+      TRUNCATE TABLE 
+        chat_messages,
+        chats,
+        bids,
+        watchlist,
+        listings,
+        members,
+        ledger,
+        payment_allocations,
+        payments,
+        bill_lines,
+        bills,
+        delivery_charges,
+        delivery_lines,
+        deliveries,
+        contract_lines,
+        contract_parties,
+        contracts,
+        commodity_specifications,
+        commodity_packaging,
+        commodities,
+        commodity_groups,
+        party_contacts,
+        party_bank_details,
+        party_delivery_addresses,
+        party_tax_ids,
+        party_roles,
+        parties,
+        cities,
+        districts,
+        states,
+        user_company_access,
+        fiscal_years,
+        users,
+        companies,
+        audit_log
+      RESTART IDENTITY CASCADE;
+    `);
+    console.log('✅ Database truncated successfully.');
+  } catch (err) {
+    console.error('❌ Truncation failed. Tables might not exist yet.');
+    console.error('   Running CREATE EXTENSION and assuming schema is in sync...');
+    throw err;
   }
 
-  console.log('✅ All tables created');
+  // Ensure pg_trgm is present (safe to call multiple times)
+  try {
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+  } catch (e) {
+    console.log('⚠️ Could not run CREATE EXTENSION IF NOT EXISTS pg_trgm:', e);
+  }
 
   // ════════════════════════════════════════
-  // SEED DATA
-  // ════════════════════════════════════════
-
   // 1. Companies
+  // ════════════════════════════════════════
   console.log('🏢 Seeding companies...');
   const companyIds: number[] = [];
   for (const c of COMPANIES) {
@@ -649,7 +185,9 @@ async function seed() {
   }
   console.log(`   Created ${companyIds.length} companies`);
 
+  // ════════════════════════════════════════
   // 2. Fiscal Years
+  // ════════════════════════════════════════
   console.log('📅 Seeding fiscal years...');
   const fyMap: Record<number, { id: number; label: string; startD: Date; endD: Date }[]> = {};
   for (const compId of companyIds) {
@@ -664,7 +202,9 @@ async function seed() {
   }
   console.log(`   Created ${companyIds.length * FY_RANGES.length} fiscal years`);
 
+  // ════════════════════════════════════════
   // 3. Admin User
+  // ════════════════════════════════════════
   console.log('👤 Seeding admin user...');
   const adminPerms = {
     contracts: { read: true, write: true, delete: true },
@@ -694,7 +234,34 @@ async function seed() {
   }
   console.log(`   Created admin user (id=${adminId}), granted access to ${companyIds.length} companies`);
 
-  // 4. Parties
+  // ════════════════════════════════════════
+  // 4. Location Masters
+  // ════════════════════════════════════════
+  console.log('🌍 Seeding location masters...');
+  const [mhRow] = await db.execute(sql`INSERT INTO states (name) VALUES ('Maharashtra') RETURNING id`);
+  const mhId = (mhRow as any).id;
+  const [mpRow] = await db.execute(sql`INSERT INTO states (name) VALUES ('Madhya Pradesh') RETURNING id`);
+  const mpId = (mpRow as any).id;
+
+  const districts = [
+    { stateId: mhId, name: 'Nanded' }, { stateId: mhId, name: 'Latur' },
+    { stateId: mhId, name: 'Pune' }, { stateId: mhId, name: 'Nagpur' },
+    { stateId: mhId, name: 'Solapur' }, { stateId: mpId, name: 'Indore' },
+  ];
+  const cityIds: number[] = [];
+  for (const d of districts) {
+    const [dRow] = await db.execute(sql`INSERT INTO districts (state_id, name) VALUES (${d.stateId}, ${d.name}) RETURNING id`);
+    const dId = (dRow as any).id;
+    const [cRow] = await db.execute(sql`
+      INSERT INTO cities (district_id, name, pincode) VALUES (${dId}, ${d.name + ' City'}, ${`${randomInt(400000, 500000)}`}) RETURNING id
+    `);
+    cityIds.push((cRow as any).id);
+  }
+  console.log(`   Created ${cityIds.length} cities`);
+
+  // ════════════════════════════════════════
+  // 5. Parties
+  // ════════════════════════════════════════
   console.log('👥 Seeding parties...');
   const partyIds: number[] = [];
   for (let i = 0; i < PARTY_NAMES.length; i++) {
@@ -704,59 +271,57 @@ async function seed() {
     const phone = `0${randomInt(20, 99)}${randomInt(1000000, 9999999)}`;
     const mobile = `9${randomInt(100000000, 999999999)}`;
     const creditLimit = randomDecimal(50000, 5000000);
+    const cityId = randomFrom(cityIds);
 
     const [row] = await db.execute(sql`
-      INSERT INTO parties (name, place, state_name, phone, sms_mobile, credit_limit, address, created_by)
-      VALUES (${name}, ${place}, ${state}, ${phone}, ${mobile}, ${creditLimit}, ${`${randomInt(1, 500)}, Market Yard, ${place}`}, ${adminId})
+      INSERT INTO parties (name, place, state_name, phone, sms_mobile, credit_limit, address, city_id, created_by)
+      VALUES (${name}, ${place}, ${state}, ${phone}, ${mobile}, ${creditLimit}, ${`${randomInt(1, 500)}, Market Yard, ${place}`}, ${cityId}, ${adminId})
       RETURNING id
     `);
     const partyId = (row as any).id;
     partyIds.push(partyId);
 
-    // Assign roles based on position in array
     const roles: string[] = [];
-    if (i < 15) { roles.push('BUYER'); if (i < 8) roles.push('SELLER'); }
-    else if (i < 27) { roles.push('SELLER'); }
-    else if (i < 33) { roles.push('BUYER_BROKER'); roles.push('SELLER_BROKER'); }
-    // rest are transporters — no party_role, just used as transporter
+    if (i < 12) { roles.push('BUYER'); if (i < 6) roles.push('SELLER'); }
+    else if (i < 21) { roles.push('SELLER'); }
+    else if (i < 26) { roles.push('BUYER_BROKER'); roles.push('SELLER_BROKER'); }
 
     for (const role of roles) {
       await db.execute(sql`INSERT INTO party_roles (party_id, role) VALUES (${partyId}, ${role}::party_role)`);
     }
 
-    // Add a GSTIN for some
-    if (i < 30) {
+    if (i < 25) {
       const gstin = `27${String(i).padStart(10, '0')}${randomInt(1, 9)}Z${randomInt(1, 9)}`;
       await db.execute(sql`INSERT INTO party_tax_ids (party_id, tax_type, tax_value) VALUES (${partyId}, 'GSTIN', ${gstin})`);
     }
   }
   console.log(`   Created ${partyIds.length} parties`);
 
-  // Separate party groups by role for contracts
-  const buyerIds = partyIds.slice(0, 15);
-  const sellerIds = partyIds.slice(15, 27);
-  const brokerIds = partyIds.slice(27, 33);
-  const transporterIds = partyIds.slice(33);
+  const buyerIds = partyIds.slice(0, 12);
+  const sellerIds = partyIds.slice(12, 21);
+  const brokerIds = partyIds.slice(21, 26);
+  const transporterIds = partyIds.slice(26);
 
-  // 5. Commodities
+  // ════════════════════════════════════════
+  // 6. Commodities
+  // ════════════════════════════════════════
   console.log('📦 Seeding commodities...');
   const commodityMap: Record<string, number[]> = {};
   for (const [compCode, items] of Object.entries(COMMODITIES_PER_COMPANY)) {
     commodityMap[compCode] = [];
     for (const item of items) {
-      // Check if already exists (cross-company sharing)
       const existing = await db.execute(sql`SELECT id FROM commodities WHERE name = ${item.name} LIMIT 1`);
       let commodityId: number;
       if (existing.length > 0) {
         commodityId = (existing[0] as any).id;
       } else {
+        const volTier = randomFrom(['LOW', 'MEDIUM', 'HIGH']);
         const [row] = await db.execute(sql`
-          INSERT INTO commodities (name, short_name, unit, hsn_code, is_shared)
-          VALUES (${item.name}, ${item.shortName}, ${item.unit}, ${item.hsnCode}, true) RETURNING id
+          INSERT INTO commodities (name, short_name, unit, hsn_code, is_shared, volatility_tier)
+          VALUES (${item.name}, ${item.shortName}, ${item.unit}, ${item.hsnCode}, true, ${volTier}::volatility_tier) RETURNING id
         `);
         commodityId = (row as any).id;
 
-        // Add packaging
         await db.execute(sql`
           INSERT INTO commodity_packaging (commodity_id, packing_weight, packing_type, seller_brokerage_rate, buyer_brokerage_rate)
           VALUES (${commodityId}, 50, 'Bag (50kg)', ${randomDecimal(0.5, 2.5)}, ${randomDecimal(0.5, 2.5)})
@@ -769,28 +334,27 @@ async function seed() {
       commodityMap[compCode].push(commodityId);
     }
   }
-  const totalCommodities = Object.values(commodityMap).flat().length;
-  console.log(`   Created commodities mapped to ${Object.keys(commodityMap).length} companies`);
+  console.log(`   Created commodities`);
 
-  // 6. Contracts, Deliveries, Bills, Payments, Ledger — per company, per FY
+  // ════════════════════════════════════════
+  // 7. Contracts, Deliveries, Bills, Payments, Ledger
+  // ════════════════════════════════════════
   for (let ci = 0; ci < companyIds.length; ci++) {
     const compId = companyIds[ci];
     const comp = COMPANIES[ci];
     const compCommodityIds = commodityMap[comp.shortCode];
 
-    console.log(`\n🏢 Seeding data for ${comp.name}...`);
-
-    // Only seed for FY 2024-25 and FY 2025-26 (skip locked FY 2023-24 for volume)
-    const activeFYs = fyMap[compId].slice(1); // FY 2024-25, FY 2025-26
+    console.log(`\n🏢 Seeding transaction data for ${comp.name}...`);
+    const activeFYs = fyMap[compId].slice(1); // Seed for FY 2024-25, FY 2025-26
 
     for (const fyRec of activeFYs) {
       const fy = { ...fyRec, start: fyRec.startD, end: fyRec.endD };
-      const numContracts = randomInt(25, 40);
-      console.log(`   📋 ${fy.label}: Seeding ${numContracts} contracts...`);
+      const numContracts = randomInt(15, 25);
+      console.log(`   📋 ${fy.label}: Generating ${numContracts} contracts...`);
 
       const contractLineIds: number[] = [];
       const contractIds: number[] = [];
-      const contractPartyMap: Record<number, number> = {}; // contractId -> buyerPartyId
+      const contractPartyMap: Record<number, number> = {}; 
 
       for (let s = 1; s <= numContracts; s++) {
         const saudaDate = randomDate(fy.start, fy.end);
@@ -798,41 +362,42 @@ async function seed() {
         const seller = randomFrom(sellerIds);
         const broker = randomFrom(brokerIds);
         const commodity = randomFrom(compCommodityIds);
-        const weight = randomDecimal(50, 500, 3);
-        const rate = randomDecimal(3000, 15000);
+        const weight = randomDecimal(50, 300, 3);
+        const rate = randomDecimal(3000, 12000);
         const amount = (parseFloat(weight) * parseFloat(rate)).toFixed(2);
-        const numLorries = randomInt(1, 5);
+        const numLorries = randomInt(1, 4);
         const deliveryTerm = randomFrom(DELIVERY_TERMS);
-        const status = Math.random() < 0.1 ? 'COMPLETED' : 'ACTIVE';
+        const status = Math.random() < 0.15 ? 'COMPLETED' : 'ACTIVE';
 
         const [contractRow] = await db.execute(sql`
           INSERT INTO contracts (company_id, fiscal_year_id, sauda_no, sauda_book, sauda_date, status, delivery_term,
             payment_term_type, payment_days, approx_weight, origin_station, destination_station, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${s}, 'Main Book', ${saudaDate.toString()}, ${status}::contract_status, ${deliveryTerm},
-            ${randomFrom(['DISCOUNT', 'CREDIT', 'PAYMENT'])}::payment_term_type, ${randomInt(7, 45)}, ${weight}, ${randomFrom(PLACES)}, ${randomFrom(PLACES)}, ${adminId}, ${saudaDate.toString()})
+          VALUES (${compId}, ${fy.id}, ${s}, 'Main Book', ${saudaDate}, ${status}::contract_status, ${deliveryTerm},
+            ${randomFrom(['DISCOUNT', 'CREDIT', 'PAYMENT'])}::payment_term_type, ${randomInt(7, 30)}, ${weight}, ${randomFrom(PLACES)}, ${randomFrom(PLACES)}, ${adminId}, ${saudaDate})
           RETURNING id
         `);
         const contractId = (contractRow as any).id;
         contractIds.push(contractId);
         contractPartyMap[contractId] = buyer;
 
-        // Contract parties
         await db.execute(sql`INSERT INTO contract_parties (contract_id, party_id, role) VALUES (${contractId}, ${buyer}, 'BUYER')`);
         await db.execute(sql`INSERT INTO contract_parties (contract_id, party_id, role) VALUES (${contractId}, ${seller}, 'SELLER')`);
         await db.execute(sql`INSERT INTO contract_parties (contract_id, party_id, role) VALUES (${contractId}, ${broker}, 'SELLER_BROKER')`);
 
-        // Contract line
+        const packRows = await db.execute(sql`SELECT id FROM commodity_packaging WHERE commodity_id = ${commodity} LIMIT 1`);
+        const packId = packRows.length > 0 ? (packRows[0] as any).id : null;
+
         const [lineRow] = await db.execute(sql`
-          INSERT INTO contract_lines (contract_id, commodity_id, number_of_lorries, weight_quintals, rate, amount, quantity_bags)
-          VALUES (${contractId}, ${commodity}, ${numLorries}, ${weight}, ${rate}, ${amount}, ${Math.floor(parseFloat(weight) * 2)})
+          INSERT INTO contract_lines (contract_id, commodity_id, packaging_id, number_of_lorries, weight_quintals, rate, amount, quantity_bags)
+          VALUES (${contractId}, ${commodity}, ${packId}, ${numLorries}, ${weight}, ${rate}, ${amount}, ${Math.floor(parseFloat(weight) * 2)})
           RETURNING id
         `);
         contractLineIds.push((lineRow as any).id);
       }
 
       // Deliveries
-      const numDeliveries = Math.min(contractLineIds.length * 2, randomInt(35, 60));
-      console.log(`   🚛 ${fy.label}: Seeding ${numDeliveries} deliveries...`);
+      const numDeliveries = Math.min(contractLineIds.length * 2, randomInt(20, 35));
+      console.log(`   🚛 ${fy.label}: Generating ${numDeliveries} deliveries...`);
 
       const deliveryIds: number[] = [];
       for (let d = 0; d < numDeliveries; d++) {
@@ -840,57 +405,54 @@ async function seed() {
         const dispatchDate = randomDate(fy.start, fy.end);
         const transporter = randomFrom(transporterIds);
         const truckNo = `${randomFrom(TRUCK_PREFIXES)} ${String.fromCharCode(65 + randomInt(0, 25))}${String.fromCharCode(65 + randomInt(0, 25))} ${randomInt(1000, 9999)}`;
-        const dispatchedWeight = randomDecimal(20, 150, 3);
-        const status = randomFrom(['DISPATCHED', 'DELIVERED', 'DELIVERED', 'DELIVERED']);
+        const dispatchedWeight = randomDecimal(20, 100, 3);
+        const status = randomFrom(['DISPATCHED', 'DELIVERED', 'DELIVERED']);
 
         const [delRow] = await db.execute(sql`
           INSERT INTO deliveries (company_id, fiscal_year_id, dispatch_date, truck_no, transporter_id, status,
             advance_payment_collected, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${dispatchDate.toString()}, ${truckNo}, ${transporter}, ${status}::delivery_status,
-            ${Math.random() < 0.3 ? randomDecimal(5000, 50000) : null}, ${adminId}, ${dispatchDate.toString()})
+          VALUES (${compId}, ${fy.id}, ${dispatchDate}, ${truckNo}, ${transporter}, ${status}::delivery_status,
+            ${Math.random() < 0.3 ? randomDecimal(5000, 25000) : null}, ${adminId}, ${dispatchDate})
           RETURNING id
         `);
         const deliveryId = (delRow as any).id;
         deliveryIds.push(deliveryId);
 
-        // Delivery line
         await db.execute(sql`
           INSERT INTO delivery_lines (delivery_id, contract_line_id, dispatched_weight, dispatched_bags)
           VALUES (${deliveryId}, ${clId}, ${dispatchedWeight}, ${Math.floor(parseFloat(dispatchedWeight) * 2)})
         `);
 
-        // Occasional freight charges
-        if (Math.random() < 0.4) {
+        if (Math.random() < 0.35) {
           await db.execute(sql`
             INSERT INTO delivery_charges (delivery_id, charge_type, amount)
-            VALUES (${deliveryId}, 'FREIGHT_ADVANCE', ${randomDecimal(2000, 15000)})
+            VALUES (${deliveryId}, 'FREIGHT_ADVANCE', ${randomDecimal(2000, 8000)})
           `);
         }
       }
 
       // Bills
-      const numBills = randomInt(15, 30);
-      console.log(`   🧾 ${fy.label}: Seeding ${numBills} bills...`);
+      const numBills = randomInt(10, 18);
+      console.log(`   🧾 ${fy.label}: Generating ${numBills} bills...`);
 
       const billRecords: { id: number; partyId: number; total: number; balance: number }[] = [];
       for (let b = 1; b <= numBills; b++) {
         const billDate = randomDate(fy.start, fy.end);
         const partyId = randomFrom(buyerIds);
-        const totalAmount = randomDecimal(50000, 1500000);
-        const paid = Math.random() < 0.6 ? parseFloat(randomDecimal(0, parseFloat(totalAmount))) : 0;
+        const totalAmount = randomDecimal(50000, 800000);
+        const paid = Math.random() < 0.5 ? parseFloat(randomDecimal(0, parseFloat(totalAmount))) : 0;
         const balance = (parseFloat(totalAmount) - paid).toFixed(2);
         const basis = randomFrom(['CONTRACT', 'DELIVERY', 'DALALI', 'DIRECT'] as const);
         const billNo = `${comp.shortCode.substring(0, 3)}/${fy.label.replace('FY ', '')}/${String(b).padStart(4, '0')}`;
 
         const [billRow] = await db.execute(sql`
           INSERT INTO bills (company_id, fiscal_year_id, bill_no, bill_date, party_id, basis, total_amount, balance_amount, credit_days, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${billNo}, ${billDate.toString()}, ${partyId}, ${basis}::bill_basis, ${totalAmount}, ${balance}, ${randomInt(15, 60)}, ${adminId}, ${billDate.toString()})
+          VALUES (${compId}, ${fy.id}, ${billNo}, ${billDate}, ${partyId}, ${basis}::bill_basis, ${totalAmount}, ${balance}, ${randomInt(15, 45)}, ${adminId}, ${billDate})
           RETURNING id
         `);
         const billId = (billRow as any).id;
         billRecords.push({ id: billId, partyId, total: parseFloat(totalAmount), balance: parseFloat(balance) });
 
-        // Bill line
         await db.execute(sql`
           INSERT INTO bill_lines (bill_id, description, amount, reference_type, reference_id)
           VALUES (${billId}, ${'Brokerage for ' + comp.name}, ${totalAmount}, ${basis === 'CONTRACT' ? 'CONTRACT' : 'DELIVERY'}, ${randomFrom(basis === 'CONTRACT' ? contractIds : deliveryIds)})
@@ -898,39 +460,36 @@ async function seed() {
       }
 
       // Payments
-      const numPayments = randomInt(10, 25);
-      console.log(`   💰 ${fy.label}: Seeding ${numPayments} payments...`);
+      const numPayments = randomInt(8, 15);
+      console.log(`   💰 ${fy.label}: Generating ${numPayments} payments...`);
 
       for (let p = 0; p < numPayments; p++) {
         const billRec = randomFrom(billRecords.filter(b => b.balance > 0));
         if (!billRec) continue;
         const paymentDate = randomDate(fy.start, fy.end);
         const instrument = randomFrom(['CHEQUE', 'NEFT', 'RTGS', 'CASH']);
-        const payAmount = Math.min(billRec.balance, parseFloat(randomDecimal(10000, Math.min(billRec.balance, 500000)))).toFixed(2);
+        const payAmount = Math.min(billRec.balance, parseFloat(randomDecimal(10000, Math.min(billRec.balance, 300000)))).toFixed(2);
 
         const [payRow] = await db.execute(sql`
           INSERT INTO payments (company_id, fiscal_year_id, payment_date, party_id, instrument_type, instrument_no, amount, deposited_bank, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${paymentDate.toString()}, ${billRec.partyId}, ${instrument},
+          VALUES (${compId}, ${fy.id}, ${paymentDate}, ${billRec.partyId}, ${instrument},
             ${instrument === 'CHEQUE' ? `CHQ${randomInt(100000, 999999)}` : instrument === 'NEFT' ? `NEFT${randomInt(1000000, 9999999)}` : null},
-            ${payAmount}, ${randomFrom(BANKS)}, ${adminId}, ${paymentDate.toString()})
+            ${payAmount}, ${randomFrom(BANKS)}, ${adminId}, ${paymentDate})
           RETURNING id
         `);
         const paymentId = (payRow as any).id;
 
-        // Payment allocation
         await db.execute(sql`
           INSERT INTO payment_allocations (payment_id, bill_id, allocated_amount)
           VALUES (${paymentId}, ${billRec.id}, ${payAmount})
         `);
 
-        // Update bill balance
         billRec.balance -= parseFloat(payAmount);
         await db.execute(sql`UPDATE bills SET balance_amount = ${billRec.balance.toFixed(2)} WHERE id = ${billRec.id}`);
 
-        // Ledger entries
         await db.execute(sql`
           INSERT INTO ledger (company_id, fiscal_year_id, transaction_date, account_id, source_type, source_id, debit, credit, narration, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${paymentDate.toString()}, ${billRec.partyId}, 'PAYMENT', ${paymentId}, ${payAmount}, '0.00', ${'Payment received via ' + instrument}, ${adminId}, ${paymentDate.toString()})
+          VALUES (${compId}, ${fy.id}, ${paymentDate}, ${billRec.partyId}, 'PAYMENT', ${paymentId}, ${payAmount}, '0.00', ${'Payment received via ' + instrument}, ${adminId}, ${paymentDate})
         `);
       }
 
@@ -939,45 +498,141 @@ async function seed() {
         const billDate = randomDate(fy.start, fy.end);
         await db.execute(sql`
           INSERT INTO ledger (company_id, fiscal_year_id, transaction_date, account_id, source_type, source_id, debit, credit, narration, created_by, created_at)
-          VALUES (${compId}, ${fy.id}, ${billDate.toString()}, ${bill.partyId}, 'BILL', ${bill.id}, '0.00', ${bill.total.toFixed(2)}, ${'Bill raised - ' + comp.name}, ${adminId}, ${billDate.toString()})
+          VALUES (${compId}, ${fy.id}, ${billDate}, ${bill.partyId}, 'BILL', ${bill.id}, '0.00', ${bill.total.toFixed(2)}, ${'Bill raised - ' + comp.name}, ${adminId}, ${billDate})
         `);
       }
     }
-
-    console.log(`   ✅ ${comp.name} seeding complete`);
+    console.log(`   ✅ ${comp.name} transactions completed.`);
   }
 
-  // 7. Location masters
-  console.log('\n🌍 Seeding location masters...');
-  const [mhRow] = await db.execute(sql`INSERT INTO states (name) VALUES ('Maharashtra') RETURNING id`);
-  const mhId = (mhRow as any).id;
-  const [mpRow] = await db.execute(sql`INSERT INTO states (name) VALUES ('Madhya Pradesh') RETURNING id`);
-  const mpId = (mpRow as any).id;
+  // ════════════════════════════════════════
+  // 8. Public Marketplace Seeding
+  // ════════════════════════════════════════
+  console.log('\n🏪 Seeding marketplace...');
 
-  const districts = [
-    { stateId: mhId, name: 'Nanded' }, { stateId: mhId, name: 'Latur' },
-    { stateId: mhId, name: 'Pune' }, { stateId: mhId, name: 'Mumbai Suburban' },
-    { stateId: mhId, name: 'Nagpur' }, { stateId: mhId, name: 'Solapur' },
-    { stateId: mpId, name: 'Indore' },
-  ];
-  for (const d of districts) {
-    const [dRow] = await db.execute(sql`INSERT INTO districts (state_id, name) VALUES (${d.stateId}, ${d.name}) RETURNING id`);
-    const dId = (dRow as any).id;
-    // Add a city for each district
-    await db.execute(sql`INSERT INTO cities (district_id, name, pincode) VALUES (${dId}, ${d.name + ' City'}, ${`${randomInt(400000, 500000)}`})`);
-  }
-  console.log('   ✅ Location masters seeded');
+  // Get party IDs to link
+  const buyerParties = await db.execute(sql`
+    SELECT p.id FROM parties p JOIN party_roles r ON p.id = r.party_id WHERE r.role = 'BUYER' LIMIT 1
+  `);
+  const sellerParties = await db.execute(sql`
+    SELECT p.id FROM parties p JOIN party_roles r ON p.id = r.party_id WHERE r.role = 'SELLER' LIMIT 1
+  `);
+
+  const buyerPartyId = buyerParties.length > 0 ? (buyerParties[0] as any).id : null;
+  const sellerPartyId = sellerParties.length > 0 ? (sellerParties[0] as any).id : null;
+
+  // Member passwords hashed
+  const memberPwHash = hashPassword('gccnanded@123');
+
+  // Create members
+  const [memberSellerRow] = await db.execute(sql`
+    INSERT INTO members (name, phone, email, password_hash, role, party_id, token_balance, is_verified)
+    VALUES ('Nanded Pulses Seller', '9876543210', 'seller@marketplace.com', ${memberPwHash}, 'SELLER', ${sellerPartyId}, 500000.00, true)
+    RETURNING id
+  `);
+  const mSellerId = (memberSellerRow as any).id;
+
+  const [memberBuyerRow] = await db.execute(sql`
+    INSERT INTO members (name, phone, email, password_hash, role, party_id, token_balance, is_verified)
+    VALUES ('Mumbai Grain Buyer', '9123456789', 'buyer@marketplace.com', ${memberPwHash}, 'BUYER', ${buyerPartyId}, 1000000.00, true)
+    RETURNING id
+  `);
+  const mBuyerId = (memberBuyerRow as any).id;
+
+  const [memberBothRow] = await db.execute(sql`
+    INSERT INTO members (name, phone, email, password_hash, role, token_balance, is_verified)
+    VALUES ('Marathwada Trader', '9345678901', 'trader@marketplace.com', ${memberPwHash}, 'BOTH', 300000.00, true)
+    RETURNING id
+  `);
+  const mBothId = (memberBothRow as any).id;
+
+  console.log(`   Seeded 3 members (Nanded Pulses Seller, Mumbai Grain Buyer, Marathwada Trader)`);
+
+  // Query some commodity IDs
+  const moongDalRows = await db.execute(sql`SELECT id FROM commodities WHERE name = 'Moong Dal' LIMIT 1`);
+  const soybeanRows = await db.execute(sql`SELECT id FROM commodities WHERE name = 'Soybean' LIMIT 1`);
+  const wheatRows = await db.execute(sql`SELECT id FROM commodities WHERE name = 'Wheat' LIMIT 1`);
+
+  const cMoongDal = moongDalRows.length > 0 ? (moongDalRows[0] as any).id : 1;
+  const cSoybean = soybeanRows.length > 0 ? (soybeanRows[0] as any).id : 2;
+  const cWheat = wheatRows.length > 0 ? (wheatRows[0] as any).id : 3;
+
+  // Query packaging ID
+  const packRows = await db.execute(sql`SELECT id FROM commodity_packaging WHERE commodity_id = ${cMoongDal} LIMIT 1`);
+  const packId = packRows.length > 0 ? (packRows[0] as any).id : null;
+
+  // Query city IDs
+  const cityRows = await db.execute(sql`SELECT id FROM cities LIMIT 2`);
+  const cityNanded = cityRows.length > 0 ? (cityRows[0] as any).id : null;
+  const cityLatur = cityRows.length > 1 ? (cityRows[1] as any).id : null;
+
+  // Insert Listings
+  // 1. Open Market SELL Listing
+  const [list1Row] = await db.execute(sql`
+    INSERT INTO listings (member_id, listing_type, direction, commodity_id, packaging_id, title, quality_notes, qty_quintals, price_per_quintal, city_id, status)
+    VALUES (${mBothId}, 'OPEN', 'SELL', ${cMoongDal}, ${packId}, 'Premium Moong Dal Nanded', 'Moisture < 10%, standard clean bags', 200.00, 8500.00, ${cityNanded}, 'ACTIVE')
+    RETURNING id
+  `);
+  const list1Id = (list1Row as any).id;
+
+  // 2. Open Market BUY Listing
+  await db.execute(sql`
+    INSERT INTO listings (member_id, listing_type, direction, commodity_id, title, quality_notes, qty_quintals, price_per_quintal, city_id, status)
+    VALUES (${mBuyerId}, 'OPEN', 'BUY', ${cSoybean}, 'Required Soybean Latur Delivery', 'Yellow Soy, FAQ clean grade', 500.00, 4800.00, ${cityLatur}, 'ACTIVE')
+  `);
+
+  // 3. Government Tender (staff published, owner is null)
+  const closeDate = new Date();
+  closeDate.setDate(closeDate.getDate() + 7);
+  const [list3Row] = await db.execute(sql`
+    INSERT INTO listings (member_id, listing_type, direction, commodity_id, title, quality_notes, qty_quintals, price_per_quintal, city_id, status, close_date)
+    VALUES (null, 'TENDER', 'BUY', ${cWheat}, 'Gov Wheat Procurement Tender MH-99', 'FAQ Wheat Grade A, dry, standard sacks', 1000.00, 2400.00, ${cityNanded}, 'ACTIVE', ${closeDate})
+    RETURNING id
+  `);
+  const list3Id = (list3Row as any).id;
+
+  console.log(`   Seeded 3 listings (Open Market Sell, Open Market Buy, Government Tender)`);
+
+  // Insert Bid on Government Tender
+  const lockedDeposit = parseFloat((1000 * 2350 * 0.05).toFixed(2)); // 5% deposit for medium volatility
+  await db.execute(sql`
+    INSERT INTO bids (listing_id, member_id, bid_price_per_quintal, qty_quintals, token_locked, status)
+    VALUES (${list3Id}, ${mSellerId}, 2350.00, 1000.00, ${lockedDeposit}, 'PENDING')
+  `);
+  console.log(`   Seeded 1 Bid on Gov Tender`);
+
+  // Insert Chat Negotiation Room
+  const [chatRow] = await db.execute(sql`
+    INSERT INTO chats (listing_id, buyer_id, seller_id, agreed_buyer_price, agreed_seller_price, commission_rate, status)
+    VALUES (${list1Id}, ${mBuyerId}, ${mBothId}, null, null, 0.0050, 'NEGOTIATING')
+    RETURNING id
+  `);
+  const chatId = (chatRow as any).id;
+
+  // Insert Chat Messages
+  await db.execute(sql`
+    INSERT INTO chat_messages (room_id, sender_id, message_text)
+    VALUES (${chatId}, null, 'Negotiation started. Buyer can submit bid price, Seller can submit sell price.')
+  `);
+  await db.execute(sql`
+    INSERT INTO chat_messages (room_id, sender_id, message_text)
+    VALUES (${chatId}, ${mBuyerId}, 'Hello. Is 8300 per quintal acceptable for 200 quintals?')
+  `);
+  await db.execute(sql`
+    INSERT INTO chat_messages (room_id, sender_id, message_text)
+    VALUES (${chatId}, ${mBothId}, 'Hi! 8300 is too low for this grade. The quality is exceptional. I can match at 8400 minimum.')
+  `);
+  console.log(`   Seeded Chat room between Mumbai Grain Buyer and Marathwada Trader with messages`);
 
   console.log('\n════════════════════════════════════════');
   console.log('  🎉 SEED COMPLETE!');
   console.log('════════════════════════════════════════');
-  console.log(`  Companies: ${companyIds.length}`);
-  console.log(`  Fiscal Years: ${companyIds.length * FY_RANGES.length}`);
-  console.log(`  Admin User: gccnanded / gccnanded@123`);
-  console.log(`  Parties: ${partyIds.length}`);
-  console.log('  Data seeded per company per active FY:');
-  console.log('    ~25-40 contracts, ~35-60 deliveries');
-  console.log('    ~15-30 bills, ~10-25 payments, ledger entries');
+  console.log(`  Companies     : ${companyIds.length}`);
+  console.log(`  Fiscal Years  : ${companyIds.length * FY_RANGES.length}`);
+  console.log(`  Admin User    : gccnanded / gccnanded@123`);
+  console.log(`  Parties       : ${partyIds.length}`);
+  console.log(`  Market Members: 3 (Nanded Pulses Seller, Mumbai Grain Buyer, Marathwada Trader)`);
+  console.log(`  Market Pass   : gccnanded@123`);
   console.log('════════════════════════════════════════\n');
 
   await client.end();

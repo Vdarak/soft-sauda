@@ -70,7 +70,7 @@ function requireAdmin(handler) {
   return requireAuth((ctx) => {
     if (localStorage.getItem('ss_role') !== 'ADMIN') {
       showToast('Access denied: Administrator privilege required', 'error');
-      window.history.pushState({}, '', '/');
+      window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
       return;
     }
@@ -177,7 +177,7 @@ function renderCompanySelector() {
         await triggerWarmup({ forceRefresh: true });
         document.body.removeAttribute('data-page');
         showToast(`Entered ${company.name} workspace`, 'success');
-        window.history.pushState({}, '', '/');
+        window.history.pushState({}, '', '/dashboard');
         window.dispatchEvent(new PopStateEvent('popstate'));
       } catch (err) {
         showToast(err.message, 'error');
@@ -329,7 +329,7 @@ function handleNotFound(ctx) {
   app.innerHTML = `<div style="padding:3rem;text-align:center">
     <h1 style="font-size:3rem;color:var(--muted-foreground);margin-bottom:1rem">404</h1>
     <p style="color:var(--muted-foreground)">Page not found</p>
-    <a href="/" data-route><button class="primary" style="margin-top:1rem">Go Home</button></a>
+    <a href="/dashboard" data-route><button class="primary" style="margin-top:1rem">Go Home</button></a>
   </div>`;
 }
 
@@ -339,8 +339,8 @@ function initRouter() {
     defaultHandler: handleNotFound,
   });
 
-  // Dashboard
-  r.on('/',                   requireAuth(() => renderDashboard()));
+  // Dashboard (ERP home — `/` now serves the public landing page)
+  r.on('/dashboard',          requireAuth(() => renderDashboard()));
   
   // Login
   r.on('/login',              () => renderLogin());
@@ -729,7 +729,7 @@ function updateSidebarActive(path) {
   renderLedgerMenu();
   document.querySelectorAll('.topbar-nav a, .topbar-nav-mobile-drawer a').forEach(a => {
     const href = a.getAttribute('href');
-    if (href === path || (href !== '/' && path.startsWith(href))) {
+    if (href === path || (href !== '/dashboard' && path.startsWith(href))) {
       a.classList.add('active');
     } else {
       a.classList.remove('active');

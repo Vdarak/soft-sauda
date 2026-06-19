@@ -17,9 +17,10 @@ const globalForDb = globalThis as unknown as {
 
 const client = globalForDb.postgresClient || postgres(connectionString, {
   max: 15,            // Slightly higher pool size to accommodate concurrent queries
-  idle_timeout: 120,  // Keep connections alive for 120s
+  idle_timeout: 15,   // Keep connections alive for 15s (prevents Railway proxy disconnect ECONNRESET)
   connect_timeout: 10,
 });
+
 
 if (process.env.NODE_ENV !== 'production') {
   globalForDb.postgresClient = client;

@@ -73,9 +73,9 @@ export function renderLogin() {
       localStorage.setItem('ss_permissions', JSON.stringify(data.permissions || {}));
       localStorage.setItem('ss_display_name', data.displayName || data.username);
 
-      // Step 2: navigate to home (which triggers company selection)
+      // Step 2: navigate to dashboard (which triggers company selection)
       showToast('Welcome back!', 'success');
-      window.history.pushState({}, '', '/');
+      window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
       submitBtn.disabled = false;

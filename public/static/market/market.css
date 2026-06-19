@@ -1,0 +1,141 @@
+/* ==========================================================================
+   GCC Marketplace SPA — built on the ERP design tokens (theme.css).
+   Loaded after theme.css + site.css. Inherits Outfit, the green palette and
+   the sharp 4px radius.
+   ========================================================================== */
+
+.mkt-app { max-width: 1140px; margin: 0 auto; padding: 5.5rem 1.25rem 4rem; }
+.mkt-muted { color: var(--muted-foreground); }
+
+/* ── Top nav ── */
+#market-nav {
+  position: fixed; inset: 0 0 auto 0; z-index: 50;
+  display: flex; align-items: center; gap: 1.25rem;
+  padding: 0.7rem clamp(1rem, 4vw, 2rem);
+  background: color-mix(in srgb, var(--background) 85%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.mkt-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; letter-spacing: -0.02em; color: var(--foreground); }
+.mkt-nav-links { display: flex; gap: 0.25rem; flex: 1; }
+.mkt-nav-links a { padding: 0.35rem 0.7rem; border-radius: var(--radius-base); font-size: 0.85rem; font-weight: 500; color: var(--muted-foreground); }
+.mkt-nav-links a:hover { color: var(--foreground); background: var(--faint); }
+.mkt-nav-links a.active { color: var(--primary); }
+.mkt-nav-actions { display: flex; align-items: center; gap: 0.9rem; }
+.mkt-link-muted { color: var(--muted-foreground); font-size: 0.82rem; font-weight: 500; }
+.mkt-link-muted:hover { color: var(--foreground); }
+.mkt-whoami { font-size: 0.82rem; font-weight: 600; color: var(--foreground); }
+
+/* ── Buttons ── */
+.mkt-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.1rem; border: 1px solid var(--primary); border-radius: var(--radius-base);
+  background: var(--primary); color: var(--primary-foreground);
+  font-family: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mkt-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--primary) 80%, transparent); }
+.mkt-btn:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: none; }
+.mkt-btn-sm { padding: 0.4rem 0.85rem; font-size: 0.82rem; }
+.mkt-btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.5rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-base);
+  background: transparent; color: var(--foreground);
+  font-family: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+}
+.mkt-btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Feed ── */
+.mkt-feed, .mkt-detail, .mkt-form-page, .mkt-auth { max-width: 1140px; margin: 0 auto; padding: 5.5rem 1.25rem 4rem; }
+.mkt-feed-head h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em; margin: 0 0 0.4rem; }
+.mkt-feed-head p { margin: 0 0 1.5rem; }
+.mkt-search input {
+  width: 100%; max-width: 420px; padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border); border-radius: var(--radius-base);
+  background: var(--input); color: var(--foreground); font-family: inherit; font-size: 0.9rem;
+}
+.mkt-search input:focus { outline: none; border-color: var(--primary); }
+
+.mkt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.1rem; margin-top: 1.75rem; }
+.mkt-empty { grid-column: 1 / -1; padding: 3rem 1rem; text-align: center; color: var(--muted-foreground); }
+
+.mkt-card {
+  display: block; border: 1px solid var(--border); border-radius: var(--radius-card);
+  background: var(--card); overflow: hidden; color: inherit;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+.mkt-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.mkt-card-static:hover { transform: none; }
+.mkt-card-media {
+  aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center;
+  background: var(--secondary); color: var(--muted-foreground);
+  font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.mkt-card-body { padding: 0.9rem 1rem 1.1rem; }
+.mkt-card-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.mkt-card-commodity { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); }
+.mkt-card-title { display: block; font-size: 1.02rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: var(--foreground); }
+.mkt-card-price { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.02em; }
+.mkt-card-price span { font-size: 0.72rem; font-weight: 500; color: var(--muted-foreground); }
+.mkt-card-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted-foreground); }
+
+/* ── Badges ── */
+.mkt-badge { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.12rem 0.4rem; border-radius: var(--radius-base); }
+.mkt-badge-verified { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); }
+.mkt-badge-tender { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.mkt-badge-buy { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.mkt-badge-sell { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.mkt-badge-volatile { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.mkt-badge-danger { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
+
+
+/* ── Detail ── */
+.mkt-detail-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 2rem; margin-top: 1.25rem; }
+.mkt-detail-media { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; background: var(--secondary); color: var(--muted-foreground); border: 1px solid var(--border); border-radius: var(--radius-card); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.mkt-detail-info h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); font-weight: 800; letter-spacing: -0.03em; margin: 0.4rem 0 0.6rem; }
+.mkt-detail-price { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 1.25rem; }
+.mkt-detail-price span { font-size: 0.8rem; font-weight: 500; color: var(--muted-foreground); }
+.mkt-spec { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem; margin: 0 0 1.25rem; }
+.mkt-spec dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); }
+.mkt-spec dd { margin: 0.1rem 0 0; font-weight: 600; }
+.mkt-quality { border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1.25rem; }
+.mkt-quality h4 { margin: 0 0 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); }
+.mkt-quality p { margin: 0; color: var(--foreground); }
+.mkt-seller { margin-bottom: 1.25rem; color: var(--muted-foreground); }
+.mkt-detail-actions { display: flex; gap: 0.75rem; }
+
+/* ── Forms / auth ── */
+.mkt-form-page h1, .mkt-auth-card h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); font-weight: 800; letter-spacing: -0.03em; margin: 0.5rem 0 0.3rem; }
+.mkt-form { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1.5rem; max-width: 440px; }
+.mkt-form-wide { max-width: 620px; }
+.mkt-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+.mkt-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; color: var(--muted-foreground); }
+.mkt-form input, .mkt-form select, .mkt-form textarea {
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-base);
+  background: var(--input); color: var(--foreground); font-family: inherit; font-size: 0.92rem; font-weight: 400;
+}
+.mkt-form input:focus, .mkt-form select:focus, .mkt-form textarea:focus { outline: none; border-color: var(--primary); }
+.mkt-form .mkt-btn { margin-top: 0.5rem; }
+
+.mkt-auth { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
+.mkt-auth-card { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); padding: 2rem; }
+.mkt-auth-switch { margin-top: 1.25rem; font-size: 0.85rem; color: var(--muted-foreground); }
+.mkt-auth-switch a { color: var(--primary); font-weight: 600; }
+
+/* ── Toast ── */
+.mkt-toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translate(-50%, 1rem);
+  padding: 0.7rem 1.1rem; border-radius: var(--radius-base);
+  background: var(--card); color: var(--foreground); border: 1px solid var(--border);
+  font-size: 0.88rem; font-weight: 500; box-shadow: 0 12px 30px -12px rgba(0,0,0,0.5);
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 100;
+}
+.mkt-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.mkt-toast-success { border-color: var(--success); }
+.mkt-toast-error { border-color: var(--danger); }
+
+@media (max-width: 720px) {
+  .mkt-detail-grid { grid-template-columns: 1fr; }
+  .mkt-form-row { grid-template-columns: 1fr; }
+}
