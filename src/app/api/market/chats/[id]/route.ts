@@ -59,12 +59,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return unauthorized('You do not have access to this chat');
   }
 
-  // Get seller name
+  // Get seller details
   const [seller] = await db
-    .select({ name: members.name })
+    .select({ name: members.name, lastActive: members.lastActive })
     .from(members)
     .where(eq(members.id, chat.sellerId))
     .limit(1);
+
+  // Get buyer details to get lastActive for buyer in case we are seller
+  const [buyer] = await db
+    .select({ name: members.name, lastActive: members.lastActive })
+    .from(members)
+    .where(eq(members.id, chat.buyerId))
+    .limit(1);
+
+  const isBuyer = chat.buyerId === ctx.memberId;
+  const counterparty = isBuyer ? seller : buyer;
+  const isOnline = counterparty?.lastActive
+    ? (Date.now() - new Date(counterparty.lastActive).getTime() < 15000)
+    : false;
 
   // Fetch messages
   const messages = await db
@@ -73,6 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       roomId: chatMessages.roomId,
       senderId: chatMessages.senderId,
       messageText: chatMessages.messageText,
+      isRead: chatMessages.isRead,
       createdAt: chatMessages.createdAt,
     })
     .from(chatMessages)
@@ -82,8 +96,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return ok({
     chat: {
       ...chat,
-      isBuyer: chat.buyerId === ctx.memberId,
+      isBuyer,
       sellerName: seller?.name || 'Unknown Seller',
+      counterpartyName: counterparty?.name || 'Unknown Partner',
+      isOnline,
+      lastActive: counterparty?.lastActive || null,
     },
     messages,
   });
@@ -368,6 +385,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       roomId: chatMessages.roomId,
       senderId: chatMessages.senderId,
       messageText: chatMessages.messageText,
+      isRead: chatMessages.isRead,
       createdAt: chatMessages.createdAt,
     })
     .from(chatMessages)

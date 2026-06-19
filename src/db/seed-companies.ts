@@ -586,7 +586,7 @@ async function seed() {
   closeDate.setDate(closeDate.getDate() + 7);
   const [list3Row] = await db.execute(sql`
     INSERT INTO listings (member_id, listing_type, direction, commodity_id, title, quality_notes, qty_quintals, price_per_quintal, city_id, status, close_date)
-    VALUES (null, 'TENDER', 'BUY', ${cWheat}, 'Gov Wheat Procurement Tender MH-99', 'FAQ Wheat Grade A, dry, standard sacks', 1000.00, 2400.00, ${cityNanded}, 'ACTIVE', ${closeDate})
+    VALUES (null, 'TENDER', 'BUY', ${cWheat}, 'Gov Wheat Procurement Tender MH-99', 'FAQ Wheat Grade A, dry, standard sacks', 1000.00, 2400.00, ${cityNanded}, 'ACTIVE', ${closeDate.toISOString()})
     RETURNING id
   `);
   const list3Id = (list3Row as any).id;

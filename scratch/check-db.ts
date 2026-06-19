@@ -15,7 +15,7 @@ async function run() {
     await sqlSsl.end();
     return;
   } catch (err) {
-    console.log('Connection with SSL require failed:', err.message);
+    console.log('Connection with SSL require failed:', (err as any).message);
   }
 
   try {
@@ -26,7 +26,7 @@ async function run() {
     await sqlPlain.end();
     return;
   } catch (err) {
-    console.log('Connection without SSL failed:', err.message);
+    console.log('Connection without SSL failed:', (err as any).message);
   }
 }
 

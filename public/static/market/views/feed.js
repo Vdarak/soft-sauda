@@ -1,6 +1,6 @@
 /** Marketplace feed — public list of active listings + government tenders + filters. */
 import * as api from '../lib/api.js';
-import { mount, inr, qty, ago, esc, toast } from '../lib/ui';
+import { mount, inr, qty, ago, esc, toast } from '../lib/ui.js';
 
 function formatCloseDate(dateStr) {
   if (!dateStr) return 'No deadline';

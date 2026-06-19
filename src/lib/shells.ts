@@ -258,6 +258,7 @@ export const MARKET_SHELL = `<!DOCTYPE html>
 <body>
   <header id="market-nav"><!-- nav rendered by app.js --></header>
   <main id="app"><!-- marketplace views rendered here --></main>
+  <div id="market-chat-container" class="mkt-chat-container"></div>
   <script type="module" src="/static/market/app.js"></script>
 </body>
 </html>`;

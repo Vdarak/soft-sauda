@@ -479,6 +479,7 @@ export const members = pgTable("members", {
   isVerified: boolean("is_verified").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   lastLogin: timestamp("last_login"),
+  lastActive: timestamp("last_active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => ({
@@ -556,6 +557,7 @@ export const chatMessages = pgTable("chat_messages", {
   roomId: integer("room_id").references(() => chats.id, { onDelete: "cascade" }).notNull(),
   senderId: integer("sender_id").references(() => members.id, { onDelete: "cascade" }), // null if system message
   messageText: text("message_text").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   idxRoomId: index("idx_chat_messages_room_id").on(t.roomId),

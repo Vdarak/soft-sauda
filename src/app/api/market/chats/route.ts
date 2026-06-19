@@ -7,7 +7,7 @@ import { badRequest, created, forbidden, ok, unauthorized } from '@/lib/api-help
 import { getMemberContext } from '@/lib/market-auth';
 import { db } from '@/db';
 import { chats, chatMessages, listings, commodities, members } from '@/db/schema';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, or, sql, ne } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
   const ctx = await getMemberContext(req);
@@ -30,14 +30,17 @@ export async function GET(req: NextRequest) {
       listingTitle: listings.title,
       commodityName: commodities.name,
       buyerName: members.name,
-      // We will project counterparty name in the API logic.
     })
     .from(chats)
     .innerJoin(listings, eq(chats.listingId, listings.id))
     .leftJoin(commodities, eq(listings.commodityId, commodities.id))
-    .leftJoin(members, eq(chats.buyerId, members.id)) // Joined first for buyerName
+    .leftJoin(members, eq(chats.buyerId, members.id))
     .where(or(eq(chats.buyerId, ctx.memberId), eq(chats.sellerId, ctx.memberId)))
     .orderBy(desc(chats.updatedAt));
+
+  if (rows.length === 0) {
+    return ok({ chats: [] });
+  }
 
   // Enrich with counterparty info
   const memberIds = new Set<number>();
@@ -46,27 +49,52 @@ export async function GET(req: NextRequest) {
     memberIds.add(r.sellerId);
   });
 
-  const memberRows = memberIds.size > 0 ? await db
-    .select({ id: members.id, name: members.name })
+  const memberRows = await db
+    .select({ id: members.id, name: members.name, lastActive: members.lastActive })
     .from(members)
-    .where(sql`${members.id} IN (${sql.join(Array.from(memberIds).map(id => sql`${id}`), sql`, `)})`) : [];
+    .where(sql`${members.id} IN (${sql.join(Array.from(memberIds).map(id => sql`${id}`), sql`, `)})`);
 
-  const memberMap = new Map(memberRows.map(m => [m.id, m.name]));
+  const memberMap = new Map(memberRows.map(m => [m.id, m]));
+
+  // Count unread messages per room for this user
+  const unreadCounts = await db
+    .select({
+      roomId: chatMessages.roomId,
+      count: sql<number>`count(${chatMessages.id})::int`,
+    })
+    .from(chatMessages)
+    .where(
+      and(
+        sql`${chatMessages.roomId} IN (${sql.join(rows.map(r => sql`${r.id}`), sql`, `)})`,
+        ne(chatMessages.senderId, ctx.memberId),
+        eq(chatMessages.isRead, false)
+      )
+    )
+    .groupBy(chatMessages.roomId);
+
+  const unreadMap = new Map(unreadCounts.map(u => [u.roomId, u.count]));
 
   const chatsEnriched = rows.map(r => {
     const isBuyer = r.buyerId === ctx.memberId;
     const counterpartyId = isBuyer ? r.sellerId : r.buyerId;
+    const counterparty = memberMap.get(counterpartyId);
+    
+    const isOnline = counterparty?.lastActive 
+      ? (Date.now() - new Date(counterparty.lastActive).getTime() < 15000) 
+      : false;
+
     return {
       ...r,
       isBuyer,
-      counterpartyName: memberMap.get(counterpartyId) || 'Unknown Member',
+      counterpartyName: counterparty?.name || 'Unknown Member',
+      isOnline,
+      lastActive: counterparty?.lastActive || null,
+      unreadCount: unreadMap.get(r.id) || 0,
     };
   });
 
   return ok({ chats: chatsEnriched });
 }
-
-import { sql } from 'drizzle-orm';
 
 interface StartChatBody {
   listingId: number;

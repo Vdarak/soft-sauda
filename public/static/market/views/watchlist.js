@@ -20,7 +20,6 @@ export async function renderWatchlist() {
       <!-- Dashboard Navigation Tabs -->
       <div class="mkt-dashboard-tabs" style="display:flex; gap:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.25rem; margin-bottom:1.5rem;">
         <button class="mkt-dash-tab active" data-tab="watchlist" style="background:transparent; border:none; padding:0.5rem 1rem; cursor:pointer; font-weight:700; font-size:0.9rem; color:var(--primary); transition:all 0.2s; border-bottom:2px solid var(--primary);">Watchlist</button>
-        <button class="mkt-dash-tab" data-tab="chats" style="background:transparent; border:none; padding:0.5rem 1rem; cursor:pointer; font-weight:700; font-size:0.9rem; color:var(--muted-foreground); transition:all 0.2s; border-bottom:2px solid transparent;">Negotiations</button>
         <button class="mkt-dash-tab" data-tab="bids" style="background:transparent; border:none; padding:0.5rem 1rem; cursor:pointer; font-weight:700; font-size:0.9rem; color:var(--muted-foreground); transition:all 0.2s; border-bottom:2px solid transparent;">My Bids</button>
       </div>
 
@@ -115,54 +114,6 @@ export async function renderWatchlist() {
     }
   }
 
-  async function loadChats() {
-    contentEl.className = 'mkt-grid';
-    contentEl.innerHTML = '<div class="mkt-empty">Loading negotiations…</div>';
-    try {
-      const { chats } = await api.get('/chats');
-      if (!chats || !chats.length) {
-        contentEl.innerHTML = `<div class="mkt-empty" style="grid-column: 1/-1;">No active negotiations. Tap "Bargain Privately" on any active open listing to start.</div>`;
-        return;
-      }
-      
-      contentEl.innerHTML = chats
-        .map(
-          (c) => {
-            const isAgreed = c.status === 'AGREED';
-            const statusBadge = isAgreed 
-              ? '<span class="mkt-badge mkt-badge-verified">Agreed</span>' 
-              : (c.status === 'CANCELLED' ? '<span class="mkt-badge mkt-badge-danger">Cancelled</span>' : '<span class="mkt-badge mkt-badge-tender">Negotiating</span>');
-            
-            const priceInfo = isAgreed 
-              ? `<div style="font-size:0.95rem; font-weight:700; color:var(--success); margin:0.25rem 0;">Closed Rate: ${inr(c.agreedBuyerPrice)}</div>`
-              : `<div class="mkt-muted" style="font-size:0.75rem; margin:0.25rem 0;">Buyer: ${c.agreedBuyerPrice ? inr(c.agreedBuyerPrice) : '—'} | Seller: ${c.agreedSellerPrice ? inr(c.agreedSellerPrice) : '—'}</div>`;
-
-            return `
-              <div class="mkt-card mkt-card-static" style="${isAgreed ? 'border-color:var(--success);' : ''}">
-                <div class="mkt-card-body" style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
-                  <div>
-                    <div class="mkt-card-row" style="justify-content:space-between;">
-                      <span class="mkt-card-commodity">${esc(c.commodityName || 'Commodity')}</span>
-                      ${statusBadge}
-                    </div>
-                    <h3 class="mkt-card-title" style="margin-bottom:0.25rem;">${esc(c.listingTitle)}</h3>
-                    <div class="mkt-muted" style="font-size:0.78rem;">With ${esc(c.counterpartyName)}</div>
-                    ${priceInfo}
-                  </div>
-                  <div style="margin-top:1rem;">
-                    <a class="mkt-btn mkt-btn-sm" data-route href="/market/chat/${c.id}" style="width:100%;">${isAgreed ? 'View Contract Details' : 'Enter Chat & Bargain'}</a>
-                  </div>
-                </div>
-              </div>
-            `;
-          }
-        )
-        .join('');
-    } catch (e) {
-      contentEl.innerHTML = `<div class="mkt-empty" style="grid-column:1/-1;">${esc(e.message)}</div>`;
-    }
-  }
-
   async function loadBids() {
     contentEl.className = 'mkt-grid';
     contentEl.innerHTML = '<div class="mkt-empty">Loading bids…</div>';
@@ -220,7 +171,6 @@ export async function renderWatchlist() {
       currentTab = tabBtn.dataset.tab;
       
       if (currentTab === 'watchlist') loadWatchlist();
-      else if (currentTab === 'chats') loadChats();
       else if (currentTab === 'bids') loadBids();
     });
   });
