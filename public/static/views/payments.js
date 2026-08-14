@@ -1,338 +1,277 @@
 /**
- * Payments View — List + Create/Edit form with bill allocation and outstanding auto-fills
+ * Payments View (Single-Viewport Compact Paper Form Design)
+ * Left Pane: Searchable Payment Voucher List
+ * Right Pane: 100% Viewport Fit Multi-Column Voucher Form
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
+import { Icons, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
-import { clientCache } from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
-import { autocomp } from '../vendor/autocomp.js';
-
 
 export async function renderPaymentList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
-  const page = ctx && ctx.location && ctx.location.search ? parseInt(new URLSearchParams(ctx.location.search).get('page') || '1', 10) : 1;
-  const limit = 50;
-
-  try {
-    const data = await api.get('/payments');
-    
-    const renderRows = (items) => items.map(c => `
-      <tr>
-        <td>
-          <div style="font-weight:600">Ref #${c.id}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${formatDate(c.paymentDate)}</div>
-        </td>
-        <td>
-          <div style="font-weight:600">${escapeHtml(c.partyName || 'Unknown')}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">Method: ${c.instrumentType} ${c.instrumentNo ? `(${c.instrumentNo})` : ''}</div>
-        </td>
-        <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
-        <td style="text-align:right" onclick="event.stopPropagation()">
-          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
-            <a href="/payments/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
-            <button class="small secondary print-row-btn" data-id="${c.id}" data-entity="payments">${Icons.printer}</button>
-            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="payments">${Icons.trash}</button>
-          </div>
-        </td>
-      </tr>
-    `);
-
-    const totalAmount = data.reduce((sum, c) => sum + parseFloat(c.amount || '0'), 0);
-    const footerHtml = `
-      <tfoot>
-        <tr style="font-weight: bold; background: var(--faint);">
-          <td colspan="2">Total</td>
-          <td style="text-align: right;" class="mono">${formatCurrency(totalAmount)}</td>
-          <td></td>
-        </tr>
-      </tfoot>
-    `;
-
-    app.innerHTML = `
-      ${PageHeader({ title: 'Payments', actions: `
-        <button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button>
-        <button class="secondary" id="btn-export-payments" style="margin-right:0.5rem">${Icons.download} Export Excel</button>
-        <a href="/payments/new" data-route><button class="primary">${Icons.plus} New Payment</button></a>
-      ` })}
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
-        <div class="form-group" style="margin:0; flex:1; position:relative">
-          <input type="text" id="search-payments" placeholder="Search payments..." style="padding-left:2.5rem; width:100%">
-          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
-        </div>
-      </div>
-      ${DataTable({
-        id: 'payments-table',
-        count: data.length,
-        headers: [ { label: 'Reference & Date' }, { label: 'Party & Method' }, { label: 'Amount', style: 'text-align:right' }, { label: 'Actions', style: 'text-align:right' } ],
-        rows: renderRows(data),
-        footer: footerHtml
-      })}
-    `;
-
-    document.getElementById('btn-export-payments')?.addEventListener('click', () => {
-      import('../components/ui.js').then(ui => ui.exportToExcel('/payments/export', 'payments'));
-    });
-
-    import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-payments', document.querySelector('#payments-table tbody'), data, renderRows);
-    });
-  } catch (err) { app.innerHTML = `${PageHeader({ title: 'Payments' })}<div class="alert danger">${err.message}</div>`; }
-}
-
-export async function renderPaymentForm(id) {
-  const app = document.getElementById('app');
-  const isEdit = !!id;
-  app.innerHTML = Spinner();
 
   try {
     const allPayments = await api.get('/payments');
-    let payment = {};
-    if (isEdit) {
-      payment = await api.get(`/payments/${id}`);
+    renderPaymentForm(null, allPayments);
+  } catch (err) {
+    app.innerHTML = `<div class="alert danger">${err.message || 'Failed to load payments'}</div>`;
+  }
+}
+
+export async function renderPaymentForm(id = null, preloadedList = null) {
+  const app = document.getElementById('app');
+  const isEdit = !!id;
+
+  let allPayments = preloadedList || [];
+  if (allPayments.length === 0) {
+    try {
+      allPayments = await api.get('/payments');
+    } catch (e) {
+      console.warn('Failed to load payments list', e);
     }
+  }
 
-    const allocatedBillId = payment.allocations?.[0]?.billId || '';
+  let payment = {};
+  if (isEdit) {
+    try {
+      payment = await api.get(`/payments/${id}`);
+    } catch (err) {
+      showToast(err.message || 'Failed to load payment record', 'error');
+    }
+  }
 
-    app.innerHTML = `
-      <a href="/payments" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Payments</a>
-      <div class="dual-pane-container">
-        <!-- Left Sidebar -->
-        <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT PAYMENT</h3>
-            <input type="text" id="alter-payment-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
+  const allocatedBillId = payment.allocations?.[0]?.billId || '';
+
+  app.innerHTML = `
+    <div class="single-viewport-container">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+        <div>
+          <h2 style="font-size: 1.1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+            ${Icons.creditCard} Payment & Receipt Vouchers
+          </h2>
+          <p style="font-size: 0.725rem; color: var(--muted-foreground); margin: 0;">
+            Record party payment receipts, cheque/DD clearing details, courier tracking, and bill settlements.
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.4rem;">
+          <button id="btn-export-payments" class="secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+            ${Icons.download} Export
+          </button>
+          <button id="btn-new-payment" class="primary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+            + New Voucher
+          </button>
+        </div>
+      </div>
+
+      <div class="split-pane-wrapper">
+        <!-- LEFT PANE: Searchable Payment List -->
+        <div class="split-pane-list">
+          <div class="split-pane-list-header">
+            <input type="text" id="search-payments" class="compact-input" placeholder="Search party, instrument, bank..." />
+            <span id="payment-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">${allPayments.length}</span>
           </div>
-          <div id="alter-payments-list" style="flex: 1; overflow-y: auto;">
-            ${allPayments.map(p => `
-              <div class="alter-list-item ${p.id == id ? 'active-item' : ''}" data-id="${p.id}">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
-                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Ref #${p.id}</div>
-                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${p.id}</div>
+          <div class="split-pane-list-body" id="payments-list-items">
+            ${allPayments.length === 0 ? `
+              <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
+                No payment vouchers found. Click "+ New Voucher" to create.
+              </div>
+            ` : allPayments.map(p => `
+              <div class="split-pane-list-item ${String(p.id) === String(id) ? 'selected' : ''}" data-id="${p.id}">
+                <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between;">
+                  <span>Ref #${p.id} (${escapeHtml(p.partyName || 'Party')})</span>
+                  <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary);">₹${formatCurrency(p.amount)}</span>
                 </div>
-                <div class="subtitle">${escapeHtml(p.partyName || 'Unknown')} (Amt: ₹${p.amount})</div>
+                <div style="font-size: 0.725rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  Method: ${escapeHtml(p.instrumentType || 'CHEQUE')} ${p.instrumentNo ? `(${escapeHtml(p.instrumentNo)})` : ''}
+                </div>
+                <div style="font-size: 0.675rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.15rem;">
+                  <span>${formatDate(p.paymentDate)}</span>
+                  <span>Bank: ${escapeHtml(p.depositedBank || 'Cash')}</span>
+                </div>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <!-- Right Pane: Master Form -->
-        <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
-          
-          <form id="payment-form">
-            <div class="form-grid">
-              ${FormGroup({ id: 'partySearch', label: 'Party', value: payment.partyName || '', placeholder: 'Start typing to search...', required: !isEdit })}
-              
-              <div class="form-group">
-                <label for="billSearch">Allocate to Outstanding Bill *</label>
-                <input type="text" id="billSearch" placeholder="-- Search Party First --" style="width: 100%;" required readonly>
-                <input type="hidden" id="billId" name="billId" value="${allocatedBillId}" required>
+        <!-- RIGHT PANE: Compact Paper Form -->
+        <div class="split-pane-form" id="payment-form-pane">
+          <div class="paper-form-header">
+            <h3 style="font-size: 0.875rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.4rem;" id="form-title">
+              ${Icons.fileText} ${isEdit ? `EDIT PAYMENT VOUCHER #${payment.id}` : 'NEW PAYMENT VOUCHER'}
+            </h3>
+            <span class="badge" id="form-status-badge" style="font-size: 0.675rem;">${isEdit ? 'Editing' : 'New Record'}</span>
+          </div>
+
+          <form id="payment-form" class="paper-form-body">
+            <input type="hidden" id="payment-id" value="${payment.id || ''}" />
+
+            <div class="form-grid-3">
+              <div class="compact-group">
+                <label class="compact-label">Party Name*</label>
+                <input type="text" id="partySearch" class="compact-input" required value="${escapeHtml(payment.partyName || '')}" placeholder="Search party..." />
+                <input type="hidden" id="partyId" value="${payment.partyId || ''}" />
               </div>
-
-              ${FormGroup({ id: 'paymentDate', label: 'Payment Date', value: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
-              ${FormGroup({ id: 'amount', label: 'Amount (₹)', value: payment.amount || '', type: 'number', required: true })}
-              ${FormGroup({ id: 'instrumentType', label: 'Payment Method', value: payment.instrumentType || '', type: 'select', options: [{ value: 'CASH', label: 'Cash' }, { value: 'CHEQUE', label: 'Cheque' }, { value: 'RTGS', label: 'RTGS/NEFT' }, { value: 'UPI', label: 'UPI' }] })}
-              ${FormGroup({ id: 'instrumentNo', label: 'Reference No.', value: payment.instrumentNo || '' })}
-              ${FormGroup({ id: 'depositedBank', label: 'Deposited Bank', value: payment.depositedBank || '' })}
+              <div class="compact-group">
+                <label class="compact-label">Payment Date*</label>
+                <input type="date" id="paymentDate" class="compact-input" required value="${payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}" />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Voucher Amount (₹)*</label>
+                <input type="number" step="0.01" id="amount" class="compact-input" required value="${payment.amount || ''}" placeholder="e.g. 50000.00" />
+              </div>
             </div>
+
+            <!-- INSTRUMENT & BANKING DETAILS -->
+            <div class="form-grid-4">
+              <div class="compact-group">
+                <label class="compact-label">Payment Method*</label>
+                <select id="instrumentType" class="compact-select">
+                  <option value="CHEQUE" ${payment.instrumentType === 'CHEQUE' ? 'selected' : ''}>CHEQUE</option>
+                  <option value="DD" ${payment.instrumentType === 'DD' ? 'selected' : ''}>DEMAND DRAFT (DD)</option>
+                  <option value="NEFT" ${payment.instrumentType === 'NEFT' ? 'selected' : ''}>NEFT / RTGS / IMPS</option>
+                  <option value="CASH" ${payment.instrumentType === 'CASH' ? 'selected' : ''}>CASH</option>
+                  <option value="UPI" ${payment.instrumentType === 'UPI' ? 'selected' : ''}>UPI / ONLINE</option>
+                </select>
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Cheque / Ref No.</label>
+                <input type="text" id="instrumentNo" class="compact-input" value="${escapeHtml(payment.instrumentNo || '')}" placeholder="Cheque or UTR No." />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Instrument Date</label>
+                <input type="date" id="instrumentDate" class="compact-input" value="${payment.instrumentDate ? new Date(payment.instrumentDate).toISOString().split('T')[0] : ''}" />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Deposit Bank</label>
+                <input type="text" id="depositedBank" class="compact-input" value="${escapeHtml(payment.depositedBank || '')}" placeholder="Bank Account Name" />
+              </div>
+            </div>
+
+            <!-- COURIER & LOGISTICS DETAILS -->
+            <div class="form-grid-3">
+              <div class="compact-group">
+                <label class="compact-label">Courier Service</label>
+                <input type="text" id="courierName" class="compact-input" value="${escapeHtml(payment.courierName || '')}" placeholder="e.g. DTDC / Tirupati" />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Courier Docket / Tracking No.</label>
+                <input type="text" id="courierReceiptNo" class="compact-input" value="${escapeHtml(payment.courierReceiptNo || '')}" placeholder="Tracking No." />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Courier Charges (₹)</label>
+                <input type="number" step="0.01" id="courierCharges" class="compact-input" value="${payment.courierCharges || ''}" placeholder="e.g. 150.00" />
+              </div>
+            </div>
+
+            <!-- BILL ALLOCATION -->
+            <div class="compact-group" style="margin-top: 0.3rem;">
+              <label class="compact-label">Allocate to Outstanding Bill</label>
+              <input type="text" id="billSearch" class="compact-input" value="${allocatedBillId ? `Bill #${allocatedBillId}` : ''}" placeholder="Search outstanding bills for party..." />
+              <input type="hidden" id="billId" value="${allocatedBillId}" />
+            </div>
+
+            <div class="form-grid-2" style="margin-top: 0.3rem;">
+              <div class="compact-group">
+                <label class="compact-label">Primary Remarks</label>
+                <input type="text" id="remarks1" class="compact-input" value="${escapeHtml(payment.remarks1 || '')}" placeholder="Voucher description..." />
+              </div>
+              <div class="compact-group">
+                <label class="compact-label">Secondary Remarks</label>
+                <input type="text" id="remarks2" class="compact-input" value="${escapeHtml(payment.remarks2 || '')}" placeholder="Additional notes..." />
+              </div>
+            </div>
+
             ${isEdit ? AuditMetadataBlock(payment) : ''}
-
-            <div class="form-actions">
-              <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Payment</button>
-              ${isEdit ? `<button type="button" class="secondary" id="btn-print-payment">${Icons.printer} Print</button>` : ''}
-              ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-              <a href="/payments" data-route><button type="button" class="secondary">Cancel</button></a>
-            </div>
           </form>
+
+          <div class="paper-form-footer">
+            ${isEdit ? `
+              <button type="button" id="btn-delete-payment" class="danger" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+                ${Icons.trash} Delete
+              </button>
+              <button type="button" id="btn-print-payment" class="secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+                ${Icons.printer} Print Voucher
+              </button>
+            ` : ''}
+            <button type="button" id="btn-reset-payment" class="secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+              ${Icons.refresh} Reset
+            </button>
+            <button type="submit" form="payment-form" class="primary" style="height: 28px; font-size: 0.75rem; padding: 0 0.8rem;">
+              ${Icons.save} ${isEdit ? 'Update' : 'Save'} Voucher (Enter)
+            </button>
+          </div>
         </div>
       </div>
-    `;
+    </div>
+  `;
 
-    let activePartyBills = [];
+  attachPartyAutocomp('partySearch', (name, party) => {
+    if (party) {
+      document.getElementById('partyId').value = party.id;
+    }
+  });
 
-    const loadPartyBills = async (partyId, selectedBillId = null) => {
-      const billSearch = document.getElementById('billSearch');
-      const billIdInput = document.getElementById('billId');
-      if (!billSearch || !billIdInput) return;
-      
-      billSearch.placeholder = 'Loading outstanding bills...';
-      billSearch.readOnly = true;
-      
+  // Split pane handlers
+  document.querySelectorAll('.split-pane-list-item').forEach(item => {
+    item.addEventListener('click', () => {
+      renderPaymentForm(item.getAttribute('data-id'), allPayments);
+    });
+  });
+
+  document.getElementById('search-payments').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.split-pane-list-item').forEach(item => {
+      item.style.display = item.textContent.toLowerCase().includes(q) ? 'block' : 'none';
+    });
+  });
+
+  document.getElementById('btn-new-payment').addEventListener('click', () => renderPaymentForm(null, allPayments));
+  document.getElementById('btn-reset-payment')?.addEventListener('click', () => renderPaymentForm(null, allPayments));
+
+  if (isEdit) {
+    document.getElementById('btn-delete-payment')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this payment voucher?')) return;
       try {
-        const billsList = clientCache.get('/bills') || await api.get('/bills');
-        activePartyBills = billsList.filter(b => {
-          const isTarget = b.partyId === partyId;
-          const hasBalance = parseFloat(b.balanceAmount || '0') > 0;
-          const isCurrent = selectedBillId && String(b.id) === String(selectedBillId);
-          return isTarget && (hasBalance || isCurrent);
-        });
-        
-        if (activePartyBills.length === 0) {
-          billSearch.placeholder = 'No outstanding bills found for this party';
-          billSearch.value = '';
-          billIdInput.value = '';
-          return;
-        }
-        
-        billSearch.placeholder = 'Type to search outstanding bills...';
-        billSearch.readOnly = false;
-        
-        if (selectedBillId) {
-          const matchedBill = activePartyBills.find(b => String(b.id) === String(selectedBillId));
-          if (matchedBill) {
-            billSearch.value = `Bill #${matchedBill.billNo} - Date: ${formatDate(matchedBill.billDate)} - Balance: ₹${matchedBill.balanceAmount}`;
-            billIdInput.value = selectedBillId;
-          }
-        } else {
-          billSearch.value = '';
-          billIdInput.value = '';
-        }
+        await api.del(`/api/payments/${payment.id}`);
+        showToast('Payment voucher deleted', 'success');
+        renderPaymentForm(null);
       } catch (err) {
-        billSearch.placeholder = 'Error loading bills';
-        console.error(err);
+        showToast(err.message || 'Failed to delete payment voucher', 'error');
       }
+    });
+  }
+
+  // Form submit handler
+  document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const payload = {
+      partyId: parseInt(document.getElementById('partyId').value || '1', 10),
+      paymentDate: document.getElementById('paymentDate').value,
+      amount: document.getElementById('amount').value,
+      instrumentType: document.getElementById('instrumentType').value,
+      instrumentNo: document.getElementById('instrumentNo').value.trim() || null,
+      instrumentDate: document.getElementById('instrumentDate').value || null,
+      depositedBank: document.getElementById('depositedBank').value.trim() || null,
+      courierReceiptNo: document.getElementById('courierReceiptNo').value.trim() || null,
+      courierCharges: document.getElementById('courierCharges').value || null,
+      remarks1: document.getElementById('remarks1').value.trim() || null,
+      remarks2: document.getElementById('remarks2').value.trim() || null,
+      billId: document.getElementById('billId').value ? parseInt(document.getElementById('billId').value, 10) : null,
     };
 
-    // Party autocomplete with auto-fill outstanding bills callback
-    attachPartyAutocomp('partySearch', (name, party) => {
-      if (party) {
-        loadPartyBills(party.id);
+    try {
+      if (isEdit) {
+        await api.put(`/api/payments/${payment.id}`, payload);
+        showToast('Payment voucher updated successfully', 'success');
       } else {
-        activePartyBills = [];
-        const bs = document.getElementById('billSearch');
-        const bi = document.getElementById('billId');
-        if (bs) {
-          bs.placeholder = '-- Search Party First --';
-          bs.value = '';
-          bs.readOnly = true;
-        }
-        if (bi) {
-          bi.value = '';
-        }
+        await api.post('/api/payments', payload);
+        showToast('New payment voucher saved successfully', 'success');
       }
-    });
-
-    const billSearch = document.getElementById('billSearch');
-    const billIdInput = document.getElementById('billId');
-    const amountInput = document.getElementById('amount');
-
-    if (billSearch) {
-      autocomp(billSearch, {
-        onQuery: async (val) => {
-          if (!val || val.trim() === '') return [];
-          const q = val.toLowerCase();
-          const matches = activePartyBills.filter(b => {
-            return String(b.billNo).toLowerCase().includes(q) || 
-                   formatDate(b.balanceAmount || '').toLowerCase().includes(q) ||
-                   String(b.balanceAmount).includes(q);
-          });
-          billSearch._matches = matches;
-          return matches.map(b => `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`);
-        },
-        onSelect: (val) => {
-          let matched = null;
-          if (billSearch._matches) {
-            matched = billSearch._matches.find(b => {
-              const label = `Bill #${b.billNo} - Date: ${formatDate(b.billDate)} - Balance: ₹${b.balanceAmount}`;
-              return label === val;
-            });
-          }
-          if (matched) {
-            billIdInput.value = matched.id;
-            if (amountInput && !amountInput.value.trim()) {
-              amountInput.value = parseFloat(matched.balanceAmount).toFixed(2);
-            }
-            const displayVal = `Bill #${matched.billNo} - Date: ${formatDate(matched.billDate)} - Balance: ₹${matched.balanceAmount}`;
-            billSearch.value = displayVal;
-            return displayVal;
-          }
-          return val;
-        }
-      });
-
-      billSearch.addEventListener('input', (e) => {
-        if (!e.target.value.trim()) {
-          billIdInput.value = '';
-        }
-      });
+      renderPaymentForm(null);
+    } catch (err) {
+      showToast(err.message || 'Failed to save payment voucher', 'error');
     }
-
-    // Load initial bills dropdown in Edit mode
-    if (isEdit && payment.partyId) {
-      loadPartyBills(payment.partyId, allocatedBillId);
-    }
-
-    document.getElementById('payment-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
-      const ogHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Saving...';
-
-      const fd = collectFormData('payment-form');
-      // Remove search-only field
-      delete fd.partySearch;
-
-      try {
-        if (isEdit) {
-          await api.put(`/payments/${id}`, fd);
-          showToast('Payment updated');
-        } else {
-          await api.post('/payments', fd);
-          showToast('Payment recorded & bill balance updated');
-        }
-        
-        window.history.pushState({}, '', '/payments');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      } catch (err) {
-        btn.disabled = false;
-        btn.innerHTML = ogHtml;
-        showToast(err.message, 'error');
-      }
-    });
-
-    if (isEdit) {
-      document.getElementById('btn-print-payment')?.addEventListener('click', () => {
-        if (id) window.open(`/api/pdf/payment/${id}`, '_blank');
-      });
-
-      document.getElementById('btn-delete').addEventListener('click', async (e) => {
-        const btn = e.target.closest('button');
-        const ogHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;display:inline-block;border-color:currentColor;border-top-color:transparent"></span> Deleting...';
-        try {
-          await api.del(`/payments/${id}`);
-          window.history.pushState({}, '', '/payments');
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        } catch (err) {
-          btn.disabled = false;
-          btn.innerHTML = ogHtml;
-          alert(err.message);
-        }
-      });
-    }
-
-    // Sidebar search filter
-    document.getElementById('alter-payment-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase();
-      const items = document.querySelectorAll('#alter-payments-list .alter-list-item');
-      items.forEach(item => {
-        const txt = item.textContent.toLowerCase();
-        item.style.display = txt.includes(q) ? '' : 'none';
-      });
-    });
-
-    // Handle click on sidebar item to navigate without full page load
-    document.getElementById('alter-payments-list')?.addEventListener('click', (e) => {
-      const item = e.target.closest('.alter-list-item');
-      if (!item) return;
-      const targetId = item.getAttribute('data-id');
-      window.history.pushState({}, '', `/payments/${targetId}`);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-
-  } catch (err) {
-    app.innerHTML = `<div class="alert danger">Failed to initialize: ${err.message}</div>`;
-  }
+  });
 }

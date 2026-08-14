@@ -226,17 +226,26 @@ export const contracts = pgTable("contracts", {
   // Company & Fiscal Year Scoping
   companyId: integer("company_id").references(() => companies.id).notNull(),
   fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
-  // Business Fields
+  // Business & Voucher Fields
   saudaNo: integer("sauda_no").notNull(),
-  saudaBook: text("sauda_book").notNull(),
+  saudaBook: text("sauda_book").notNull(),          // e.g. "SD"
   saudaPrefix: text("sauda_prefix"),
   saudaDate: timestamp("sauda_date").defaultNow().notNull(),
   status: contractStatusEnum("status").default('ACTIVE').notNull(),
   deliveryTerm: text("delivery_term"),
-  // Payment terms (WS1)
+  // Delivery station & period
+  fromCityId: integer("from_city_id").references(() => cities.id),
+  toCityId: integer("to_city_id").references(() => cities.id),
+  deliveryFromDate: text("delivery_from_date"),
+  deliveryToDate: text("delivery_to_date"),
+  deliveryDetails: text("delivery_details"),
+  // Payment terms & Discount
   paymentTermType: paymentTermTypeEnum("payment_term_type").default('DISCOUNT'),
   paymentPercent: numeric("payment_percent", { precision: 5, scale: 2 }),
   paymentDays: integer("payment_days"),
+  cashDiscountRate: numeric("cash_discount_rate", { precision: 10, scale: 2 }),
+  paymentDetails: text("payment_details"),
+  cFormRequired: boolean("c_form_required").default(false),
   deliveryDeadlineDate: timestamp("delivery_deadline_date"),
   approxWeight: numeric("approx_weight", { precision: 15, scale: 3 }),
   quantityTolerance: numeric("quantity_tolerance", { precision: 5, scale: 2 }),
@@ -245,8 +254,31 @@ export const contracts = pgTable("contracts", {
   taxFormRequired: text("tax_form_required"),
   poNumber: text("po_number"),
   poDate: timestamp("po_date"),
+  termId: integer("term_id").references(() => termsConditions.id),
   termsAndConditions: text("terms_and_conditions"),
   customRemarks: text("custom_remarks"),
+  // Freight & Logistics
+  truckNo: text("truck_no"),
+  freightRate: numeric("freight_rate", { precision: 15, scale: 2 }),
+  freightAmount: numeric("freight_amount", { precision: 15, scale: 2 }),
+  freightAdvance: numeric("freight_advance", { precision: 15, scale: 2 }),
+  transporterId: integer("transporter_id").references(() => transporters.id),
+  shippingMark: text("shipping_mark"),
+  weightTerms: text("weight_terms"),
+  priceTerms: text("price_terms"),
+  // Additions, Deductions & Bargain
+  addition1Remark: text("addition_1_remark"),
+  addition1Amount: numeric("addition_1_amount", { precision: 15, scale: 2 }),
+  deduction1Remark: text("deduction_1_remark"),
+  deduction1Amount: numeric("deduction_1_amount", { precision: 15, scale: 2 }),
+  bargainAmount: numeric("bargain_amount", { precision: 15, scale: 2 }),
+  totalBillAmount: numeric("total_bill_amount", { precision: 15, scale: 2 }),
+  // Brokerage & Contact Overrides
+  brokerageApplicable: boolean("brokerage_applicable").default(true),
+  sellerContactPerson: text("seller_contact_person"),
+  sellerBrokerContact: text("seller_broker_contact"),
+  buyerContactPerson: text("buyer_contact_person"),
+  buyerBrokerContact: text("buyer_broker_contact"),
   // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -272,14 +304,29 @@ export const contractParties = pgTable("contract_parties", {
 export const contractLines = pgTable("contract_lines", {
   id: serial("id").primaryKey(),
   contractId: integer("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
+  lineNo: integer("line_no").default(1).notNull(),
+  partyId: integer("party_id").references(() => parties.id),
   commodityId: integer("commodity_id").references(() => commodities.id).notNull(),
   packagingId: integer("packaging_id").references(() => commodityPackaging.id),
+  brandId: integer("brand_id").references(() => brands.id),
   brand: text("brand"),
-  numberOfLorries: integer("number_of_lorries"),  // WS3: expected number of trucks
+  innerPacking: text("inner_packing"),
+  numberOfLorries: integer("number_of_lorries"),
   quantityBags: numeric("quantity_bags", { precision: 15, scale: 2 }),
+  packWeight: numeric("pack_weight", { precision: 10, scale: 3 }),
   weightQuintals: numeric("weight_quintals", { precision: 15, scale: 3 }).notNull(),
+  dispatchedWeight: numeric("dispatched_weight", { precision: 15, scale: 3 }).default('0.000'),
+  balanceWeight: numeric("balance_weight", { precision: 15, scale: 3 }),
+  grossOrNet: text("gross_or_net").default('G'),
   rate: numeric("rate", { precision: 15, scale: 2 }).notNull(),
+  ratePerUnit: numeric("rate_per_unit", { precision: 15, scale: 2 }),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  // Brokerage per line
+  sellerBrokerageRate: numeric("seller_brokerage_rate", { precision: 10, scale: 2 }),
+  sellerBrokerageAmount: numeric("seller_brokerage_amount", { precision: 15, scale: 2 }),
+  buyerBrokerageRate: numeric("buyer_brokerage_rate", { precision: 10, scale: 2 }),
+  buyerBrokerageAmount: numeric("buyer_brokerage_amount", { precision: 15, scale: 2 }),
+  linkedBillId: integer("linked_bill_id"),
 }, (t) => ({
   idxContractId: index("idx_contract_lines_contract_id").on(t.contractId),
   idxCommodityId: index("idx_contract_lines_commodity_id").on(t.commodityId),
@@ -377,10 +424,18 @@ export const payments = pgTable("payments", {
   // Business Fields
   paymentDate: timestamp("payment_date").defaultNow().notNull(),
   partyId: integer("party_id").references(() => parties.id).notNull(),
-  instrumentType: text("instrument_type").notNull(), // 'CHEQUE', 'NEFT', 'CASH'
+  instrumentType: text("instrument_type").notNull(), // 'CHEQUE', 'DD', 'NEFT', 'RTGS', 'CASH'
   instrumentNo: text("instrument_no"),
+  instrumentDate: timestamp("instrument_date"),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  depositBankId: integer("deposit_bank_id").references(() => banks.id),
   depositedBank: text("deposited_bank"),
+  depositAccountNo: text("deposit_account_no"),
+  courierId: integer("courier_id").references(() => couriers.id),
+  courierReceiptNo: text("courier_receipt_no"),
+  courierCharges: numeric("courier_charges", { precision: 15, scale: 2 }),
+  remarks1: text("remarks1"),
+  remarks2: text("remarks2"),
   // Audit
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -401,6 +456,37 @@ export const paymentAllocations = pgTable("payment_allocations", {
   idxPaymentId: index("idx_payment_alloc_payment_id").on(t.paymentId),
   idxBillId: index("idx_payment_alloc_bill_id").on(t.billId),
 }));
+
+export const outstanding = pgTable("outstanding", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fiscalYearId: integer("fiscal_year_id").references(() => fiscalYears.id).notNull(),
+  partyId: integer("party_id").references(() => parties.id).notNull(),
+  billNo: text("bill_no").notNull(),
+  poDate: text("po_date"),
+  billAmount: numeric("bill_amount", { precision: 15, scale: 2 }).notNull(),
+  outstandingAmount: numeric("outstanding_amount", { precision: 15, scale: 2 }).notNull(),
+  receivedAmount: numeric("received_amount", { precision: 15, scale: 2 }).default('0.00'),
+  expenseAmount: numeric("expense_amount", { precision: 15, scale: 2 }).default('0.00'),
+  clearedAmount: numeric("cleared_amount", { precision: 15, scale: 2 }).default('0.00'),
+  balanceAmount: numeric("balance_amount", { precision: 15, scale: 2 }).notNull(),
+  dueDate: timestamp("due_date"),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  idxPartyId: index("idx_outstanding_party_id").on(t.partyId),
+  idxCompanyFy: index("idx_outstanding_company_fy").on(t.companyId, t.fiscalYearId),
+}));
+
+export const outstandingDetails = pgTable("outstanding_details", {
+  id: serial("id").primaryKey(),
+  outstandingId: integer("outstanding_id").references(() => outstanding.id, { onDelete: "cascade" }).notNull(),
+  expenseHeadId: integer("expense_head_id").references(() => expenseHeads.id),
+  expenseRate: numeric("expense_rate", { precision: 10, scale: 2 }),
+  expenseAmount: numeric("expense_amount", { precision: 15, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // ==========================================
 // 6. LEDGER DOMAIN
@@ -456,6 +542,144 @@ export const cities = pgTable("cities", {
   stdCode: text("std_code"),
 }, (t) => ({
   nameTrgmIdx: index("idx_cities_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+}));
+
+// ==========================================
+// 8. PHASE 1 MASTER TABLES (Master Database Parity)
+// ==========================================
+
+export const banks = pgTable("banks", {
+  id: serial("id").primaryKey(),
+  bankName: text("bank_name").notNull(),
+  branch: text("branch"),
+  ifscCode: text("ifsc_code"),
+  micrCode: text("micr_code"),
+  address: text("address"),
+  address1: text("address1"),
+  center: text("center"),
+  contactPerson: text("contact_person"),
+  districtName: text("district_name"),
+  stateId: integer("state_id").references(() => states.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxBankName: index("idx_banks_name").on(t.bankName),
+}));
+
+export const brands = pgTable("brands", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  isRegistered: boolean("is_registered").default(false),
+  regNo: text("reg_no"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const brandPackaging = pgTable("brand_packaging", {
+  id: serial("id").primaryKey(),
+  brandId: integer("brand_id").references(() => brands.id, { onDelete: "cascade" }).notNull(),
+  packWeight: numeric("pack_weight", { precision: 10, scale: 3 }),
+  innerPacking: text("inner_packing"),
+}, (t) => ({
+  idxBrandId: index("idx_brand_pkg_brand_id").on(t.brandId),
+}));
+
+export const expenseHeads = pgTable("expense_heads", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  expenseType: text("expense_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const accountGroups = pgTable("account_groups", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  groupType: text("group_type"),
+  suppressFlag: boolean("suppress_flag").default(false),
+  parentGroupId: integer("parent_group_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const narrationTemplates = pgTable("narration_templates", {
+  id: serial("id").primaryKey(),
+  templateText: text("template_text").notNull(),
+  voucherType: text("voucher_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const termsConditions = pgTable("terms_conditions", {
+  id: serial("id").primaryKey(),
+  termText: text("term_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const transporters = pgTable("transporters", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  address1: text("address1"),
+  address2: text("address2"),
+  cityId: integer("city_id").references(() => cities.id),
+  pincode: text("pincode"),
+  contactPerson: text("contact_person"),
+  phoneOffice: text("phone_office"),
+  phoneRes: text("phone_res"),
+  mobile: text("mobile"),
+  panNo: text("pan_no"),
+  email: text("email"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxTrptName: index("idx_transporters_name").on(t.name),
+}));
+
+export const vehicles = pgTable("vehicles", {
+  id: serial("id").primaryKey(),
+  vehicleType: text("vehicle_type").notNull().unique(),
+  standardWeight: numeric("standard_weight", { precision: 15, scale: 3 }),
+  approxWeightText: text("approx_weight_text"),
+  minWeight: numeric("min_weight", { precision: 15, scale: 3 }),
+  maxWeight: numeric("max_weight", { precision: 15, scale: 3 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const couriers = pgTable("couriers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  address1: text("address1"),
+  cityId: integer("city_id").references(() => cities.id),
+  pincode: text("pincode"),
+  phone: text("phone"),
+  mobile: text("mobile"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const proprietors = pgTable("proprietors", {
+  id: serial("id").primaryKey(),
+  firmName: text("firm_name").notNull(),
+  address1: text("address1"),
+  address2: text("address2"),
+  cityId: integer("city_id").references(() => cities.id),
+  pincode: text("pincode"),
+  contactPerson: text("contact_person"),
+  phone: text("phone"),
+  phoneRes: text("phone_res"),
+  mobile: text("mobile"),
+  tinNo: text("tin_no"),
+  panNo: text("pan_no"),
+  email: text("email"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const partyItemBrokerage = pgTable("party_item_brokerage", {
+  id: serial("id").primaryKey(),
+  partyId: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
+  commodityId: integer("commodity_id").references(() => commodities.id, { onDelete: "cascade" }).notNull(),
+  packingWeight: numeric("packing_weight", { precision: 10, scale: 3 }),
+  sellerBrokerageRate: numeric("seller_brokerage_rate", { precision: 10, scale: 2 }),
+  sellerBrokerageType: text("seller_brokerage_type"),
+  buyerBrokerageRate: numeric("buyer_brokerage_rate", { precision: 10, scale: 2 }),
+  buyerBrokerageType: text("buyer_brokerage_type"),
+}, (t) => ({
+  unqPartyItemPkg: uniqueIndex("unq_party_item_pkg").on(t.partyId, t.commodityId, t.packingWeight),
+  idxPartyId: index("idx_prt_item_brk_party_id").on(t.partyId),
+  idxCommodityId: index("idx_prt_item_brk_commodity_id").on(t.commodityId),
 }));
 
 // ==========================================================================

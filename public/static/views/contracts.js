@@ -1,511 +1,508 @@
 /**
- * Contracts View — Sauda Register List + Create/Edit form
+ * Contracts View — Sauda Register (Parity with Legacy ERP Screenshot 3)
+ * Single-Viewport Compact Paper Form Design
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, AuditMetadataBlock } from '../components/ui.js';
+import { Icons, Badge, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
-import { attachPartyAutocomp, attachCommodityAutocomp, attachCityAutocomp } from '../lib/autocomplete.js';
-
-/** Build delivery progress badge HTML */
-function deliveryBadge(c) {
-  const lorries = c.numberOfLorries || 0;
-  const dispatched = c.dispatchedCount || 0;
-  const delivered = c.deliveredCount || 0;
-  const total = dispatched + delivered;
-
-  if (lorries === 0 && total === 0) {
-    return Badge(c.status || 'ACTIVE', c.status === 'ACTIVE' ? 'active' : 'draft');
-  }
-
-  if (lorries > 0 && total >= lorries) {
-    return `<span class="badge badge-active" style="font-size:0.6875rem">✓ All ${lorries} Delivered</span>`;
-  }
-
-  let parts = [];
-  if (total > 0) parts.push(`<span class="badge badge-active" style="font-size:0.625rem">${total} Dispatched</span>`);
-  const pending = lorries > 0 ? Math.max(0, lorries - total) : 0;
-  if (pending > 0) parts.push(`<span class="badge badge-draft" style="font-size:0.625rem">${pending} Pending</span>`);
-  if (parts.length === 0) return Badge(c.status || 'ACTIVE', 'active');
-  return parts.join(' ');
-}
+import { attachPartyAutocomp, attachCityAutocomp } from '../lib/autocomplete.js';
 
 export async function renderContractList(ctx) {
   const app = document.getElementById('app');
   app.innerHTML = Spinner();
 
-  const params = ctx && ctx.location && ctx.location.search ? new URLSearchParams(ctx.location.search) : new URLSearchParams();
-  const page = parseInt(params.get('page') || '1', 10);
-  const statusFilter = params.get('status') || 'ALL';
-
   try {
     const allContracts = await api.get('/contracts');
-    const data = statusFilter !== 'ALL'
-      ? allContracts.filter(c => c.status === statusFilter)
-      : allContracts;
-    
-    const renderRows = (items) => items.map(c => `
-      <tr>
-        <td>
-          <span class="badge badge-active">#${c.saudaNo}</span>
-          <span style="margin-left:0.5rem;font-weight:600">${escapeHtml(c.saudaBook || '')}</span>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground);margin-top:0.25rem">${formatDate(c.saudaDate)}</div>
-        </td>
-        <td>
-          <div style="font-size:0.6875rem"><strong style="color:var(--muted-foreground)">SELLER</strong> ${escapeHtml(c.sellerName)}</div>
-          <div style="font-size:0.6875rem"><strong style="color:var(--muted-foreground)">BUYER</strong> <span style="color:var(--primary)">${escapeHtml(c.buyerName)}</span></div>
-        </td>
-        <td>
-          <div style="font-weight:600">${escapeHtml(c.commodityName)}</div>
-          <div style="font-size:0.6875rem;color:var(--muted-foreground)">${c.weight} Qtls${c.numberOfLorries ? ` · ${c.numberOfLorries} Lorries` : ''}</div>
-        </td>
-        <td style="text-align:right" class="mono">${formatCurrency(c.amount)}</td>
-        <td style="text-align:center">${deliveryBadge(c)}</td>
-        <td style="text-align:right" onclick="event.stopPropagation()">
-          <div style="display:inline-flex; gap:0.25rem; justify-content:flex-end;">
-            <a href="/contracts/${c.id}" data-route><button class="small">${Icons.edit} Edit</button></a>
-            <button class="small secondary" onclick="window.open('/api/pdf/contract/${c.saudaNo}','_blank')">${Icons.printer}</button>
-            <button class="small danger delete-row-btn" data-id="${c.id}" data-entity="contracts">${Icons.trash}</button>
-          </div>
-        </td>
-      </tr>
-    `);
-
-    const filterBtn = (label, value) => {
-      const active = statusFilter === value;
-      return `<a href="/contracts?status=${value}" data-route><button class="filter-pill ${active ? 'active' : ''}">${label}</button></a>`;
-    };
-
-    app.innerHTML = `
-      ${PageHeader({
-        title: 'Sauda Register',
-        subtitle: 'View and manage trade contracts',
-        actions: `<button class="secondary" onclick="window.print()" style="margin-right:0.5rem">${Icons.printer} Print List</button><button class="secondary" id="export-contracts-btn" style="margin-right:0.5rem">${Icons.download} Export Excel</button><a href="/contracts/new" data-route><button class="primary">${Icons.plus} New Sauda</button></a>`
-      })}
-      <div class="filter-pills">
-        ${filterBtn('All', 'ALL')}
-        ${filterBtn('Active', 'ACTIVE')}
-        ${filterBtn('Completed', 'COMPLETED')}
-      </div>
-      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; width:100%">
-        <div class="form-group" style="margin:0; flex:1; position:relative">
-          <input type="text" id="search-contracts" placeholder="Search contracts..." style="padding-left:2.5rem; width:100%">
-          <div style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); color:var(--muted-foreground); display:flex; align-items:center">${Icons.search}</div>
-        </div>
-      </div>
-      ${DataTable({
-        id: 'contracts-table',
-        title: 'Contracts',
-        count: data.length,
-        headers: [
-          { label: 'Sauda Details' },
-          { label: 'Trade Parties' },
-          { label: 'Commodity' },
-          { label: 'Amount', style: 'text-align:right' },
-          { label: 'Delivery Status', style: 'text-align:center' },
-          { label: 'Actions', style: 'text-align:right; width: 100px' }
-        ],
-        rows: renderRows(data)
-      })}
-    `;
-
-    import('../components/ui.js').then(ui => {
-      ui.attachTableSearch('search-contracts', document.querySelector('#contracts-table tbody'), data, renderRows);
-    });
-
-    document.getElementById('export-contracts-btn')?.addEventListener('click', () => {
-      import('../components/ui.js').then(ui => ui.exportToExcel('/contracts/export', 'sauda_register'));
-    });
+    renderContractForm(null, allContracts);
   } catch (err) {
-    app.innerHTML = `${PageHeader({ title: 'Contracts' })}<div class="alert danger">${err.message}</div>`;
+    app.innerHTML = `<div class="alert danger">${err.message || 'Failed to load contracts'}</div>`;
   }
 }
 
-export async function renderContractForm(id) {
+export async function renderContractForm(id = null, preloadedList = null) {
   const app = document.getElementById('app');
   const isEdit = !!id;
-  
-  app.innerHTML = Spinner();
 
-  try {
-    let contract = { lines: [] };
-    let autoSaudaNo = 1;
-
-    // Fetch all contracts for the sidebar selector
-    const allContracts = await api.get('/contracts');
-
-    if (isEdit) {
-      contract = await api.get(`/contracts/${id}`);
-    } else {
-      if (allContracts && allContracts.length > 0) {
-        autoSaudaNo = Math.max(...allContracts.map(c => c.saudaNo || 0)) + 1;
-      }
+  let allContracts = preloadedList || [];
+  if (allContracts.length === 0) {
+    try {
+      allContracts = await api.get('/contracts');
+    } catch (e) {
+      console.warn('Failed to load contracts list', e);
     }
+  }
 
-    const lines = contract.lines || [];
-    const ptType = contract.paymentTermType || 'DISCOUNT';
+  let contract = { lines: [] };
+  if (isEdit) {
+    try {
+      contract = await api.get(`/contracts/${id}`);
+    } catch (err) {
+      showToast(err.message || 'Failed to load contract record', 'error');
+    }
+  }
 
-    app.innerHTML = `
-      <a href="/contracts" data-route style="display:inline-flex; align-items:center; gap:0.375rem; font-size:0.8125rem; color:var(--muted-foreground); text-decoration:none; padding:0.75rem 0 0.25rem; margin-bottom:0.25rem;">${Icons.arrowLeft} Back to Contracts</a>
-      <div class="dual-pane-container">
-        <!-- Left Sidebar -->
-        <div class="table-container" style="background: var(--card); display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">SELECT SAUDA</h3>
-            <input type="text" id="alter-contract-search" placeholder="Quick search..." style="font-size: 0.8125rem; padding: 0.375rem 0.75rem; width: 100%;">
+  const nextNo = allContracts.length > 0 ? (Math.max(...allContracts.map(c => parseInt(c.saudaNo || '0', 10))) + 1) : 1001;
+
+  app.innerHTML = `
+    <div class="single-viewport-container">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
+        <div>
+          <h2 style="font-size: 1.05rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+            ${Icons.fileText} Contract(Sauda) Form
+          </h2>
+        </div>
+        <div style="display: flex; gap: 0.4rem;">
+          <span class="badge" style="font-size: 0.7rem;">${isEdit ? 'ALTER MODE' : 'ADD MODE'}</span>
+          <button id="btn-export-contracts" class="secondary" style="height: 26px; font-size: 0.75rem; padding: 0 0.5rem;">
+            ${Icons.download} Export
+          </button>
+          <button id="btn-new-sauda" class="primary" style="height: 26px; font-size: 0.75rem; padding: 0 0.5rem;">
+            + New Sauda
+          </button>
+        </div>
+      </div>
+
+      <div class="split-pane-wrapper">
+        <!-- LEFT PANE: Searchable Sauda Register List -->
+        <div class="split-pane-list" style="width: 280px;">
+          <div class="split-pane-list-header">
+            <input type="text" id="search-contracts" class="compact-input" placeholder="Search Sauda No, Buyer, Seller..." />
+            <span id="sauda-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">${allContracts.length}</span>
           </div>
-          <div id="alter-contracts-list" style="flex: 1; overflow-y: auto;">
-            ${allContracts.map(c => `
-              <div class="alter-list-item ${c.id == id ? 'active-item' : ''}" data-id="${c.id}">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
-                  <div class="title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Sauda #${c.saudaNo} (${escapeHtml(c.saudaBook || 'Main Book')})</div>
-                  <div style="font-size:0.625rem; color:var(--muted-foreground); white-space:nowrap; padding-top:0.1rem; flex-shrink:0;">#${c.id}</div>
+          <div class="split-pane-list-body" id="contracts-list-items">
+            ${allContracts.length === 0 ? `
+              <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
+                No contracts found. Click "+ New Sauda" to create.
+              </div>
+            ` : allContracts.map(c => `
+              <div class="split-pane-list-item ${String(c.id) === String(id) ? 'selected' : ''}" data-id="${c.id}">
+                <div style="font-weight: 700; font-size: 0.8rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between;">
+                  <span>#${c.saudaNo} (${escapeHtml(c.saudaBook || 'SD')})</span>
+                  <span style="font-size: 0.7rem; font-weight: 700; color: var(--primary);">₹${formatCurrency(c.amount)}</span>
                 </div>
-                <div class="subtitle">${escapeHtml(c.buyerName)} vs ${escapeHtml(c.sellerName)}</div>
+                <div style="font-size: 0.7rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${escapeHtml(c.buyerName || 'Buyer')} vs ${escapeHtml(c.sellerName || 'Seller')}
+                </div>
+                <div style="font-size: 0.65rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.1rem;">
+                  <span>${formatDate(c.saudaDate)}</span>
+                </div>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <!-- Right Pane: Master Form -->
-        <div class="table-container" style="background: var(--card); padding: 1.5rem; overflow-y: auto; height: 100%;">
+        <!-- RIGHT PANE: Compact Paper Form Layout (Parity with Legacy ERP Screenshot 3) -->
+        <div class="split-pane-form" id="contract-form-pane">
+          <form id="contract-form" class="paper-form-body" style="gap: 0.35rem;">
+            <input type="hidden" id="contract-id" value="${contract.id || ''}" />
 
-          <form id="contract-form">
-            <h3 style="margin:0 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Contract Details</h3>
-            <div class="form-grid">
-              ${FormGroup({ id: 'saudaPrefix', label: 'Sauda Prefix', value: contract.saudaPrefix || 'SD' })}
-              ${FormGroup({ id: 'saudaNo', label: 'Sauda Number', value: contract.saudaNo || autoSaudaNo, type: 'number', required: true })}
-              ${FormGroup({ id: 'saudaBook', label: 'Sauda Book', value: contract.saudaBook || 'Main Book' })}
-              ${FormGroup({ id: 'saudaDate', label: 'Sauda Date', value: contract.saudaDate ? new Date(contract.saudaDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], type: 'date' })}
+            <!-- TOP BLOCK: IDENTIFICATION & STAKEHOLDERS -->
+            <div style="background: var(--muted); padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border);">
+              <div class="form-grid-2" style="margin-bottom: 0.3rem;">
+                <div class="compact-group">
+                  <label class="compact-label">Sauda Number*</label>
+                  <div style="display: flex; gap: 0.25rem;">
+                    <select id="saudaPrefix" class="compact-select" style="width: 70px;">
+                      <option value="SD" ${contract.saudaPrefix === 'SD' ? 'selected' : ''}>SD</option>
+                      <option value="SB" ${contract.saudaPrefix === 'SB' ? 'selected' : ''}>SB</option>
+                      <option value="PU" ${contract.saudaPrefix === 'PU' ? 'selected' : ''}>PU</option>
+                    </select>
+                    <input type="number" id="saudaNo" class="compact-input" required value="${contract.saudaNo || nextNo}" style="flex: 1;" />
+                  </div>
+                </div>
+                <div class="compact-group">
+                  <label class="compact-label">Sauda Date*</label>
+                  <input type="date" id="saudaDate" class="compact-input" required value="${contract.saudaDate ? new Date(contract.saudaDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}" />
+                </div>
+              </div>
+
+              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                <div class="compact-group">
+                  <label class="compact-label">Seller (Supplier)*</label>
+                  <input type="text" id="sellerName" class="compact-input" required value="${escapeHtml(contract.sellerName || '')}" placeholder="Search seller..." />
+                </div>
+                <div class="compact-group">
+                  <label class="compact-label">Seller Contact</label>
+                  <input type="text" id="sellerContact" class="compact-input" value="${escapeHtml(contract.sellerContact || '')}" placeholder="Contact person / Phone" />
+                </div>
+              </div>
+
+              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                <div class="compact-group">
+                  <label class="compact-label">Seller Broker</label>
+                  <input type="text" id="sellerBroker" class="compact-input" value="${escapeHtml(contract.sellerBroker || '')}" placeholder="Search seller broker..." />
+                </div>
+                <div class="compact-group">
+                  <label class="compact-label">Broker Contact</label>
+                  <input type="text" id="sellerBrokerContact" class="compact-input" value="" placeholder="Broker phone" />
+                </div>
+              </div>
+
+              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                <div class="compact-group">
+                  <label class="compact-label">Buyer (Customer)*</label>
+                  <input type="text" id="buyerName" class="compact-input" required value="${escapeHtml(contract.buyerName || '')}" placeholder="Search buyer..." />
+                </div>
+                <div class="compact-group">
+                  <label class="compact-label">Buyer Contact</label>
+                  <input type="text" id="buyerContact" class="compact-input" value="${escapeHtml(contract.buyerContact || '')}" placeholder="Contact person / Phone" />
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="compact-group">
+                  <label class="compact-label">Buyer Broker</label>
+                  <input type="text" id="buyerBroker" class="compact-input" value="${escapeHtml(contract.buyerBroker || '')}" placeholder="Search buyer broker..." />
+                </div>
+                <div class="compact-group">
+                  <label class="compact-label">Broker Contact</label>
+                  <input type="text" id="buyerBrokerContact" class="compact-input" value="" placeholder="Broker phone" />
+                </div>
+              </div>
             </div>
 
-            <div class="form-grid" style="margin-top: 1rem;">
-              ${FormGroup({ id: 'originStation', label: 'Origin Station', value: contract.originStation || '' })}
-              ${FormGroup({ id: 'destinationStation', label: 'Destination Station', value: contract.destinationStation || '' })}
-              ${FormGroup({ id: 'deliveryDeadlineDate', label: 'Delivery Deadline Date', value: contract.deliveryDeadlineDate ? new Date(contract.deliveryDeadlineDate).toISOString().split('T')[0] : '', type: 'date' })}
-              ${FormGroup({ id: 'quantityTolerance', label: 'Quantity Tolerance %', value: contract.quantityTolerance || '', type: 'number' })}
+            <!-- MIDDLE BLOCK: COMMODITIES GRID TABLE -->
+            <div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.2rem;">
+                <span class="compact-label" style="font-weight: 700; color: var(--foreground);">Commodity Line Items</span>
+                <button type="button" id="btn-add-line" class="secondary" style="height: 22px; font-size: 0.7rem; padding: 0 0.4rem;">+ Add Line</button>
+              </div>
+              <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--background);">
+                <table id="lines-grid-table" style="width: 100%; border-collapse: collapse; font-size: 0.725rem;">
+                  <thead>
+                    <tr style="background: var(--muted); color: var(--muted-foreground); font-weight: 700;">
+                      <th style="padding: 0.25rem 0.35rem; text-align: center; width: 35px;">Sno</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: left;">Particulars / Commodity*</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 60px;">Qty Nos</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: left; width: 100px;">Details / Brand</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 65px;">Pack</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 85px;">Quintals*</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 90px;">Bargain Rate*</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 110px;">Amount (₹)</th>
+                      <th style="padding: 0.25rem 0.35rem; text-align: right; width: 75px;">St Brok Rate</th>
+                      <th style="width: 25px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="lines-grid-body">
+                    <!-- Lines injected dynamically -->
+                  </tbody>
+                </table>
+              </div>
+              <!-- TOTALS BAR (MATCHING SCREENSHOT 3) -->
+              <div style="display: flex; justify-content: space-between; align-items: center; background: #e0e7ff; color: #1e1b4b; padding: 0.3rem 0.6rem; border-radius: 4px; margin-top: 0.25rem; font-weight: 700; font-size: 0.775rem;">
+                <div>Total Qty: <span id="tot-qty">0</span></div>
+                <div>Total Quintals: <span id="tot-wght">0.00</span> Qtl</div>
+                <div>Total Amount: ₹ <span id="tot-amt">0.00</span></div>
+              </div>
             </div>
 
-            <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Trade Stakeholders</h3>
-            <div class="form-grid">
-              ${FormGroup({ id: 'sellerName', label: 'Seller (Seller)', value: contract.sellerName || '', required: true, placeholder: 'Search seller...' })}
-              ${FormGroup({ id: 'buyerName', label: 'Buyer (Buyer)', value: contract.buyerName || '', required: true, placeholder: 'Search buyer...' })}
-              ${FormGroup({ id: 'sellerBroker', label: 'Seller Broker', value: contract.sellerBroker || '', placeholder: 'Search broker...' })}
-              ${FormGroup({ id: 'buyerBroker', label: 'Buyer Broker', value: contract.buyerBroker || '', placeholder: 'Search broker...' })}
+            <!-- BOTTOM SPLIT BLOCK (LOGISTICS & TERMS ON LEFT, OTHER TERMS & REMARKS ON RIGHT) -->
+            <div class="form-grid-2">
+              <!-- LEFT PANEL -->
+              <div style="background: var(--muted); padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border);">
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Delivery Till Date</label>
+                    <input type="date" id="deliveryDeadlineDate" class="compact-input" value="${contract.deliveryDeadlineDate ? new Date(contract.deliveryDeadlineDate).toISOString().split('T')[0] : ''}" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Delivery Term</label>
+                    <input type="text" id="deliveryTerm" class="compact-input" value="${escapeHtml(contract.deliveryTerm || '')}" placeholder="e.g. MILL DELIVERY" />
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Approx Weight (Qtl)</label>
+                    <input type="number" step="0.001" id="approxWeight" class="compact-input" value="${contract.approxWeight || ''}" placeholder="e.g. 300" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Qty Tolerance %</label>
+                    <input type="number" step="0.1" id="quantityTolerance" class="compact-input" value="${contract.quantityTolerance || ''}" placeholder="e.g. 2.0" />
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Origin Station</label>
+                    <input type="text" id="originStation" class="compact-input" value="${escapeHtml(contract.originStation || '')}" placeholder="Loading place" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Destination Station</label>
+                    <input type="text" id="destinationStation" class="compact-input" value="${escapeHtml(contract.destinationStation || '')}" placeholder="Unloading place" />
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Payment Mode</label>
+                    <select id="paymentTermType" class="compact-select">
+                      <option value="DISCOUNT" ${contract.paymentTermType === 'DISCOUNT' ? 'selected' : ''}>Discount Scheme</option>
+                      <option value="CREDIT" ${contract.paymentTermType === 'CREDIT' ? 'selected' : ''}>Credit Period</option>
+                      <option value="PAYMENT" ${contract.paymentTermType === 'PAYMENT' ? 'selected' : ''}>Immediate Payment</option>
+                    </select>
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Discount % / Credit Days</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="number" step="0.01" id="cashDiscountPercent" class="compact-input" value="${contract.cashDiscountPercent || contract.paymentPercent || ''}" placeholder="%" style="flex: 1;" />
+                      <input type="number" id="paymentDays" class="compact-input" value="${contract.paymentDays || ''}" placeholder="Days" style="flex: 1;" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="compact-group">
+                    <label class="compact-label">PO Number</label>
+                    <input type="text" id="poNumber" class="compact-input" value="${escapeHtml(contract.poNumber || '')}" placeholder="PO Ref" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">PO Date</label>
+                    <input type="date" id="poDate" class="compact-input" value="${contract.poDate ? new Date(contract.poDate).toISOString().split('T')[0] : ''}" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT PANEL -->
+              <div style="background: var(--muted); padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <label class="compact-label" style="font-weight: 700;">Other Terms & Conditions</label>
+                  <textarea id="termsAndConditions" class="compact-input" style="height: 60px !important; resize: vertical; margin-bottom: 0.3rem;" placeholder="Enter contract clause terms...">${escapeHtml(contract.termsAndConditions || '')}</textarea>
+
+                  <label class="compact-label" style="font-weight: 700;">Internal Remarks</label>
+                  <input type="text" id="remarks" class="compact-input" value="${escapeHtml(contract.customRemarks || '')}" placeholder="Staff notes..." />
+                </div>
+
+                <div style="display: flex; gap: 0.3rem; margin-top: 0.4rem;">
+                  <button type="button" class="secondary" style="flex: 1; height: 24px; font-size: 0.7rem;">Tax Details</button>
+                  <button type="button" class="secondary" style="flex: 1; height: 24px; font-size: 0.7rem;">Specification</button>
+                  <button type="button" class="secondary" style="flex: 1; height: 24px; font-size: 0.7rem;">Documentation</button>
+                </div>
+              </div>
             </div>
 
-            <!-- Commodity multi-line grid -->
-            <h3 style="margin:1.5rem 0 0.5rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Sauda Line Items (Commodities)</h3>
-            <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.75rem;">
-              <table id="lines-grid-table" style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: var(--faint);">
-                    <th style="padding: 0.5rem 0.75rem;">Commodity *</th>
-                    <th style="padding: 0.5rem 0.75rem;">Brand</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 80px;">Lorries</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 100px;">Bags</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Weight (Qtl) *</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 110px;">Rate (₹) *</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 130px;">Amount</th>
-                    <th style="width: 40px;"></th>
-                  </tr>
-                </thead>
-                <tbody id="lines-grid-body">
-                  <!-- Dynamic rows -->
-                </tbody>
-              </table>
-            </div>
-            <button type="button" id="btn-add-line" class="secondary small" style="margin-bottom: 1.5rem;">+ Add Sauda Line Item</button>
+            ${isEdit ? AuditMetadataBlock(contract) : ''}
+          </form>
 
-            <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Payment Terms & Form Trackers</h3>
-            <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:1rem">
-              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-                <input type="radio" name="paymentTermType" value="DISCOUNT" ${ptType === 'DISCOUNT' ? 'checked' : ''}>
-                Discount Scheme
-              </label>
-              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-                <input type="radio" name="paymentTermType" value="CREDIT" ${ptType === 'CREDIT' ? 'checked' : ''}>
-                Credit Period
-              </label>
-              <label style="display:flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.8125rem">
-                <input type="radio" name="paymentTermType" value="PAYMENT" ${ptType === 'PAYMENT' ? 'checked' : ''}>
-                Immediate Payment
-              </label>
-            </div>
-          <div class="form-grid" id="payment-fields">
-            <div class="form-group" id="discount-percent-group">
-              <label for="paymentPercent">Discount %</label>
-              <input type="number" id="paymentPercent" name="paymentPercent" value="${contract.paymentPercent || ''}" step="0.01" placeholder="e.g. 3">
-            </div>
-            ${FormGroup({ id: 'paymentDays', label: 'Payment / Credit Days', value: contract.paymentDays || '', type: 'number', placeholder: 'e.g. 15' })}
-            ${FormGroup({ id: 'taxFormRequired', label: 'Tax Form Required', value: contract.taxFormRequired || '', placeholder: 'e.g. C-Form' })}
-            ${FormGroup({ id: 'deliveryTerm', label: 'Delivery Term Detail', value: contract.deliveryTerm || '' })}
+          <!-- FOOTER TOOLBAR -->
+          <div class="paper-form-footer">
+            ${isEdit ? `
+              <button type="button" id="btn-delete-contract" class="danger" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+                ${Icons.trash} F5 - Delete
+              </button>
+              <button type="button" id="btn-print-contract" class="secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+                ${Icons.printer} Print PDF
+              </button>
+            ` : ''}
+            <button type="button" id="btn-reset-contract" class="secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;">
+              ${Icons.refresh} Reset
+            </button>
+            <button type="submit" form="contract-form" class="primary" style="height: 28px; font-size: 0.75rem; padding: 0 0.8rem;">
+              ${Icons.save} F6 - Save Sauda
+            </button>
           </div>
-          <div id="payment-preview" style="margin-top:0.5rem; margin-bottom: 1.5rem; padding:0.75rem 1rem; background:var(--background); border:1px solid var(--border); border-radius:0.5rem; font-size:0.8125rem; color:var(--primary)"></div>
-
-          <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">PO details & Logistics</h3>
-          <div class="form-grid">
-            ${FormGroup({ id: 'poNumber', label: 'PO Number', value: contract.poNumber || '' })}
-            ${FormGroup({ id: 'poDate', label: 'PO Date', value: contract.poDate ? new Date(contract.poDate).toISOString().split('T')[0] : '', type: 'date' })}
-            ${FormGroup({ id: 'approxWeight', label: 'Approximate Weight (Qtl)', value: contract.approxWeight || '', type: 'number' })}
-          </div>
-
-          <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Terms & Conditions Matrix</h3>
-          ${FormGroup({ id: 'termsAndConditions', label: 'Terms & Conditions Notes', type: 'textarea', value: contract.termsAndConditions || '', placeholder: 'Enter any contract specific terms...' })}
-
-          <h3 style="margin:1.5rem 0 1rem;font-size:0.8125rem;text-transform:uppercase;color:var(--muted-foreground);">Remarks</h3>
-          ${FormGroup({ id: 'remarks', label: 'Internal Custom Remarks', value: contract.customRemarks || '', type: 'textarea' })}
-
-          ${isEdit ? AuditMetadataBlock(contract) : ''}
-
-          <div class="form-actions">
-            <button type="submit" class="primary">${isEdit ? 'Update' : 'Create'} Sauda</button>
-            ${isEdit ? `<button type="button" class="secondary" id="btn-print-contract">${Icons.printer} Print PDF</button>` : ''}
-            ${isEdit ? `<button type="button" class="danger" id="btn-delete">${Icons.trash || 'Delete'}</button>` : ''}
-            <a href="/contracts" data-route><button type="button" class="secondary">Cancel</button></a>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
+  `;
+
+  // Autocomplete bindings
+  attachPartyAutocomp('sellerName', (name, party) => {
+    if (party && party.place) {
+      const originInput = document.getElementById('originStation');
+      if (originInput && !originInput.value.trim()) originInput.value = party.place;
+    }
+  });
+  attachPartyAutocomp('buyerName', (name, party) => {
+    if (party && party.place) {
+      const destInput = document.getElementById('destinationStation');
+      if (destInput && !destInput.value.trim()) destInput.value = party.place;
+    }
+  });
+  attachPartyAutocomp('sellerBroker');
+  attachPartyAutocomp('buyerBroker');
+  attachCityAutocomp('originStation');
+  attachCityAutocomp('destinationStation');
+
+  // Commodity Lines Grid Manager with Totals Bar Calculation
+  const linesBody = document.getElementById('lines-grid-body');
+
+  const recalculateGrandTotals = () => {
+    let totQty = 0;
+    let totWght = 0;
+    let totAmt = 0;
+
+    linesBody.querySelectorAll('tr').forEach(tr => {
+      const q = parseFloat(tr.querySelector('.line-qty')?.value || '0');
+      const w = parseFloat(tr.querySelector('.line-weight')?.value || '0');
+      const aStr = tr.querySelector('.line-amount')?.value.replace(/[^0-9.]/g, '') || '0';
+      const a = parseFloat(aStr);
+
+      totQty += q;
+      totWght += w;
+      totAmt += a;
+    });
+
+    document.getElementById('tot-qty').textContent = totQty;
+    document.getElementById('tot-wght').textContent = totWght.toFixed(2);
+    document.getElementById('tot-amt').textContent = formatCurrency(totAmt);
+  };
+
+  const addLineRow = (line = {}) => {
+    const idx = linesBody.querySelectorAll('tr').length + 1;
+    const tr = document.createElement('tr');
+    tr.className = 'sauda-line-row';
+    tr.innerHTML = `
+      <input type="hidden" class="line-id" value="${line.id || ''}">
+      <td style="padding: 0.2rem; text-align: center; font-weight: 700;">${idx}</td>
+      <td style="padding: 0.2rem;">
+        <input type="text" id="line_comm_${idx}" class="compact-input line-commodity" value="${escapeHtml(line.commodityName || '')}" required placeholder="CHANA / SOYBEAN..." />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="number" class="compact-input line-qty" value="${line.numberOfLorries || '1'}" style="text-align: right;" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="text" class="compact-input line-brand" value="${escapeHtml(line.brand || '')}" placeholder="TAURAS / BRAND" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="number" class="compact-input line-bags" value="${line.quantityBags ? parseFloat(line.quantityBags) : ''}" style="text-align: right;" placeholder="50" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="number" step="0.001" class="compact-input line-weight" value="${line.weightQuintals || ''}" required style="text-align: right;" placeholder="310.40" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="number" step="0.01" class="compact-input line-rate" value="${line.rate || ''}" required style="text-align: right;" placeholder="5375.00" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="text" class="compact-input line-amount" value="${line.amount ? formatCurrency(line.amount) : '0.00'}" readonly style="text-align: right; font-weight: 700; color: var(--primary);" />
+      </td>
+      <td style="padding: 0.2rem;">
+        <input type="number" step="0.01" class="compact-input line-brok" value="${line.sellerBrokerageRate || '10.00'}" style="text-align: right;" placeholder="10.00" />
+      </td>
+      <td style="text-align: center; padding: 0.2rem 0.1rem;">
+        <button type="button" class="btn-remove-line danger small" style="padding: 0 0.25rem; height: 20px; font-size: 0.65rem;">×</button>
+      </td>
     `;
 
-    // Attach Autocomplete to Trade stakeholders with auto-fill callbacks
-    attachPartyAutocomp('sellerName', (name, party) => {
-      if (party && party.place) {
-        const originInput = document.getElementById('originStation');
-        if (originInput && !originInput.value.trim()) {
-          originInput.value = party.place;
-        }
-      }
-    });
-    attachPartyAutocomp('buyerName', (name, party) => {
-      if (party) {
-        if (party.place) {
-          const destInput = document.getElementById('destinationStation');
-          if (destInput && !destInput.value.trim()) {
-            destInput.value = party.place;
-          }
-        }
-        // Autofill credit terms/days if available
-        if (party.creditLimit) {
-          // Can default credit terms/days here if necessary
-        }
-      }
-    });
-    attachPartyAutocomp('sellerBroker');
-    attachPartyAutocomp('buyerBroker');
-
-    // Attach city autocomplete to Origin & Destination Stations
-    attachCityAutocomp('originStation');
-    attachCityAutocomp('destinationStation');
-
-
-    const linesBody = document.getElementById('lines-grid-body');
-
-    // Attach new line row function
-    const addLineRow = (line = {}) => {
-      const idx = linesBody.querySelectorAll('tr').length;
-      const tr = document.createElement('tr');
-      tr.className = 'sauda-line-row';
-      tr.innerHTML = `
-        <input type="hidden" class="line-id" value="${line.id || ''}">
-        <td style="padding: 0.375rem 0.75rem; min-width: 180px; position: relative;">
-          <input type="text" id="line_comm_${idx}" class="line-commodity" value="${escapeHtml(line.commodityName || '')}" required style="width: 100%;" placeholder="Type commodity...">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="text" class="line-brand" value="${escapeHtml(line.brand || '')}" style="width: 100%;" placeholder="Brand">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="number" class="line-lorries" value="${line.numberOfLorries || ''}" style="width: 100%; text-align: right;" placeholder="Qty">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="number" class="line-bags" value="${line.quantityBags ? parseFloat(line.quantityBags) : ''}" style="width: 100%; text-align: right;" placeholder="Bags">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="number" step="0.001" class="line-weight" value="${line.weightQuintals || ''}" required style="width: 100%; text-align: right;" placeholder="Qtl">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="number" step="0.01" class="line-rate" value="${line.rate || ''}" required style="width: 100%; text-align: right;" placeholder="₹">
-        </td>
-        <td style="padding: 0.375rem 0.75rem;">
-          <input type="text" class="line-amount" value="${line.amount ? formatCurrency(line.amount) : '₹ 0'}" readonly style="width: 100%; text-align: right; font-weight: 600; border: none; background: transparent;">
-        </td>
-        <td style="text-align: center;">
-          <button type="button" class="btn-remove-line danger small" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">×</button>
-        </td>
-      `;
-
-      // Bind dynamic calculation handlers
-      const recalcRow = () => {
-        const wt = parseFloat(tr.querySelector('.line-weight').value || '0');
-        const rate = parseFloat(tr.querySelector('.line-rate').value || '0');
-        const amt = wt * rate;
-        tr.querySelector('.line-amount').value = formatCurrency(amt);
-      };
-
-      tr.querySelector('.line-weight').addEventListener('input', recalcRow);
-      tr.querySelector('.line-rate').addEventListener('input', recalcRow);
-      tr.querySelector('.btn-remove-line').addEventListener('click', () => {
-        tr.remove();
-      });
-
-      linesBody.appendChild(tr);
-
-      // Attach commodity autocomplete with automatic calculations
-      attachCommodityAutocomp(`line_comm_${idx}`, (name, comm) => {
-        if (comm) {
-          const brandInput = tr.querySelector('.line-brand');
-          if (brandInput && !brandInput.value.trim()) {
-            brandInput.value = comm.shortName || '';
-          }
-          if (comm.packaging && comm.packaging.length > 0) {
-            const defaultPack = comm.packaging[0];
-            const weightVal = parseFloat(defaultPack.packingWeight || '0');
-            const wtInput = tr.querySelector('.line-weight');
-            const bagsInput = tr.querySelector('.line-bags');
-            if (wtInput && bagsInput) {
-              const recalcBags = () => {
-                const wt = parseFloat(wtInput.value || '0');
-                if (wt && weightVal) {
-                  bagsInput.value = Math.round((wt * 100) / weightVal);
-                }
-              };
-              wtInput.addEventListener('input', recalcBags);
-              recalcBags();
-            }
-          }
-        }
-      });
+    const recalcRow = () => {
+      const wt = parseFloat(tr.querySelector('.line-weight').value || '0');
+      const rate = parseFloat(tr.querySelector('.line-rate').value || '0');
+      const amt = wt * rate;
+      tr.querySelector('.line-amount').value = formatCurrency(amt);
+      recalculateGrandTotals();
     };
 
-    // Populate existing lines
-    lines.forEach(l => addLineRow(l));
-    if (lines.length === 0) addLineRow(); // minimum one line row
+    tr.querySelector('.line-qty').addEventListener('input', recalcRow);
+    tr.querySelector('.line-weight').addEventListener('input', recalcRow);
+    tr.querySelector('.line-rate').addEventListener('input', recalcRow);
+    tr.querySelector('.btn-remove-line').addEventListener('click', () => {
+      tr.remove();
+      recalculateGrandTotals();
+    });
 
-    document.getElementById('btn-add-line').addEventListener('click', () => addLineRow());
+    linesBody.appendChild(tr);
+    recalculateGrandTotals();
+  };
 
-    // Payment Term Toggle/Preview handlers
-    const updatePaymentPreview = () => {
-      const type = document.querySelector('input[name="paymentTermType"]:checked')?.value || 'DISCOUNT';
-      const pct = document.getElementById('paymentPercent')?.value || '';
-      const days = document.getElementById('paymentDays')?.value || '';
-      const preview = document.getElementById('payment-preview');
-      const discountGroup = document.getElementById('discount-percent-group');
+  if (contract.lines && contract.lines.length > 0) {
+    contract.lines.forEach(l => addLineRow(l));
+  } else {
+    addLineRow();
+  }
 
-      if (type === 'CREDIT') {
-        discountGroup.style.display = 'none';
-        preview.innerHTML = days ? `<strong>Payment Term:</strong> Credit period of ${days} days` : '<em>Enter credit period days</em>';
-      } else if (type === 'PAYMENT') {
-        discountGroup.style.display = 'none';
-        preview.innerHTML = `<strong>Payment Term:</strong> Immediate payment on execution`;
-      } else {
-        discountGroup.style.display = '';
-        preview.innerHTML = (pct && days) ? `<strong>Payment Term:</strong> ${pct}% discount if paid within ${days} days` : '<em>Enter discount % and cash days</em>';
+  document.getElementById('btn-add-line').addEventListener('click', () => addLineRow());
+
+  // Split-pane selection & filter handlers
+  document.querySelectorAll('.split-pane-list-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = item.getAttribute('data-id');
+      renderContractForm(selectedId, allContracts);
+    });
+  });
+
+  document.getElementById('search-contracts').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.split-pane-list-item').forEach(item => {
+      item.style.display = item.textContent.toLowerCase().includes(q) ? 'block' : 'none';
+    });
+  });
+
+  document.getElementById('btn-new-sauda').addEventListener('click', () => renderContractForm(null, allContracts));
+  document.getElementById('btn-reset-contract')?.addEventListener('click', () => renderContractForm(null, allContracts));
+
+  if (isEdit) {
+    document.getElementById('btn-print-contract')?.addEventListener('click', () => {
+      window.open(`/api/pdf/contract/${contract.saudaNo}`, '_blank');
+    });
+    document.getElementById('btn-delete-contract')?.addEventListener('click', async () => {
+      if (!confirm(`Are you sure you want to delete Sauda #${contract.saudaNo}?`)) return;
+      try {
+        await api.del(`/api/contracts/${contract.id}`);
+        showToast('Sauda deleted successfully', 'success');
+        renderContractForm(null);
+      } catch (err) {
+        showToast(err.message || 'Failed to delete sauda', 'error');
       }
-    };
+    });
+  }
 
-    document.querySelectorAll('input[name="paymentTermType"]').forEach(r => r.addEventListener('change', updatePaymentPreview));
-    document.getElementById('paymentPercent')?.addEventListener('input', updatePaymentPreview);
-    document.getElementById('paymentDays')?.addEventListener('input', updatePaymentPreview);
-    updatePaymentPreview(); // Initial render
+  // Form submit handler
+  document.getElementById('contract-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-    if (isEdit) {
-      document.getElementById('btn-print-contract')?.addEventListener('click', () => {
-        if (contract && contract.saudaNo) {
-          window.open(`/api/pdf/contract/${contract.saudaNo}`, '_blank');
-        }
-      });
-      document.getElementById('btn-delete')?.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete this contract?')) {
-          try {
-            await api.del(`/contracts/${id}`);
-            showToast('Sauda contract deleted');
-            window.history.pushState({}, '', '/contracts');
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          } catch (err) {
-            showToast(err.message, 'error');
-          }
-        }
-      });
+    const lineRows = document.querySelectorAll('.sauda-line-row');
+    if (lineRows.length === 0) {
+      showToast('Please add at least one commodity line item', 'error');
+      return;
     }
 
-    // Submit handler
-    document.getElementById('contract-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
-      const ogHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Saving…';
-
-      const fd = collectFormData('contract-form');
-
-      // Compile lines data
-      const lineRows = Array.from(linesBody.querySelectorAll('.sauda-line-row'));
-      const linesData = lineRows.map(row => {
-        const idVal = row.querySelector('.line-id').value;
-        const comm = row.querySelector('.line-commodity').value.trim();
-        const brand = row.querySelector('.line-brand').value.trim() || null;
-        const lorries = row.querySelector('.line-lorries').value.trim() || null;
-        const bags = row.querySelector('.line-bags').value.trim() || null;
-        const weight = row.querySelector('.line-weight').value.trim();
-        const rate = row.querySelector('.line-rate').value.trim();
-
-        return {
-          id: idVal ? parseInt(idVal, 10) : null,
-          commodity: comm,
-          brand,
-          numberOfLorries: lorries ? parseInt(lorries, 10) : null,
-          quantityBags: bags ? parseFloat(bags) : null,
-          weight: weight ? parseFloat(weight) : 0,
-          rate: rate ? parseFloat(rate) : 0,
-        };
-      }).filter(l => l.commodity && l.weight && l.rate);
-
-      if (linesData.length === 0) {
-        btn.disabled = false;
-        btn.innerHTML = ogHtml;
-        showToast('Please add at least one complete sauda item', 'error');
-        return;
-      }
-
-      fd.lines = linesData;
-
-      try {
-        if (isEdit) {
-          await api.put(`/contracts/${id}`, fd);
-          showToast('Sauda contract updated');
-        } else {
-          await api.post('/contracts', fd);
-          showToast('Sauda contract created');
-        }
-        
-        window.history.pushState({}, '', '/contracts');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      } catch (err) {
-        btn.disabled = false;
-        btn.innerHTML = ogHtml;
-        showToast(err.message, 'error');
-      }
-    });
-
-    // Handle click on sidebar item to navigate without full page load
-    document.getElementById('alter-contracts-list')?.addEventListener('click', (e) => {
-      const item = e.target.closest('.alter-list-item');
-      if (!item) return;
-      const targetId = item.getAttribute('data-id');
-      window.history.pushState({}, '', `/contracts/${targetId}`);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-
-    // Sidebar search filter
-    document.getElementById('alter-contract-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase();
-      const items = document.querySelectorAll('#alter-contracts-list .alter-list-item');
-      items.forEach(item => {
-        const txt = item.textContent.toLowerCase();
-        item.style.display = txt.includes(q) ? '' : 'none';
+    const lines = [];
+    lineRows.forEach(tr => {
+      lines.push({
+        id: tr.querySelector('.line-id').value || undefined,
+        commodityName: tr.querySelector('.line-commodity').value.trim(),
+        brand: tr.querySelector('.line-brand').value.trim() || null,
+        numberOfLorries: tr.querySelector('.line-qty').value ? parseInt(tr.querySelector('.line-qty').value, 10) : null,
+        quantityBags: tr.querySelector('.line-bags').value || null,
+        weightQuintals: tr.querySelector('.line-weight').value,
+        rate: tr.querySelector('.line-rate').value,
       });
     });
 
-  } catch (err) {
-    app.innerHTML = `<div class="alert danger">Failed to initialize: ${err.message}</div>`;
-  }
+    const payload = {
+      saudaPrefix: document.getElementById('saudaPrefix').value,
+      saudaNo: parseInt(document.getElementById('saudaNo').value, 10),
+      saudaDate: document.getElementById('saudaDate').value,
+      sellerName: document.getElementById('sellerName').value.trim(),
+      buyerName: document.getElementById('buyerName').value.trim(),
+      sellerBroker: document.getElementById('sellerBroker').value.trim() || null,
+      buyerBroker: document.getElementById('buyerBroker').value.trim() || null,
+      originStation: document.getElementById('originStation').value.trim() || null,
+      destinationStation: document.getElementById('destinationStation').value.trim() || null,
+      deliveryDeadlineDate: document.getElementById('deliveryDeadlineDate').value || null,
+      deliveryTerm: document.getElementById('deliveryTerm').value.trim() || null,
+      approxWeight: document.getElementById('approxWeight').value || null,
+      quantityTolerance: document.getElementById('quantityTolerance').value || null,
+      paymentTermType: document.getElementById('paymentTermType').value,
+      cashDiscountPercent: document.getElementById('cashDiscountPercent').value || null,
+      paymentDays: document.getElementById('paymentDays').value ? parseInt(document.getElementById('paymentDays').value, 10) : null,
+      poNumber: document.getElementById('poNumber').value.trim() || null,
+      poDate: document.getElementById('poDate').value || null,
+      termsAndConditions: document.getElementById('termsAndConditions').value.trim() || null,
+      customRemarks: document.getElementById('remarks').value.trim() || null,
+      lines,
+    };
+
+    try {
+      if (isEdit) {
+        await api.put(`/api/contracts/${contract.id}`, payload);
+        showToast('Sauda contract updated successfully', 'success');
+      } else {
+        await api.post('/api/contracts', payload);
+        showToast('New Sauda contract created successfully', 'success');
+      }
+      renderContractForm(null);
+    } catch (err) {
+      showToast(err.message || 'Failed to save Sauda contract', 'error');
+    }
+  });
 }

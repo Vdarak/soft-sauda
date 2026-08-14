@@ -1449,4 +1449,184 @@ button.danger:hover {
   color: var(--primary) !important;
 }
 
+/* ==========================================================================
+ * SINGLE-VIEWPORT COMPACT "PAPER FORM" LAYOUT UTILITIES
+ * ========================================================================== */
+
+/* Single-viewport container (fits exact screen height, zero page scroll) */
+.single-viewport-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+}
+
+/* Split pane flex container */
+.split-pane-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0; /* allows flex scrolling inside children */
+  overflow: hidden;
+}
+
+/* Left list pane */
+.split-pane-list {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-base);
+  overflow: hidden;
+}
+
+.split-pane-list-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.split-pane-list-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.split-pane-list-item {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.split-pane-list-item:hover,
+.split-pane-list-item.selected {
+  background: var(--faint);
+  border-left: 3px solid var(--primary);
+}
+
+/* Right paper form pane */
+.split-pane-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-base);
+  overflow: hidden;
+}
+
+.paper-form-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.paper-form-body {
+  flex: 1;
+  padding: 0.75rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.paper-form-footer {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Dense Multi-Column Grids */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem 0.6rem;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem 0.6rem;
+}
+
+.form-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem 0.6rem;
+}
+
+.form-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.4rem 0.6rem;
+}
+
+/* Dense Form Controls */
+.compact-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.compact-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.compact-input,
+.compact-select {
+  height: 28px !important;
+  padding: 0.2rem 0.45rem !important;
+  font-size: 0.8125rem !important;
+  border-radius: var(--radius-base) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.compact-input:focus,
+.compact-select:focus {
+  border-color: var(--primary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .split-pane-wrapper {
+    flex-direction: column;
+  }
+  .split-pane-list {
+    width: 100%;
+    max-height: 220px;
+  }
+  .form-grid-4, .form-grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
 

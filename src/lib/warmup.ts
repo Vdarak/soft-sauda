@@ -12,6 +12,7 @@ import {
   deliveries, deliveryLines, deliveryCharges,
   bills, billLines, payments, paymentAllocations, ledger,
   cities, districts, states,
+  banks, brands, transporters, vehicles, termsConditions, expenseHeads,
 } from '@/db/schema';
 import { desc, eq, and, sql, aliasedTable } from 'drizzle-orm';
 import { cacheSet, cacheHas, cacheGet, DEFAULT_TTL } from '@/lib/cache';
@@ -583,6 +584,72 @@ export async function warmCache(
         payload['/cities'] = data;
       },
       payloadFn: () => { payload['/cities'] = cacheGet<any[]>('cities:all') || []; },
+    },
+
+    // ── Banks (Global) ──
+    {
+      key: 'banks:all',
+      fn: async () => {
+        const data = await db.select().from(banks).orderBy(banks.bankName);
+        cacheSet('banks:all', data, TTL);
+        payload['/banks'] = data;
+      },
+      payloadFn: () => { payload['/banks'] = cacheGet<any[]>('banks:all') || []; },
+    },
+
+    // ── Brands (Global) ──
+    {
+      key: 'brands:all',
+      fn: async () => {
+        const data = await db.select().from(brands).orderBy(brands.name);
+        cacheSet('brands:all', data, TTL);
+        payload['/brands'] = data;
+      },
+      payloadFn: () => { payload['/brands'] = cacheGet<any[]>('brands:all') || []; },
+    },
+
+    // ── Transporters (Global) ──
+    {
+      key: 'transporters:all',
+      fn: async () => {
+        const data = await db.select().from(transporters).orderBy(transporters.name);
+        cacheSet('transporters:all', data, TTL);
+        payload['/transporters'] = data;
+      },
+      payloadFn: () => { payload['/transporters'] = cacheGet<any[]>('transporters:all') || []; },
+    },
+
+    // ── Vehicles (Global) ──
+    {
+      key: 'vehicles:all',
+      fn: async () => {
+        const data = await db.select().from(vehicles).orderBy(vehicles.vehicleType);
+        cacheSet('vehicles:all', data, TTL);
+        payload['/vehicles'] = data;
+      },
+      payloadFn: () => { payload['/vehicles'] = cacheGet<any[]>('vehicles:all') || []; },
+    },
+
+    // ── Terms & Conditions (Global) ──
+    {
+      key: 'terms:all',
+      fn: async () => {
+        const data = await db.select().from(termsConditions).orderBy(termsConditions.id);
+        cacheSet('terms:all', data, TTL);
+        payload['/terms'] = data;
+      },
+      payloadFn: () => { payload['/terms'] = cacheGet<any[]>('terms:all') || []; },
+    },
+
+    // ── Expense Heads (Global) ──
+    {
+      key: 'expense-heads:all',
+      fn: async () => {
+        const data = await db.select().from(expenseHeads).orderBy(expenseHeads.name);
+        cacheSet('expense-heads:all', data, TTL);
+        payload['/expense-heads'] = data;
+      },
+      payloadFn: () => { payload['/expense-heads'] = cacheGet<any[]>('expense-heads:all') || []; },
     },
 
     // ── Report: Bill Register (sortBy=date) ──

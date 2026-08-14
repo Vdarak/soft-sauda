@@ -18,6 +18,12 @@ import { renderBillList, renderBillForm } from './views/bills.js';
 import { renderPaymentList, renderPaymentForm } from './views/payments.js';
 import { renderLedgerList, renderLedgerForm } from './views/ledger.js';
 import { renderCityList, renderCityForm } from './views/cities.js'; // renderCityForm(id?) supports create + edit
+import { renderBankList } from './views/banks.js';
+import { renderBrandList } from './views/brands.js';
+import { renderTransporterList } from './views/transporters.js';
+import { renderVehicleList } from './views/vehicles.js';
+import { renderTermList } from './views/terms.js';
+import { renderExpenseHeadList } from './views/expense_heads.js';
 import { renderBatchBilling } from './views/batch_billing.js';
 import { renderPaymentOutstanding } from './views/payment_outstanding.js';
 import { renderUserList, renderUserForm, renderAuditLogs } from './views/admin.js';
@@ -386,6 +392,14 @@ function initRouter() {
   r.on('/cities/new',         requireAuth(() => renderCityForm()));
   r.on('/cities/{id}',        requireAuth((ctx) => renderCityForm(ctx.params.id)));
 
+  // Phase 1 Master Data Routes
+  r.on('/banks',              requireAuth(() => renderBankList()));
+  r.on('/brands',             requireAuth(() => renderBrandList()));
+  r.on('/transporters',       requireAuth(() => renderTransporterList()));
+  r.on('/vehicles',           requireAuth(() => renderVehicleList()));
+  r.on('/terms',              requireAuth(() => renderTermList()));
+  r.on('/expense-heads',      requireAuth(() => renderExpenseHeadList()));
+
   // Reports
   r.on('/reports/payment-outstanding', requireAuth((ctx) => renderPaymentOutstanding(ctx)));
   r.on('/reports/bill-register', requireAuth(() => {
@@ -430,21 +444,41 @@ function renderMasterMenu() {
 
   if (!desktopPlaceholder && !mobilePlaceholder) return;
 
-  const partiesIcon16     = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-  const commoditiesIcon16 = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`;
-  const citiesIcon16      = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`;
-  const partiesIcon14     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-  const commoditiesIcon14 = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`;
-  const citiesIcon14      = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  const partiesIcon16      = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+  const commoditiesIcon16  = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`;
+  const citiesIcon16       = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  const banksIcon16        = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7 12 2"/></svg>`;
+  const brandsIcon16       = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l11 11 9-9-10-10z"/><circle cx="7" cy="7" r="2"/></svg>`;
+  const transportersIcon16 = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>`;
+  const vehiclesIcon16     = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="10" x="2" y="6" rx="2"/><circle cx="7" cy="16" r="2"/><circle cx="17" cy="16" r="2"/></svg>`;
+  const termsIcon16        = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  const expensesIcon16     = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+
+  const partiesIcon14      = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+  const commoditiesIcon14  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`;
+  const citiesIcon14       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  const banksIcon14        = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7 12 2"/></svg>`;
+  const brandsIcon14       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l11 11 9-9-10-10z"/><circle cx="7" cy="7" r="2"/></svg>`;
+  const transportersIcon14 = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>`;
+  const vehiclesIcon14     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="10" x="2" y="6" rx="2"/><circle cx="7" cy="16" r="2"/><circle cx="17" cy="16" r="2"/></svg>`;
+  const termsIcon14        = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  const expensesIcon14     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+
   const chevronIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:0.25rem"><path d="m6 9 6 6 6-6"/></svg>`;
 
-  const isOnParties      = pathname.startsWith('/parties');
-  const isOnCommodities  = pathname.startsWith('/commodities');
-  const isOnCities       = pathname.startsWith('/cities');
-  const isDropdownActive = isOnParties || isOnCommodities || isOnCities;
+  const isOnParties       = pathname.startsWith('/parties');
+  const isOnCommodities   = pathname.startsWith('/commodities');
+  const isOnCities        = pathname.startsWith('/cities');
+  const isOnBanks         = pathname.startsWith('/banks');
+  const isOnBrands        = pathname.startsWith('/brands');
+  const isOnTransporters  = pathname.startsWith('/transporters');
+  const isOnVehicles      = pathname.startsWith('/vehicles');
+  const isOnTerms         = pathname.startsWith('/terms');
+  const isOnExpenses      = pathname.startsWith('/expense-heads');
+  const isDropdownActive  = isOnParties || isOnCommodities || isOnCities || isOnBanks || isOnBrands || isOnTransporters || isOnVehicles || isOnTerms || isOnExpenses;
 
-  const triggerIcon  = isOnCommodities ? commoditiesIcon16 : isOnCities ? citiesIcon16 : partiesIcon16;
-  const triggerLabel = isOnCommodities ? 'Commodities'     : isOnCities ? 'Cities'     : 'Parties';
+  const triggerIcon  = isOnCommodities ? commoditiesIcon16 : isOnCities ? citiesIcon16 : isOnBanks ? banksIcon16 : isOnBrands ? brandsIcon16 : isOnTransporters ? transportersIcon16 : isOnVehicles ? vehiclesIcon16 : isOnTerms ? termsIcon16 : isOnExpenses ? expensesIcon16 : partiesIcon16;
+  const triggerLabel = 'Masters';
 
   if (desktopPlaceholder) {
     desktopPlaceholder.innerHTML = `
@@ -467,6 +501,30 @@ function renderMasterMenu() {
             ${citiesIcon14}
             <span>Cities</span>
           </a>
+          <a href="/banks" data-route class="${isOnBanks ? 'active' : ''}">
+            ${banksIcon14}
+            <span>Banks</span>
+          </a>
+          <a href="/brands" data-route class="${isOnBrands ? 'active' : ''}">
+            ${brandsIcon14}
+            <span>Brands</span>
+          </a>
+          <a href="/transporters" data-route class="${isOnTransporters ? 'active' : ''}">
+            ${transportersIcon14}
+            <span>Transporters</span>
+          </a>
+          <a href="/vehicles" data-route class="${isOnVehicles ? 'active' : ''}">
+            ${vehiclesIcon14}
+            <span>Vehicle Types</span>
+          </a>
+          <a href="/terms" data-route class="${isOnTerms ? 'active' : ''}">
+            ${termsIcon14}
+            <span>Terms & Conditions</span>
+          </a>
+          <a href="/expense-heads" data-route class="${isOnExpenses ? 'active' : ''}">
+            ${expensesIcon14}
+            <span>Expense Heads</span>
+          </a>
         </div>
       </div>
     `;
@@ -475,17 +533,20 @@ function renderMasterMenu() {
   if (mobilePlaceholder) {
     mobilePlaceholder.innerHTML = `
       <a href="/parties" data-route class="${isOnParties ? 'active' : ''}">
-        ${partiesIcon16}
-        <span>Parties</span>
+        ${partiesIcon16}<span>Parties</span>
       </a>
       <a href="/commodities" data-route class="${isOnCommodities ? 'active' : ''}">
-        ${commoditiesIcon16}
-        <span>Commodities</span>
+        ${commoditiesIcon16}<span>Commodities</span>
       </a>
       <a href="/cities" data-route class="${isOnCities ? 'active' : ''}">
-        ${citiesIcon16}
-        <span>Cities</span>
+        ${citiesIcon16}<span>Cities</span>
       </a>
+      <a href="/banks" data-route class="${isOnBanks ? 'active' : ''}">${banksIcon16}<span>Banks</span></a>
+      <a href="/brands" data-route class="${isOnBrands ? 'active' : ''}">${brandsIcon16}<span>Brands</span></a>
+      <a href="/transporters" data-route class="${isOnTransporters ? 'active' : ''}">${transportersIcon16}<span>Transporters</span></a>
+      <a href="/vehicles" data-route class="${isOnVehicles ? 'active' : ''}">${vehiclesIcon16}<span>Vehicles</span></a>
+      <a href="/terms" data-route class="${isOnTerms ? 'active' : ''}">${termsIcon16}<span>Terms</span></a>
+      <a href="/expense-heads" data-route class="${isOnExpenses ? 'active' : ''}">${expensesIcon16}<span>Expenses</span></a>
     `;
   }
 }
