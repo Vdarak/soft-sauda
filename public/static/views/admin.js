@@ -1,7 +1,7 @@
 /**
  * Admin Panel Views — User Management (CRUD) and Audit Log Viewer
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatDateTime } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 // Format audit changes detail to a readable text or list
@@ -14,21 +14,6 @@ function renderAuditChanges(changes) {
   } catch {
     return escapeHtml(JSON.stringify(changes));
   }
-}
-
-// Format date with time for audit logs
-function formatDateTime(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  return d.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  });
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -288,7 +273,7 @@ export async function renderAuditLogs(ctx) {
             ${renderAuditChanges(log.changes)}
           </td>
           <td>${log.companyName ? escapeHtml(log.companyName) : '<span style="color:var(--muted-foreground)">System (Global)</span>'}</td>
-          <td class="mono" style="font-size:0.75rem">${formatDateTime(log.createdAt)}</td>
+          <td class="mono" style="font-size:0.75rem">${formatDateTime(log.createdAt, true)}</td>
           <td>${escapeHtml(log.ipAddress || '-')}</td>
         </tr>
       `;

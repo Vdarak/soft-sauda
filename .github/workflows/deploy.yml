@@ -1,0 +1,24 @@
+name: Deploy to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Remote Deploy on Lightsail
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            cd /opt/soft-sauda
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose up -d --build web
+            docker image prune -f
+            echo "Successfully deployed $(git rev-parse --short HEAD) to production at $(date)"

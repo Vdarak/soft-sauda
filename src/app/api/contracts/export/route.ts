@@ -7,6 +7,7 @@ import { db } from '@/db';
 import { contracts, contractParties, contractLines, parties, commodities, deliveries, deliveryLines } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { ok, serverError } from '@/lib/api-helpers';
+import { formatDateIndian } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,7 +87,7 @@ export async function GET() {
       return {
         'Sauda No': c.saudaNo,
         'Sauda Book': c.saudaBook,
-        'Sauda Date': c.saudaDate,
+        'Sauda Date': formatDateIndian(c.saudaDate),
         'Status': c.status,
         'Seller': cParties.find(p => p.role === 'SELLER')?.name || '',
         'Buyer': cParties.find(p => p.role === 'BUYER')?.name || '',

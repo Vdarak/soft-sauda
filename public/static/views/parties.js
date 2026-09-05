@@ -1,6 +1,6 @@
 /**
  * Party Master View (Parity with Legacy ERP Screenshot 2)
- * Single-Viewport Compact Paper Form Design
+ * Single-Viewport Compact Paper Form Design with Interactive Tabs
  */
 import { Icons, Badge, Spinner, showToast, escapeHtml, AuditMetadataBlock } from '../components/ui.js';
 import * as api from '../lib/api.js';
@@ -44,6 +44,10 @@ export async function renderPartyForm(id = null, preloadedList = null) {
   const vatTin = party.taxIds?.find(t => t.taxType === 'VAT_TIN')?.taxValue || '';
   const cstTin = party.taxIds?.find(t => t.taxType === 'CST_TIN')?.taxValue || '';
   const cstNo = party.taxIds?.find(t => t.taxType === 'CST_NO')?.taxValue || '';
+  const panNo = party.taxIds?.find(t => t.taxType === 'PAN')?.taxValue || '';
+
+  const bankDetails = party.bankDetails?.[0] || {};
+  const delivAddr = party.deliveryAddresses?.[0] || {};
 
   const activeRoles = party.roles?.map(r => r.role) || ['BUYER', 'SELLER'];
 
@@ -114,69 +118,126 @@ export async function renderPartyForm(id = null, preloadedList = null) {
               </label>
             </div>
 
-            <!-- TABS & GENERAL INFO MATRIX -->
+            <!-- INTERACTIVE TABS BAR -->
             <div style="background: var(--muted); padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border);">
               <div style="display: flex; gap: 0.4rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-bottom: 0.35rem;">
-                <button type="button" class="primary" style="height: 22px; font-size: 0.7rem; padding: 0 0.5rem;">General Info</button>
-                <button type="button" class="secondary" style="height: 22px; font-size: 0.7rem; padding: 0 0.5rem;">Delivery Address</button>
-                <button type="button" class="secondary" style="height: 22px; font-size: 0.7rem; padding: 0 0.5rem;">Bank & Other Details</button>
+                <button type="button" id="tab-general" class="party-tab-btn primary" style="height: 24px; font-size: 0.725rem; padding: 0 0.6rem;">General Info</button>
+                <button type="button" id="tab-delivery" class="party-tab-btn secondary" style="height: 24px; font-size: 0.725rem; padding: 0 0.6rem;">Delivery Address</button>
+                <button type="button" id="tab-bank" class="party-tab-btn secondary" style="height: 24px; font-size: 0.725rem; padding: 0 0.6rem;">Bank & Other Details</button>
               </div>
 
-              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
-                <div class="compact-group">
-                  <label class="compact-label">Party Name*</label>
-                  <input type="text" id="name" class="compact-input" required value="${escapeHtml(party.name || '')}" placeholder="e.g. A MADHAVAN NADAR" />
+              <!-- TAB 1: GENERAL INFO PANEL -->
+              <div id="panel-general" class="party-tab-panel" style="display: block;">
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Party Name*</label>
+                    <input type="text" id="name" class="compact-input" required value="${escapeHtml(party.name || '')}" placeholder="e.g. A MADHAVAN NADAR" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Address</label>
+                    <input type="text" id="address" class="compact-input" value="${escapeHtml(party.address || '')}" placeholder="e.g. A-87 MARKET YARD" />
+                  </div>
                 </div>
-                <div class="compact-group">
-                  <label class="compact-label">Address</label>
-                  <input type="text" id="address" class="compact-input" value="${escapeHtml(party.address || '')}" placeholder="e.g. A-87 MARKET YARD" />
-                </div>
-              </div>
 
-              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
-                <div class="compact-group">
-                  <label class="compact-label">Land Mark</label>
-                  <input type="text" id="landMark" class="compact-input" value="${escapeHtml(party.landMark || '')}" placeholder="Near Market Yard" />
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Land Mark</label>
+                    <input type="text" id="landMark" class="compact-input" value="${escapeHtml(party.landMark || '')}" placeholder="Near Market Yard" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Place (City)* / Pincode</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="text" id="place" class="compact-input" required value="${escapeHtml(party.place || '')}" placeholder="e.g. Latur" style="flex: 1;" />
+                      <input type="text" id="pincode" class="compact-input" value="${escapeHtml(party.pincode || '')}" placeholder="413512" style="width: 80px;" />
+                    </div>
+                  </div>
                 </div>
-                <div class="compact-group">
-                  <label class="compact-label">Place (City)* / Pincode</label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <input type="text" id="place" class="compact-input" required value="${escapeHtml(party.place || '')}" placeholder="e.g. Latur" style="flex: 1;" />
-                    <input type="text" id="pincode" class="compact-input" value="${escapeHtml(party.pincode || '')}" placeholder="413512" style="width: 80px;" />
+
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">State Name / CST NO</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="text" id="stateName" class="compact-input" value="${escapeHtml(party.stateName || 'Maharashtra')}" style="flex: 1;" />
+                      <input type="text" id="cstNo" class="compact-input" value="${escapeHtml(cstNo)}" placeholder="CST No" style="width: 100px;" />
+                    </div>
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">GSTIN / Credit Limit</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="text" id="gstin" class="compact-input" value="${escapeHtml(gstin)}" placeholder="27ABCDE1234F1Z5" style="flex: 1;" />
+                      <input type="number" id="creditLimit" class="compact-input" value="${party.creditLimit || '0'}" placeholder="0" style="width: 80px;" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="compact-group">
+                    <label class="compact-label">Phone (Office) / Mobile (SMS)</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="text" id="phone" class="compact-input" value="${escapeHtml(party.phone || '')}" placeholder="Office phone" style="flex: 1;" />
+                      <input type="text" id="mobile" class="compact-input" value="${escapeHtml(party.mobile || '')}" placeholder="Primary Mobile" style="flex: 1;" />
+                    </div>
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Vat TIN / CST TIN</label>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <input type="text" id="vatTin" class="compact-input" value="${escapeHtml(vatTin)}" placeholder="VAT TIN" style="flex: 1;" />
+                      <input type="text" id="cstTin" class="compact-input" value="${escapeHtml(cstTin)}" placeholder="CST TIN" style="flex: 1;" />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div class="form-grid-2" style="margin-bottom: 0.25rem;">
-                <div class="compact-group">
-                  <label class="compact-label">State Name / CST NO</label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <input type="text" id="stateName" class="compact-input" value="${escapeHtml(party.stateName || 'Maharashtra')}" style="flex: 1;" />
-                    <input type="text" id="cstNo" class="compact-input" value="${escapeHtml(cstNo)}" placeholder="CST No" style="width: 100px;" />
+              <!-- TAB 2: DELIVERY ADDRESS PANEL -->
+              <div id="panel-delivery" class="party-tab-panel" style="display: none;">
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Delivery Address Line 1</label>
+                    <input type="text" id="delivAddressLine" class="compact-input" value="${escapeHtml(delivAddr.addressLine || '')}" placeholder="Godown / Factory Address" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Delivery City</label>
+                    <input type="text" id="delivCity" class="compact-input" value="${escapeHtml(delivAddr.city || '')}" placeholder="City name" />
                   </div>
                 </div>
-                <div class="compact-group">
-                  <label class="compact-label">GSTIN / Credit Limit</label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <input type="text" id="gstin" class="compact-input" value="${escapeHtml(gstin)}" placeholder="27ABCDE1234F1Z5" style="flex: 1;" />
-                    <input type="number" id="creditLimit" class="compact-input" value="${party.creditLimit || '0'}" placeholder="0" style="width: 80px;" />
+
+                <div class="form-grid-2">
+                  <div class="compact-group">
+                    <label class="compact-label">Delivery State</label>
+                    <input type="text" id="delivState" class="compact-input" value="${escapeHtml(delivAddr.state || '')}" placeholder="State" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Pincode</label>
+                    <input type="text" id="delivPincode" class="compact-input" value="${escapeHtml(delivAddr.pincode || '')}" placeholder="Pincode" />
                   </div>
                 </div>
               </div>
 
-              <div class="form-grid-2">
-                <div class="compact-group">
-                  <label class="compact-label">Phone (Office) / Mobile (SMS)</label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <input type="text" id="phone" class="compact-input" value="${escapeHtml(party.phone || '')}" placeholder="Office phone" style="flex: 1;" />
-                    <input type="text" id="mobile" class="compact-input" value="${escapeHtml(party.mobile || '')}" placeholder="Primary Mobile" style="flex: 1;" />
+              <!-- TAB 3: BANK & OTHER DETAILS PANEL -->
+              <div id="panel-bank" class="party-tab-panel" style="display: none;">
+                <div class="form-grid-2" style="margin-bottom: 0.25rem;">
+                  <div class="compact-group">
+                    <label class="compact-label">Bank Name</label>
+                    <input type="text" id="bankName" class="compact-input" value="${escapeHtml(bankDetails.bankName || '')}" placeholder="e.g. State Bank of India" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Account Number</label>
+                    <input type="text" id="accountNo" class="compact-input" value="${escapeHtml(bankDetails.accountNo || '')}" placeholder="Account No" />
                   </div>
                 </div>
-                <div class="compact-group">
-                  <label class="compact-label">Vat TIN / CST TIN</label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <input type="text" id="vatTin" class="compact-input" value="${escapeHtml(vatTin)}" placeholder="VAT TIN" style="flex: 1;" />
-                    <input type="text" id="cstTin" class="compact-input" value="${escapeHtml(cstTin)}" placeholder="CST TIN" style="flex: 1;" />
+
+                <div class="form-grid-3">
+                  <div class="compact-group">
+                    <label class="compact-label">IFSC Code</label>
+                    <input type="text" id="ifscCode" class="compact-input" value="${escapeHtml(bankDetails.ifscCode || '')}" placeholder="SBIN0001234" style="text-transform: uppercase;" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">Branch Name</label>
+                    <input type="text" id="branch" class="compact-input" value="${escapeHtml(bankDetails.branch || '')}" placeholder="Branch location" />
+                  </div>
+                  <div class="compact-group">
+                    <label class="compact-label">PAN Number</label>
+                    <input type="text" id="panNo" class="compact-input" value="${escapeHtml(panNo)}" placeholder="ABCDE1234F" style="text-transform: uppercase;" />
                   </div>
                 </div>
               </div>
@@ -219,6 +280,33 @@ export async function renderPartyForm(id = null, preloadedList = null) {
       </div>
     </div>
   `;
+
+  // Attach tab switching logic
+  const tabGeneral = document.getElementById('tab-general');
+  const tabDelivery = document.getElementById('tab-delivery');
+  const tabBank = document.getElementById('tab-bank');
+
+  const panelGeneral = document.getElementById('panel-general');
+  const panelDelivery = document.getElementById('panel-delivery');
+  const panelBank = document.getElementById('panel-bank');
+
+  const switchTab = (activeBtn, activePanel) => {
+    [tabGeneral, tabDelivery, tabBank].forEach(btn => {
+      btn.classList.remove('primary');
+      btn.classList.add('secondary');
+    });
+    activeBtn.classList.remove('secondary');
+    activeBtn.classList.add('primary');
+
+    [panelGeneral, panelDelivery, panelBank].forEach(panel => {
+      panel.style.display = 'none';
+    });
+    activePanel.style.display = 'block';
+  };
+
+  tabGeneral?.addEventListener('click', () => switchTab(tabGeneral, panelGeneral));
+  tabDelivery?.addEventListener('click', () => switchTab(tabDelivery, panelDelivery));
+  tabBank?.addEventListener('click', () => switchTab(tabBank, panelBank));
 
   attachCityAutocomp('place');
 
@@ -272,6 +360,40 @@ export async function renderPartyForm(id = null, preloadedList = null) {
       }
     });
 
+    const delivAddressLine = document.getElementById('delivAddressLine')?.value.trim();
+    const delivCity = document.getElementById('delivCity')?.value.trim();
+    const delivState = document.getElementById('delivState')?.value.trim();
+    const delivPincode = document.getElementById('delivPincode')?.value.trim();
+
+    const deliveryAddresses = delivAddressLine ? [{
+      addressLine: delivAddressLine,
+      city: delivCity || null,
+      state: delivState || null,
+      pincode: delivPincode || null,
+    }] : [];
+
+    const bankName = document.getElementById('bankName')?.value.trim();
+    const accountNo = document.getElementById('accountNo')?.value.trim();
+    const ifscCode = document.getElementById('ifscCode')?.value.trim();
+    const branch = document.getElementById('branch')?.value.trim();
+
+    const bankDetailsPayload = bankName ? [{
+      bankName,
+      accountNo: accountNo || null,
+      ifscCode: ifscCode || null,
+      branch: branch || null,
+    }] : [];
+
+    const panVal = document.getElementById('panNo')?.value.trim();
+
+    const taxIds = [
+      { taxType: 'GSTIN', taxValue: document.getElementById('gstin').value.trim() },
+      { taxType: 'VAT_TIN', taxValue: document.getElementById('vatTin').value.trim() },
+      { taxType: 'CST_TIN', taxValue: document.getElementById('cstTin').value.trim() },
+      { taxType: 'CST_NO', taxValue: document.getElementById('cstNo').value.trim() },
+    ];
+    if (panVal) taxIds.push({ taxType: 'PAN', taxValue: panVal });
+
     const payload = {
       name: document.getElementById('name').value.trim(),
       address: document.getElementById('address').value.trim() || null,
@@ -283,13 +405,10 @@ export async function renderPartyForm(id = null, preloadedList = null) {
       mobile: document.getElementById('mobile').value.trim() || null,
       creditLimit: document.getElementById('creditLimit').value || '0',
       roles,
-      taxIds: [
-        { taxType: 'GSTIN', taxValue: document.getElementById('gstin').value.trim() },
-        { taxType: 'VAT_TIN', taxValue: document.getElementById('vatTin').value.trim() },
-        { taxType: 'CST_TIN', taxValue: document.getElementById('cstTin').value.trim() },
-        { taxType: 'CST_NO', taxValue: document.getElementById('cstNo').value.trim() },
-      ].filter(t => t.taxValue !== ''),
+      taxIds: taxIds.filter(t => t.taxValue !== ''),
       contacts,
+      deliveryAddresses,
+      bankDetails: bankDetailsPayload,
     };
 
     try {

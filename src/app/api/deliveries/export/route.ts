@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { deliveries, deliveryLines, parties, contractLines, contracts, commodities } from '@/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import { ok, serverError } from '@/lib/api-helpers';
+import { formatDateIndian } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,7 @@ export async function GET() {
           : '';
         exportData.push({
           'Dispatch No': d.id,
-          'Dispatch Date': d.dispatchDate,
+          'Dispatch Date': formatDateIndian(d.dispatchDate),
           'Sauda No': saudaNo,
           'Lorry/Truck No': d.truckNo || '',
           'Bill No': d.billNo || '',
@@ -80,7 +81,7 @@ export async function GET() {
       if (lines.length === 0) {
         exportData.push({
           'Dispatch No': d.id,
-          'Dispatch Date': d.dispatchDate,
+          'Dispatch Date': formatDateIndian(d.dispatchDate),
           'Sauda No': '',
           'Lorry/Truck No': d.truckNo || '',
           'Bill No': d.billNo || '',

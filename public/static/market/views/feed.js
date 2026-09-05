@@ -1,12 +1,11 @@
 /** Marketplace feed — public list of active listings + government tenders + filters. */
 import * as api from '../lib/api.js';
-import { mount, inr, qty, ago, esc, toast } from '../lib/ui.js';
+import { mount, inr, qty, ago, esc, toast, formatDateTime } from '../lib/ui.js';
 
 function formatCloseDate(dateStr) {
   if (!dateStr) return 'No deadline';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'No deadline';
-  return 'Closes ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatted = formatDateTime(dateStr);
+  return formatted === '—' ? 'No deadline' : `Closes ${formatted}`;
 }
 
 function card(l) {

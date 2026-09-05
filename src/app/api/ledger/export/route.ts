@@ -7,6 +7,7 @@ import { db } from '@/db';
 import { ledger, parties } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { ok, serverError } from '@/lib/api-helpers';
+import { formatDateIndian } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     const exportData = data.map(l => ({
       'Entry ID': l.id,
-      'Transaction Date': l.transactionDate ? new Date(l.transactionDate).toLocaleDateString('en-IN') : '',
+      'Transaction Date': formatDateIndian(l.transactionDate),
       'Account Name': l.accountName || 'Unknown',
       'Source Type': l.sourceType,
       'Source ID': l.sourceId || '',

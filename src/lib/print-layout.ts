@@ -3,6 +3,8 @@
  * Returns a full HTML page that auto-triggers window.print() on load.
  */
 
+import { formatDateIndian, formatDateTimeIndian } from './date-utils';
+
 export const COMPANY = {
   name: 'Ganesh Canvassing Company',
   tagline: 'Commission Agents & Brokers',
@@ -20,8 +22,12 @@ function fmt(v: any, decimals = 2): string {
 
 function fmtDate(v: any): string {
   if (!v) return '—';
-  try { return new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
-  catch { return String(v); }
+  try {
+    const formatted = formatDateIndian(v);
+    return formatted || '—';
+  } catch {
+    return String(v);
+  }
 }
 
 function fmtNum(v: any, dec = 3): string {
@@ -106,7 +112,7 @@ export function printPage(title: string, docId: string, docDate: string, bodyHtm
   </div>
 
   <div class="footer">
-    <span>Printed on ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+    <span>Printed on ${formatDateTimeIndian(new Date())}</span>
     <span>${COMPANY.name} — ${COMPANY.address}</span>
   </div>
 </body>

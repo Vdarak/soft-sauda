@@ -841,6 +841,7 @@ function initMobileMenu() {
 function initTheme() {
   const saved = localStorage.getItem('ss_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
+  document.documentElement.classList.toggle('dark', saved === 'dark');
 
   const btn = document.getElementById('theme-toggle');
   if (btn) {
@@ -848,6 +849,7 @@ function initTheme() {
       const current = document.documentElement.getAttribute('data-theme');
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
+      document.documentElement.classList.toggle('dark', next === 'dark');
       localStorage.setItem('ss_theme', next);
       updateThemeIcon(next);
     });

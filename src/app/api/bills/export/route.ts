@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { bills, parties } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { ok, serverError } from '@/lib/api-helpers';
+import { formatDateIndian } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export async function GET() {
     const exportData = data.map(b => ({
       'Bill ID': b.id,
       'Bill Number': b.billNo,
-      'Bill Date': b.billDate ? new Date(b.billDate).toLocaleDateString('en-IN') : '',
+      'Bill Date': formatDateIndian(b.billDate),
       'Billed Party': b.partyName || 'Unknown',
       'Basis': b.basis || 'DIRECT',
       'Total Amount': b.totalAmount || '0.00',

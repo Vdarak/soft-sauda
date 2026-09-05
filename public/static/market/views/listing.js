@@ -1,12 +1,11 @@
 /** Listing detail — photos placeholder, quality, seller, save, private bargaining & tender bidding. */
 import * as api from '../lib/api.js';
-import { mount, inr, qty, ago, esc, go, toast } from '../lib/ui.js';
+import { mount, inr, qty, ago, esc, go, toast, formatDateTime } from '../lib/ui.js';
 
 function formatCloseDate(dateStr) {
   if (!dateStr) return 'No deadline';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'No deadline';
-  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatted = formatDateTime(dateStr);
+  return formatted === '—' ? 'No deadline' : formatted;
 }
 
 export async function renderListing(id) {

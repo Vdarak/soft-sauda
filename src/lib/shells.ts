@@ -19,7 +19,7 @@
 // except the home links point at /dashboard (the root `/` now serves landing).
 // ==========================================================================
 export const ERP_SHELL = `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" class="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -51,7 +51,7 @@ export const ERP_SHELL = `<!DOCTYPE html>
 
     <div class="topbar-brand">
       <a href="/dashboard" data-route style="display:flex;align-items:center;gap:0.5rem;text-decoration:none;color:inherit">
-        <img src="/gcc-logo.svg" alt="GCC Logo" style="height:28px;border-radius:4px">
+        <img src="/gcc-logo.svg" alt="GCC Logo" style="height:24px;border-radius:3px">
       </a>
     </div>
 
@@ -237,7 +237,7 @@ export const LANDING_SHELL = `<!DOCTYPE html>
 // Bundle: /static/market/app.js. Styles build on theme.css + site.css tokens.
 // ==========================================================================
 export const MARKET_SHELL = `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" class="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

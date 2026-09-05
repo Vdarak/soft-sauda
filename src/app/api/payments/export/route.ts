@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { payments, parties } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { ok, serverError } from '@/lib/api-helpers';
+import { formatDateIndian } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export async function GET() {
 
     const exportData = data.map(p => ({
       'Payment ID': p.id,
-      'Payment Date': p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-IN') : '',
+      'Payment Date': formatDateIndian(p.paymentDate),
       'Party Name': p.partyName || 'Unknown',
       'Payment Method': p.instrumentType || '',
       'Reference No.': p.instrumentNo || '',

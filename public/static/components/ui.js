@@ -58,11 +58,11 @@ export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No 
   let paginationHtml = '';
   if (pagination) {
     const { page, hasMore, route } = pagination;
-    paginationHtml = `<div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:1rem;border-top:1px solid var(--border)">
-      <div style="font-size:0.875rem;color:var(--muted-foreground)">Page ${page}</div>
-      <div style="display:flex;gap:0.5rem">
+    paginationHtml = `<div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:0.25rem 0.5rem;border-top:1px solid var(--border)">
+      <div style="font-size:0.75rem;color:var(--muted-foreground)">Page ${page}</div>
+      <div style="display:flex;gap:0.25rem">
         <a ${page > 1 ? `href="${route}?page=${page - 1}" data-route` : ''}><button class="small" ${page <= 1 ? 'disabled' : ''}>${Icons.arrowLeft} Prev</button></a>
-        <a ${hasMore ? `href="${route}?page=${page + 1}" data-route` : ''}><button class="small" ${!hasMore ? 'disabled' : ''}>Next <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:0.25rem"><path d="m9 18 6-6-6-6"/></svg></button></a>
+        <a ${hasMore ? `href="${route}?page=${page + 1}" data-route` : ''}><button class="small" ${!hasMore ? 'disabled' : ''}>Next <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:0.2rem"><path d="m9 18 6-6-6-6"/></svg></button></a>
       </div>
     </div>`;
   }
@@ -84,7 +84,7 @@ export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No 
         }).join('')}</tr></thead>
         <tbody>
           ${rows.length === 0 
-            ? `<tr><td colspan="${headers.length}" style="text-align:center;padding:2rem;color:var(--muted-foreground)">${emptyMessage}</td></tr>`
+            ? `<tr><td colspan="${headers.length}" style="text-align:center;padding:1rem;color:var(--muted-foreground);font-size:0.75rem">${emptyMessage}</td></tr>`
             : rows.join('')}
         </tbody>
         ${footer}
@@ -213,11 +213,35 @@ export function attachTableSearch(inputId, tbodyElementOrId, data, renderRowsCb)
   });
 }
 
-/* ── Date formatting ── */
+/* ── Date formatting (dd/mm/yyyy - Indian Standard) ── */
 export function formatDate(dateStr) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (isNaN(d.getTime())) return String(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+export function formatDateTime(dateStr, includeSeconds = false) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const strHours = String(hours).padStart(2, '0');
+  if (includeSeconds) {
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year} ${strHours}:${minutes}:${seconds} ${ampm}`;
+  }
+  return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
 }
 
 /* ── Currency formatting ── */
@@ -298,9 +322,9 @@ export function AuditMetadataBlock(record) {
   if (!isAdmin || !record) return '';
 
   const createdBy = record.createdByDisplayName || record.createdByUsername || 'System';
-  const createdAt = record.createdAt ? formatDate(record.createdAt) : '-';
+  const createdAt = record.createdAt ? formatDateTime(record.createdAt) : '-';
   const updatedBy = record.updatedByDisplayName || record.updatedByUsername || createdBy;
-  const updatedAt = record.updatedAt ? formatDate(record.updatedAt) : createdAt;
+  const updatedAt = record.updatedAt ? formatDateTime(record.updatedAt) : createdAt;
 
   return `
     <div class="audit-metadata-block" style="margin-top: 2rem; padding: 1rem; background: var(--faint); border: 1px dashed var(--border); border-radius: 0.5rem; font-size: 0.75rem; color: var(--muted-foreground); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; clear: both;">
