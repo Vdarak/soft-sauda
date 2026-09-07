@@ -4,21 +4,29 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate Secrets
+        run: |
+          if [ -z "${{ secrets.LIGHTSAIL_HOST }}" ]; then
+            echo "::error::Missing secret 'LIGHTSAIL_HOST'! Please add it in GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          if [ -z "${{ secrets.LIGHTSAIL_SSH_KEY }}" ]; then
+            echo "::error::Missing secret 'LIGHTSAIL_SSH_KEY'! Please add it in GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "All deployment secrets verified."
+
       - name: Trigger Remote Deploy on Lightsail
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          script: |
-            cd /opt/soft-sauda
-            git fetch origin main
-            git reset --hard origin/main
-            docker compose up -d --build web
-            docker image prune -f
-            echo "Successfully deployed $(git rev-parse --short HEAD) to production at $(date)"
+          port: 22
+          script: /opt/soft-sauda/deploy.sh
