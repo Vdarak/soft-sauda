@@ -116,7 +116,7 @@ function renderCompanySelector() {
         
         <div class="form-group" style="margin-bottom: 1rem; text-align: left;">
           <label style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground);">Fiscal Year</label>
-          <select class="select-fy" style="width: 100%; margin-top: 0.25rem; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+          <select class="select-fy" style="width: 100%; margin-top: 0.25rem; height: 38px; padding: 0.4rem 0.75rem; font-size: 0.875rem; line-height: 1.4;">
             ${fyOptions}
           </select>
         </div>
@@ -260,7 +260,7 @@ function updateHeaderWithActiveContext() {
       `).join('');
       
       picker.innerHTML = `
-        <select class="select-sm" style="font-weight:600;font-size:0.8rem;padding:0.25rem 0.5rem;border-color:var(--border);background:var(--card);color:var(--foreground);border-radius:var(--radius-base);" id="header-fy-select">
+        <select class="select-sm" style="height: 28px; font-weight: 600; font-size: 0.8rem; padding: 0.15rem 0.5rem; border-color: var(--border); background: var(--card); color: var(--foreground); border-radius: var(--radius-base);" id="header-fy-select">
           ${optionsHtml}
         </select>
       `;

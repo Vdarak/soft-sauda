@@ -1061,6 +1061,27 @@ body[data-page="company-selector"] .main-content {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
 }
 
+.company-card .select-fy {
+  height: 38px !important;
+  line-height: 1.4 !important;
+  font-size: 0.875rem !important;
+  padding: 0.4rem 0.75rem !important;
+  border-radius: var(--radius-base, 6px);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  color: var(--foreground);
+  box-sizing: border-box !important;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+
+.company-card .select-fy:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring, rgba(76, 175, 80, 0.2));
+}
+
 
 /* ── Login Page ── */
 .login-page {
