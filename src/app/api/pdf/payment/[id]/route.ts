@@ -1,5 +1,6 @@
 /**
  * GET /api/pdf/payment/:id — Payment Receipt HTML print page
+ * Supports auth via Bearer header or query params (?token=xxx&companyId=xxx&fyId=xxx)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -7,12 +8,34 @@ import { db } from '@/db';
 import { payments, paymentAllocations, bills, parties } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getRequestContext } from '@/lib/middleware';
+import { verifyToken } from '@/lib/api-helpers';
 import { printPage, fmt, fmtDate } from '@/lib/print-layout';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: Params) {
-  const ctx = await getRequestContext(req);
+  let ctx = await getRequestContext(req);
+  if (!ctx) {
+    const { searchParams } = new URL(req.url);
+    const qToken = searchParams.get('token');
+    const qCompanyId = searchParams.get('companyId');
+    if (qToken && qCompanyId) {
+      const payload = await verifyToken(qToken);
+      if (payload && payload.uid) {
+        ctx = {
+          userId: payload.uid as number,
+          username: (payload.sub as string) || '',
+          role: (payload.role as string || 'EMPLOYEE') as 'ADMIN' | 'EMPLOYEE',
+          displayName: (payload.displayName as string) || '',
+          permissions: {},
+          companyId: parseInt(qCompanyId, 10),
+          companyName: '',
+          fiscalYearId: parseInt(searchParams.get('fyId') || '0', 10),
+          fiscalYearLabel: '',
+        };
+      }
+    }
+  }
   if (!ctx) return new NextResponse('Unauthorized', { status: 401 });
 
   const { id: idStr } = await context.params;

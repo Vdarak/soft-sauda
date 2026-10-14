@@ -10,7 +10,7 @@
 import { NextRequest } from 'next/server';
 import { ok, badRequest, unauthorized, createToken, verifyPassword, parseBody } from '@/lib/api-helpers';
 import { db } from '@/db';
-import { users, userCompanyAccess, companies, fiscalYears } from '@/db/schema';
+import { users, userCompanyAccess, companies, fiscalYears, departments } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 interface LoginBody {
@@ -67,7 +67,15 @@ export async function POST(req: NextRequest) {
     accessibleCompanyIds = access.map(a => a.companyId);
   }
 
-  // 6. Fetch company details + their fiscal years
+  // 6. Fetch all active departments
+  let departmentList: any[] = [];
+  try {
+    departmentList = await db.select().from(departments).where(eq(departments.isActive, true));
+  } catch (err) {
+    console.warn('[Login Route] Departments query failed or table not created yet:', err);
+  }
+
+  // 7. Fetch company details + their fiscal years
   const companyList = [];
   for (const compId of accessibleCompanyIds) {
     const [comp] = await db.select()
@@ -86,6 +94,7 @@ export async function POST(req: NextRequest) {
       id: comp.id,
       name: comp.name,
       shortCode: comp.shortCode,
+      departmentId: comp.departmentId,
       description: comp.description,
       fiscalYears: fys.map(fy => ({
         id: fy.id,
@@ -108,6 +117,7 @@ export async function POST(req: NextRequest) {
     displayName: user.displayName || user.username,
     role: user.role,
     permissions: user.permissions,
+    departments: departmentList,
     companies: companyList,
     expiresIn: parseInt(process.env.AUTH_SESSION_MAX_AGE_SECONDS || '86400', 10),
   });

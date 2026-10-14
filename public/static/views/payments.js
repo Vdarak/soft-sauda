@@ -3,7 +3,7 @@
  * Left Pane: Searchable Payment Voucher List
  * Right Pane: 100% Viewport Fit Multi-Column Voucher Form
  */
-import { Icons, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock } from '../components/ui.js';
+import { Icons, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock, upgradeAllSelects, confirmDialog, VirtualList } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
@@ -71,26 +71,7 @@ export async function renderPaymentForm(id = null, preloadedList = null) {
             <input type="text" id="search-payments" class="compact-input" placeholder="Search party, instrument, bank..." />
             <span id="payment-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">${allPayments.length}</span>
           </div>
-          <div class="split-pane-list-body" id="payments-list-items">
-            ${allPayments.length === 0 ? `
-              <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
-                No payment vouchers found. Click "+ New Voucher" to create.
-              </div>
-            ` : allPayments.map(p => `
-              <div class="split-pane-list-item ${String(p.id) === String(id) ? 'selected' : ''}" data-id="${p.id}">
-                <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between;">
-                  <span>Ref #${p.id} (${escapeHtml(p.partyName || 'Party')})</span>
-                  <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary);">₹${formatCurrency(p.amount)}</span>
-                </div>
-                <div style="font-size: 0.725rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                  Method: ${escapeHtml(p.instrumentType || 'CHEQUE')} ${p.instrumentNo ? `(${escapeHtml(p.instrumentNo)})` : ''}
-                </div>
-                <div style="font-size: 0.675rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.15rem;">
-                  <span>${formatDate(p.paymentDate)}</span>
-                  <span>Bank: ${escapeHtml(p.depositedBank || 'Cash')}</span>
-                </div>
-              </div>
-            `).join('')}
+          <div class="split-pane-list-body" id="payments-list-items" style="flex: 1; position: relative; overflow-y: auto;">
           </div>
         </div>
 
@@ -206,24 +187,73 @@ export async function renderPaymentForm(id = null, preloadedList = null) {
     </div>
   `;
 
+  // Upgrade all native selects to custom styled dropdowns
+  upgradeAllSelects();
+
   attachPartyAutocomp('partySearch', (name, party) => {
     if (party) {
       document.getElementById('partyId').value = party.id;
     }
   });
 
-  // Split pane handlers
-  document.querySelectorAll('.split-pane-list-item').forEach(item => {
-    item.addEventListener('click', () => {
-      renderPaymentForm(item.getAttribute('data-id'), allPayments);
-    });
+  // Virtual List setup for 60 FPS smooth scrolling
+  const vl = new VirtualList({
+    container: document.getElementById('payments-list-items'),
+    itemHeight: 54,
+    buffer: 6,
+    items: allPayments,
+    selectedId: id,
+    getItemId: p => p.id,
+    renderItem: (p, isSelected) => `
+      <div class="split-pane-list-item ${isSelected ? 'selected' : ''}" data-id="${p.id}" style="height: 54px; box-sizing: border-box; justify-content: center; padding: 0.25rem 0.5rem;">
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 0.5rem;">Ref #${p.id} (${escapeHtml(p.partyName || 'Party')})</span>
+          <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary); flex-shrink: 0;">${formatCurrency(p.amount)}</span>
+        </div>
+        <div style="font-size: 0.725rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          Method: ${escapeHtml(p.instrumentType || 'CHEQUE')} ${p.instrumentNo ? `(${escapeHtml(p.instrumentNo)})` : ''}
+        </div>
+        <div style="font-size: 0.675rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.15rem; overflow: hidden; white-space: nowrap;">
+          <span>${formatDate(p.paymentDate)}</span>
+          <span>Bank: ${escapeHtml(p.depositedBank || 'Cash')}</span>
+        </div>
+      </div>
+    `,
+    onSelect: (selectedId) => {
+      renderPaymentForm(selectedId, allPayments);
+    },
+    emptyMessage: 'No payment vouchers found. Click "+ New Voucher" to create.'
   });
 
+  if (id) {
+    vl.scrollToId(id);
+  }
+
+  // Precompute lowercase search index
+  allPayments.forEach(p => {
+    if (!p._search) {
+      p._search = `${p.id || ''} ${p.partyName || ''} ${p.instrumentType || ''} ${p.instrumentNo || ''} ${p.depositedBank || ''}`.toLowerCase();
+    }
+  });
+
+  // Instant in-memory search
   document.getElementById('search-payments').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase().trim();
-    document.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.style.display = item.textContent.toLowerCase().includes(q) ? 'block' : 'none';
+    const countEl = document.getElementById('payment-count');
+    if (!q) {
+      if (countEl) countEl.textContent = allPayments.length.toLocaleString();
+      vl.setItems(allPayments, true);
+      return;
+    }
+
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const filtered = allPayments.filter(p => {
+      const str = p._search || (p._search = `${p.id || ''} ${p.partyName || ''} ${p.instrumentType || ''} ${p.instrumentNo || ''} ${p.depositedBank || ''}`.toLowerCase());
+      return tokens.every(tok => str.includes(tok));
     });
+
+    if (countEl) countEl.textContent = `${filtered.length.toLocaleString()} of ${allPayments.length.toLocaleString()}`;
+    vl.setItems(filtered, true);
   });
 
   document.getElementById('btn-new-payment').addEventListener('click', () => renderPaymentForm(null, allPayments));
@@ -231,7 +261,7 @@ export async function renderPaymentForm(id = null, preloadedList = null) {
 
   if (isEdit) {
     document.getElementById('btn-delete-payment')?.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this payment voucher?')) return;
+      if (!(await confirmDialog('Are you sure you want to delete this payment voucher?'))) return;
       try {
         await api.del(`/api/payments/${payment.id}`);
         showToast('Payment voucher deleted', 'success');

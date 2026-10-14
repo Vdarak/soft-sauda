@@ -46,30 +46,46 @@ export async function calculateBrokerage(input: BrokerageCalculationInput): Prom
   let sellerType = 'PMT'; // PMT (Per Metric Ton/Quintal), BAG, PCT
   let buyerRate = 0;
   let buyerType = 'PMT';
+  let overrideFound = false;
 
-  // 1. Check Party x Item override
+  // 1. Check Party x Item override (Hierarchical evaluation)
   if (partyId) {
-    const partyOverride = await db.select()
+    const partyOverrides = await db.select()
       .from(partyItemBrokerage)
-      .where(
-        and(
-          eq(partyItemBrokerage.partyId, partyId),
-          eq(partyItemBrokerage.commodityId, commodityId)
-        )
-      )
-      .limit(1);
+      .where(eq(partyItemBrokerage.partyId, partyId));
 
-    if (partyOverride.length > 0) {
-      const p = partyOverride[0];
-      sellerRate = parseFloat(p.sellerBrokerageRate || '0');
-      sellerType = p.sellerBrokerageType || 'PMT';
-      buyerRate = parseFloat(p.buyerBrokerageRate || '0');
-      buyerType = p.buyerBrokerageType || 'PMT';
+    if (partyOverrides.length > 0) {
+      // Sort / match by specificity:
+      // Priority 1: Match commodity + Match packing weight
+      // Priority 2: Match commodity + Global packing (null or 0)
+      // Priority 3: Global commodity (null) + Match packing weight
+      // Priority 4: Global commodity (null) + Global packing (null or 0)
+      const matched = partyOverrides.find((p) =>
+        p.commodityId === commodityId &&
+        p.packingWeight && Math.abs(parseFloat(p.packingWeight) - packWeight) < 0.01
+      ) || partyOverrides.find((p) =>
+        p.commodityId === commodityId &&
+        (!p.packingWeight || parseFloat(p.packingWeight) === 0)
+      ) || partyOverrides.find((p) =>
+        !p.commodityId &&
+        p.packingWeight && Math.abs(parseFloat(p.packingWeight) - packWeight) < 0.01
+      ) || partyOverrides.find((p) =>
+        !p.commodityId &&
+        (!p.packingWeight || parseFloat(p.packingWeight) === 0)
+      );
+
+      if (matched) {
+        sellerRate = parseFloat(matched.sellerBrokerageRate || '0');
+        sellerType = matched.sellerBrokerageType || 'PMT';
+        buyerRate = parseFloat(matched.buyerBrokerageRate || '0');
+        buyerType = matched.buyerBrokerageType || 'PMT';
+        overrideFound = true;
+      }
     }
   }
 
-  // 2. If no party override found, fallback to Commodity Packaging default
-  if (sellerRate === 0 && buyerRate === 0 && packagingId) {
+  // 2. Fallback to Commodity Packaging default if no party override exists
+  if (!overrideFound && packagingId) {
     const defaultPkg = await db.select()
       .from(commodityPackaging)
       .where(eq(commodityPackaging.id, packagingId))

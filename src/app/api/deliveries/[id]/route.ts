@@ -6,12 +6,13 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts, commodities, users } from '@/db/schema';
+import { deliveries, deliveryLines, deliveryCharges, parties, contractLines, contracts, commodities, contractParties, users } from '@/db/schema';
 import { eq, and, aliasedTable } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
 import { triggerBackgroundWarmup } from '@/lib/warmup';
 import { getRequestContext, stripAuditFields, writeAuditLog } from '@/lib/middleware';
+import { updateContractExecutionBalances } from '@/lib/contract-execution';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -97,6 +98,17 @@ export async function GET(req: NextRequest, context: Params) {
       transporterName = t[0]?.name || null;
     }
 
+    const targetContractId = contractId || id;
+    const pRows = await db.select({ role: contractParties.role, name: parties.name })
+      .from(contractParties)
+      .leftJoin(parties, eq(parties.id, contractParties.partyId))
+      .where(eq(contractParties.contractId, targetContractId));
+
+    const sellerName = pRows.find(p => p.role === 'SELLER')?.name || null;
+    const buyerName = pRows.find(p => p.role === 'BUYER')?.name || null;
+    const sellerBroker = pRows.find(p => p.role === 'SELLER_BROKER')?.name || null;
+    const buyerBroker = pRows.find(p => p.role === 'BUYER_BROKER')?.name || null;
+
     const result = {
       ...deliveryData,
       transporterName,
@@ -106,6 +118,10 @@ export async function GET(req: NextRequest, context: Params) {
       saudaNo,
       saudaDate,
       contractId,
+      sellerName,
+      buyerName,
+      sellerBroker,
+      buyerBroker,
       createdByUsername: deliveryRows[0].createdByUsername,
       createdByDisplayName: deliveryRows[0].createdByDisplayName,
       updatedByUsername: deliveryRows[0].updatedByUsername,
@@ -138,7 +154,15 @@ export async function PUT(req: NextRequest, context: Params) {
       .limit(1);
     if (existingDelivery.length === 0) return notFound('Delivery not found or does not belong to active company/fiscal year');
 
+    const affectedLineIds = new Set<number>();
+
     await db.transaction(async (tx) => {
+      // 1. Collect old contractLineIds before replacement
+      const oldLines = await tx.select({ contractLineId: deliveryLines.contractLineId })
+        .from(deliveryLines)
+        .where(eq(deliveryLines.deliveryId, id));
+      oldLines.forEach(l => { if (l.contractLineId) affectedLineIds.add(l.contractLineId); });
+
       const transporterId = await resolveParty(body.transporterName, tx);
 
       await tx.update(deliveries).set({
@@ -160,20 +184,24 @@ export async function PUT(req: NextRequest, context: Params) {
       if (lines.length > 0) {
         for (const line of lines) {
           if (!line.contractLineId || !line.dispatchedWeight) continue;
+          const cLineId = parseInt(line.contractLineId, 10);
           await tx.insert(deliveryLines).values({
             deliveryId: id,
-            contractLineId: parseInt(line.contractLineId, 10),
+            contractLineId: cLineId,
             dispatchedBags: line.dispatchedBags ? parseFloat(line.dispatchedBags).toString() : null,
             dispatchedWeight: parseFloat(line.dispatchedWeight).toString(),
           });
+          affectedLineIds.add(cLineId);
         }
       } else if (body.contractLineId && body.dispatchedWeight) {
+        const cLineId = parseInt(body.contractLineId, 10);
         await tx.insert(deliveryLines).values({
           deliveryId: id,
-          contractLineId: parseInt(body.contractLineId, 10),
+          contractLineId: cLineId,
           dispatchedBags: body.dispatchedBags ? parseFloat(body.dispatchedBags).toString() : null,
           dispatchedWeight: parseFloat(body.dispatchedWeight).toString(),
         });
+        affectedLineIds.add(cLineId);
       }
 
       const charges = body.charges && Array.isArray(body.charges) ? body.charges : [];
@@ -185,6 +213,11 @@ export async function PUT(req: NextRequest, context: Params) {
           chargeType: charge.chargeType,
           amount: amtVal.toString(),
         });
+      }
+
+      // Recompute parent contract balances (replicating SP_sauda2rear)
+      if (affectedLineIds.size > 0) {
+        await updateContractExecutionBalances(Array.from(affectedLineIds), tx);
       }
     });
 
@@ -199,6 +232,8 @@ export async function PUT(req: NextRequest, context: Params) {
 
     cacheInvalidate('deliveries');
     cacheInvalidate(`deliveries:${id}`);
+    cacheInvalidate('contracts');
+    cacheInvalidate('dashboard');
     triggerBackgroundWarmup(companyId, fiscalYearId);
     const updated = await db.select().from(deliveries).where(eq(deliveries.id, id)).limit(1);
     return ok(stripAuditFields(updated[0], role));
@@ -224,7 +259,18 @@ export async function DELETE(req: NextRequest, context: Params) {
       .limit(1);
     if (existingDelivery.length === 0) return notFound('Delivery not found or does not belong to active company/fiscal year');
 
+    // Collect affected contract line IDs before deletion
+    const oldLines = await db.select({ contractLineId: deliveryLines.contractLineId })
+      .from(deliveryLines)
+      .where(eq(deliveryLines.deliveryId, id));
+    const affectedLineIds = oldLines.map(l => l.contractLineId).filter(Boolean) as number[];
+
     await db.delete(deliveries).where(eq(deliveries.id, id));
+
+    // Recompute parent contract balances
+    if (affectedLineIds.length > 0) {
+      await updateContractExecutionBalances(affectedLineIds);
+    }
 
     writeAuditLog({
       userId,
@@ -236,6 +282,7 @@ export async function DELETE(req: NextRequest, context: Params) {
 
     cacheInvalidate('deliveries');
     cacheInvalidate(`deliveries:${id}`);
+    cacheInvalidate('contracts');
     cacheInvalidate('dashboard');
     triggerBackgroundWarmup(companyId, fiscalYearId);
     return ok({ success: true, id });

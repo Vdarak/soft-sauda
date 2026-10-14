@@ -14,32 +14,102 @@ import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
+async function enrichParties(partyList: any[]) {
+  if (partyList.length === 0) return [];
+
+  const [taxRows, bankRows, contactRows, addressRows, roleRows] = await Promise.all([
+    db.select().from(partyTaxIds),
+    db.select().from(partyBankDetails),
+    db.select().from(partyContacts),
+    db.select().from(partyDeliveryAddresses),
+    db.select().from(partyRoles),
+  ]);
+
+  const taxMap: Record<number, any[]> = {};
+  const bankMap: Record<number, any[]> = {};
+  const contactMap: Record<number, any[]> = {};
+  const addressMap: Record<number, any[]> = {};
+  const roleMap: Record<number, any[]> = {};
+
+  for (const r of taxRows) {
+    if (!taxMap[r.partyId]) taxMap[r.partyId] = [];
+    taxMap[r.partyId].push(r);
+  }
+  for (const r of bankRows) {
+    if (!bankMap[r.partyId]) bankMap[r.partyId] = [];
+    bankMap[r.partyId].push(r);
+  }
+  for (const r of contactRows) {
+    if (!contactMap[r.partyId]) contactMap[r.partyId] = [];
+    contactMap[r.partyId].push(r);
+  }
+  for (const r of addressRows) {
+    if (!addressMap[r.partyId]) addressMap[r.partyId] = [];
+    addressMap[r.partyId].push(r);
+  }
+  for (const r of roleRows) {
+    if (!roleMap[r.partyId]) roleMap[r.partyId] = [];
+    roleMap[r.partyId].push(r);
+  }
+
+  return partyList.map(p => {
+    // Ensure default delivery address if none exists
+    const delivs = addressMap[p.id] || [];
+    if (delivs.length === 0) {
+      delivs.push({
+        id: 0,
+        partyId: p.id,
+        addressLine: p.address || (p.place ? `Main Office / Delivery Address, ${p.place}` : 'Delivery Address'),
+        city: p.place || null,
+        state: p.stateName || null,
+        pincode: p.pinCode || null,
+      });
+    }
+
+    const item = {
+      ...p,
+      taxIds: taxMap[p.id] || [],
+      bankDetails: bankMap[p.id] || [],
+      contacts: contactMap[p.id] || [],
+      deliveryAddresses: delivs,
+      roles: roleMap[p.id] || [],
+    };
+    cacheSet(`parties:${p.id}`, item, 600);
+    return item;
+  });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = parseInt(searchParams.get('limit') || '10000', 10);
     const q = searchParams.get('q') || '';
     const offset = (page - 1) * limit;
 
+    const forceRefresh = searchParams.get('fresh') === '1' || searchParams.get('forceRefresh') === 'true';
     const cacheKey = `parties:list:${page}:${limit}:${q}`;
-    const cached = cacheGet<unknown[]>(cacheKey);
-    if (cached) return ok(cached);
+    if (!forceRefresh) {
+      const cached = cacheGet<unknown[]>(cacheKey);
+      if (cached) return ok(cached);
+    }
 
     let query = db.select().from(parties);
 
     if (q) {
       query = query.where(ilike(parties.name, `%${q}%`)) as typeof query;
-      const data = await query.orderBy(desc(parties.id)).limit(100);
+      const rawParties = await query.orderBy(desc(parties.id)).limit(100);
+      const data = await enrichParties(rawParties);
       return ok(data);
     }
 
-    const data = await query
+    const rawParties = await query
       .orderBy(desc(parties.id))
       .limit(limit)
       .offset(offset);
 
-    cacheSet(cacheKey, data, 60);
+    const data = await enrichParties(rawParties);
+    cacheSet(cacheKey, data, 600);
     return ok(data);
   } catch (err) {
     console.error('GET /api/parties error:', err);
@@ -99,9 +169,9 @@ export async function POST(req: NextRequest) {
       if (body.contacts && Array.isArray(body.contacts) && body.contacts.length > 0) {
         const contactInserts = body.contacts.map((c: any) => ({
           partyId,
-          contactName: c.contactName,
-          contactNumber: c.contactNumber,
-          emailId: c.emailId || null,
+          contactName: c.contactName || c.name || 'Contact Person',
+          contactNumber: c.contactNumber || c.phone || '-',
+          emailId: c.emailId || c.email || null,
           designation: c.designation || null,
         }));
         await tx.insert(partyContacts).values(contactInserts);

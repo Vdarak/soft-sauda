@@ -1,7 +1,7 @@
 /**
  * Commodities View — List + Dual-Pane Create/Edit form with packaging & specs grids
  */
-import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData } from '../components/ui.js';
+import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData, confirmDialog, upgradeAllSelects, upgradeSelect } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 export async function renderCommodityList(ctx) {
@@ -95,7 +95,7 @@ export async function renderCommodityForm(id) {
       return packagingRows.map((p, i) => `
         <tr class="pack-row-item">
           <td>
-            <select data-pack-idx="${i}" data-field="packingType" class="pack-input" style="padding: 0.25rem;">
+            <select data-pack-idx="${i}" data-field="packingType" class="pack-input compact-select" style="padding: 0.25rem;">
               <option value="">Select...</option>
               ${packingTypeOptions.map(opt => `<option value="${opt}" ${p.packingType === opt ? 'selected' : ''}>${opt}</option>`).join('')}
             </select>
@@ -105,7 +105,7 @@ export async function renderCommodityForm(id) {
           <td>
             <div style="display: flex; gap: 0.25rem;">
               <input type="number" step="0.01" value="${p.sellerBrokerageRate || ''}" data-pack-idx="${i}" data-field="sellerBrokerageRate" class="pack-input" style="width: 70px;" placeholder="Rate">
-              <select data-pack-idx="${i}" data-field="sellerBrokerageType" class="pack-input" style="padding: 0.25rem;">
+              <select data-pack-idx="${i}" data-field="sellerBrokerageType" class="pack-input compact-select" style="padding: 0.25rem;">
                 <option value="">Type...</option>
                 ${brokerageTypeOptions.map(opt => `<option value="${opt}" ${p.sellerBrokerageType === opt ? 'selected' : ''}>${opt}</option>`).join('')}
               </select>
@@ -114,7 +114,7 @@ export async function renderCommodityForm(id) {
           <td>
             <div style="display: flex; gap: 0.25rem;">
               <input type="number" step="0.01" value="${p.buyerBrokerageRate || ''}" data-pack-idx="${i}" data-field="buyerBrokerageRate" class="pack-input" style="width: 70px;" placeholder="Rate">
-              <select data-pack-idx="${i}" data-field="buyerBrokerageType" class="pack-input" style="padding: 0.25rem;">
+              <select data-pack-idx="${i}" data-field="buyerBrokerageType" class="pack-input compact-select" style="padding: 0.25rem;">
                 <option value="">Type...</option>
                 ${brokerageTypeOptions.map(opt => `<option value="${opt}" ${p.buyerBrokerageType === opt ? 'selected' : ''}>${opt}</option>`).join('')}
               </select>
@@ -131,7 +131,7 @@ export async function renderCommodityForm(id) {
           <td><input type="text" value="${escapeHtml(s.specification || '')}" data-spec-idx="${i}" data-field="specification" class="spec-input" placeholder="e.g. Moisture"></td>
           <td><input type="number" step="0.01" value="${s.specValue || ''}" data-spec-idx="${i}" data-field="specValue" class="spec-input" placeholder="e.g. 8.5"></td>
           <td>
-            <select data-spec-idx="${i}" data-field="minMax" class="spec-input" style="padding: 0.25rem;">
+            <select data-spec-idx="${i}" data-field="minMax" class="spec-input compact-select" style="padding: 0.25rem;">
               <option value="">Rule...</option>
               ${minMaxOptions.map(opt => `<option value="${opt}" ${s.minMax === opt ? 'selected' : ''}>${opt}</option>`).join('')}
             </select>
@@ -232,6 +232,9 @@ export async function renderCommodityForm(id) {
     `;
     document.head.appendChild(style);
 
+    // Upgrade all native selects to custom styled dropdowns
+    upgradeAllSelects();
+
     // Bind left sidebar search filter
     document.getElementById('alter-commodity-search')?.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase();
@@ -254,11 +257,13 @@ export async function renderCommodityForm(id) {
     document.getElementById('add-pack').addEventListener('click', () => {
       packagingRows.push({ packingType: '', packingWeight: '0', packingWeight2: '', sellerBrokerageRate: '', sellerBrokerageType: '', buyerBrokerageRate: '', buyerBrokerageType: '' });
       document.getElementById('pack-tbody').innerHTML = renderPackagingGrid();
+      upgradeAllSelects();
     });
 
     document.getElementById('add-spec').addEventListener('click', () => {
       specsRows.push({ specification: '', specValue: '', minMax: '', remarks: '' });
       document.getElementById('specs-tbody').innerHTML = renderSpecsGrid();
+      upgradeAllSelects();
     });
 
     // Inline inputs grid listener updates
@@ -289,10 +294,12 @@ export async function renderCommodityForm(id) {
       if (e.target.classList.contains('remove-pack')) {
         packagingRows.splice(parseInt(e.target.dataset.idx, 10), 1);
         document.getElementById('pack-tbody').innerHTML = renderPackagingGrid();
+        upgradeAllSelects();
       }
       if (e.target.classList.contains('remove-spec')) {
         specsRows.splice(parseInt(e.target.dataset.idx, 10), 1);
         document.getElementById('specs-tbody').innerHTML = renderSpecsGrid();
+        upgradeAllSelects();
       }
     });
 
@@ -328,7 +335,7 @@ export async function renderCommodityForm(id) {
 
     if (isEdit) {
       document.getElementById('btn-delete').addEventListener('click', async (e) => {
-        if (!confirm('Are you sure you want to delete this commodity?')) return;
+        if (!(await confirmDialog('Are you sure you want to delete this commodity?'))) return;
         const btn = e.target.closest('button');
         const ogHtml = btn.innerHTML;
         btn.disabled = true;

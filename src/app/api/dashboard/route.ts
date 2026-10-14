@@ -26,7 +26,11 @@ export async function GET(req: NextRequest) {
     
     const [contractCount] = await db.select({ count: sql<number>`count(*)` })
       .from(contracts)
-      .where(and(eq(contracts.companyId, companyId), eq(contracts.fiscalYearId, fiscalYearId)));
+      .where(and(
+        eq(contracts.companyId, companyId),
+        eq(contracts.fiscalYearId, fiscalYearId),
+        eq(contracts.saudaBook, 'SD')
+      ));
       
     const [deliveryCount] = await db.select({ count: sql<number>`count(*)` })
       .from(deliveries)

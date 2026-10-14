@@ -6,7 +6,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, partyTaxIds, users } from '@/db/schema';
+import { contracts, contractParties, contractLines, contractDocuments, contractSpecifications, contractTerms, parties, commodities, commodityPackaging, partyTaxIds, users } from '@/db/schema';
 import { eq, and, aliasedTable } from 'drizzle-orm';
 import { ok, badRequest, notFound, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, context: Params) {
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid contract ID');
 
-    const cacheKey = `contracts:${id}`;
+    const cacheKey = `contracts:detail:${id}`;
     const cached = cacheGet(cacheKey);
     if (cached) return ok(stripAuditFields(cached, role));
 
@@ -102,10 +102,25 @@ export async function GET(req: NextRequest, context: Params) {
       sellerGstin = taxRows.find((t: any) => t.taxType === 'GSTIN')?.taxValue || null;
     }
 
+    const documents = await db.select().from(contractDocuments)
+      .where(eq(contractDocuments.contractId, id))
+      .orderBy(contractDocuments.sortOrder, contractDocuments.id);
+
+    const specifications = await db.select().from(contractSpecifications)
+      .where(eq(contractSpecifications.contractId, id))
+      .orderBy(contractSpecifications.id);
+
+    const terms = await db.select().from(contractTerms)
+      .where(eq(contractTerms.contractId, id))
+      .orderBy(contractTerms.sortOrder, contractTerms.id);
+
     const result = {
       ...contractData,
       parties: partiesRows,
       lines: enrichedLines,
+      documents,
+      specifications,
+      terms,
       sellerName: partiesRows.find(p => p.role === 'SELLER')?.name || null,
       buyerName: partiesRows.find(p => p.role === 'BUYER')?.name || null,
       sellerBroker: partiesRows.find(p => p.role === 'SELLER_BROKER')?.name || null,
@@ -207,23 +222,29 @@ export async function PUT(req: NextRequest, context: Params) {
       }
 
       for (const line of lines) {
-        if (!line.commodity) continue;
-        const commodityId = await resolveCommodity(line.commodity, tx);
+        const commName = line.commodity || line.commodityName;
+        if (!commName) continue;
+        const commodityId = await resolveCommodity(commName, tx);
         const packagingId = await resolvePackaging(commodityId, line.packaging, tx);
         const weight = parseFloat(line.weight || line.weightQuintals || '0');
         const rate = parseFloat(line.rate || '0');
-        const qtyBags = line.quantityBags ? parseFloat(line.quantityBags) : null;
+        const packWt = line.packWeight != null ? parseFloat(line.packWeight) : (line.pack != null ? parseFloat(line.pack) : null);
+        const qtyBags = line.quantityBags != null ? parseFloat(line.quantityBags) : (packWt && packWt > 0 && weight > 0 ? (weight * 100) / packWt : null);
+        const slBrok = line.sellerBrokerageRate != null ? parseFloat(line.sellerBrokerageRate) : (line.slBrokRate != null ? parseFloat(line.slBrokRate) : null);
 
-        const lineValues = {
+        const lineValues: any = {
           contractId: id,
           commodityId,
           packagingId,
-          brand: line.brand || null,
-          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : null,
-          quantityBags: qtyBags ? qtyBags.toString() : null,
+          brand: line.brand || line.quantityDetails || null,
+          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : (line.qtyNos ? parseInt(line.qtyNos, 10) : 1),
+          packWeight: packWt != null ? packWt.toString() : null,
+          quantityBags: qtyBags != null ? qtyBags.toString() : null,
           weightQuintals: weight.toString(),
           rate: rate.toString(),
           amount: (weight * rate).toString(),
+          sellerBrokerageRate: slBrok != null ? slBrok.toString() : null,
+          brokerageType: line.brokerageType || line.type || 'PQtl',
         };
 
         if (line.id && existingIds.includes(line.id)) {
@@ -231,6 +252,36 @@ export async function PUT(req: NextRequest, context: Params) {
         } else {
           await tx.insert(contractLines).values(lineValues);
         }
+      }
+
+      if (Array.isArray(body.documents)) {
+        await tx.delete(contractDocuments).where(eq(contractDocuments.contractId, id));
+        const docRows = body.documents
+          .filter((d: any) => d.narration && d.narration.trim().length > 0)
+          .map((d: any, idx: number) => ({ contractId: id, narration: d.narration.trim(), sortOrder: d.sortOrder ?? idx }));
+        if (docRows.length > 0) await tx.insert(contractDocuments).values(docRows);
+      }
+
+      if (Array.isArray(body.specifications)) {
+        await tx.delete(contractSpecifications).where(eq(contractSpecifications.contractId, id));
+        const specRows = body.specifications
+          .filter((s: any) => s.specName && s.specName.trim().length > 0)
+          .map((s: any) => ({
+            contractId: id,
+            specName: s.specName.trim(),
+            specValue: s.specValue != null && s.specValue !== '' ? s.specValue.toString() : null,
+            minMax: s.minMax ? s.minMax.trim() : null,
+            remarks: s.remarks ? s.remarks.trim() : null,
+          }));
+        if (specRows.length > 0) await tx.insert(contractSpecifications).values(specRows);
+      }
+
+      if (Array.isArray(body.terms)) {
+        await tx.delete(contractTerms).where(eq(contractTerms.contractId, id));
+        const termRows = body.terms
+          .filter((t: any) => t.narration && t.narration.trim().length > 0)
+          .map((t: any, idx: number) => ({ contractId: id, narration: t.narration.trim(), sortOrder: t.sortOrder ?? idx }));
+        if (termRows.length > 0) await tx.insert(contractTerms).values(termRows);
       }
     });
 

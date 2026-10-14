@@ -99,7 +99,7 @@ export async function renderListing(id) {
       actionsHtml = `
         <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
           <a class="mkt-btn" data-route href="/market/login" style="flex: 1;">Sign in to Bid</a>
-          <button id="mkt-save" class="mkt-btn-ghost">☆ Save</button>
+          <button id="mkt-save" class="mkt-btn-ghost" style="display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Save</button>
         </div>
       `;
     }
@@ -117,7 +117,7 @@ export async function renderListing(id) {
       actionsHtml = `
         <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
           <button id="mkt-bargain-btn" class="mkt-btn" style="flex: 1; min-width: 180px;">Bargain Privately</button>
-          <button id="mkt-save" class="mkt-btn-ghost">☆ Save</button>
+          <button id="mkt-save" class="mkt-btn-ghost" style="display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Save</button>
         </div>
       `;
     }
@@ -166,7 +166,7 @@ export async function renderListing(id) {
       }
       try {
         await api.post('/watchlist', { listingId: l.id });
-        e.target.textContent = '★ Saved';
+        e.target.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Saved';
         e.target.disabled = true;
         toast('Saved to your watchlist', 'success');
       } catch (err) {

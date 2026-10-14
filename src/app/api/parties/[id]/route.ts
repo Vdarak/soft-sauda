@@ -21,9 +21,14 @@ export async function GET(req: NextRequest, context: Params) {
     const id = parseInt(idStr, 10);
     if (isNaN(id)) return badRequest('Invalid party ID');
 
+    const { searchParams } = new URL(req.url);
+    const forceRefresh = searchParams.get('fresh') === '1' || searchParams.get('forceRefresh') === 'true';
+
     const cacheKey = `parties:${id}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) return ok(cached);
+    if (!forceRefresh) {
+      const cached = cacheGet(cacheKey);
+      if (cached) return ok(cached);
+    }
 
     const party = await db.select().from(parties).where(eq(parties.id, id)).limit(1);
     if (party.length === 0) return notFound('Party not found');
@@ -33,6 +38,17 @@ export async function GET(req: NextRequest, context: Params) {
     const contacts = await db.select().from(partyContacts).where(eq(partyContacts.partyId, id));
     const deliveryAddresses = await db.select().from(partyDeliveryAddresses).where(eq(partyDeliveryAddresses.partyId, id));
     const roles = await db.select().from(partyRoles).where(eq(partyRoles.partyId, id));
+
+    if (deliveryAddresses.length === 0) {
+      deliveryAddresses.push({
+        id: 0,
+        partyId: id,
+        addressLine: party[0].address || (party[0].place ? `Main Office / Delivery Address, ${party[0].place}` : 'Delivery Address'),
+        city: party[0].place || null,
+        state: party[0].stateName || null,
+        pincode: party[0].pinCode || null,
+      });
+    }
 
     const result = {
       ...party[0],
@@ -107,9 +123,9 @@ export async function PUT(req: NextRequest, context: Params) {
       if (body.contacts && Array.isArray(body.contacts) && body.contacts.length > 0) {
         const contactInserts = body.contacts.map((c: any) => ({
           partyId: id,
-          contactName: c.contactName,
-          contactNumber: c.contactNumber,
-          emailId: c.emailId || null,
+          contactName: c.contactName || c.name || 'Contact Person',
+          contactNumber: c.contactNumber || c.phone || '-',
+          emailId: c.emailId || c.email || null,
           designation: c.designation || null,
         }));
         await tx.insert(partyContacts).values(contactInserts);

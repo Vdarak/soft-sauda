@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { bills, billLines, parties, contracts, contractLines, contractParties, deliveryLines, commodities } from '@/db/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { ok, serverError, unauthorized } from '@/lib/api-helpers';
 import { getRequestContext } from '@/lib/middleware';
 
@@ -14,134 +14,189 @@ export async function GET(req: NextRequest) {
 
     const { companyId, fiscalYearId } = ctx;
 
-    // Select all bills that have an outstanding balance (balanceAmount > 0)
-    // and belong to this company + FY
-    const outstandingBills = await db.select({
-      id: bills.id,
-      billNo: bills.billNo,
-      billDate: bills.billDate,
-      basis: bills.basis,
-      totalAmount: bills.totalAmount,
-      balanceAmount: bills.balanceAmount,
-      creditDays: bills.creditDays,
-      billedPartyId: bills.partyId,
-      billedPartyName: parties.name,
-      creditLimit: parties.creditLimit,
-      refType: billLines.referenceType,
-      refId: billLines.referenceId,
-    })
-    .from(bills)
-    .innerJoin(parties, eq(parties.id, bills.partyId))
-    .leftJoin(billLines, eq(billLines.billId, bills.id))
-    .where(and(
-      eq(bills.companyId, companyId),
-      eq(bills.fiscalYearId, fiscalYearId),
-      sql`balance_amount::numeric > 0`
-    ))
-    .orderBy(desc(bills.billDate));
+    // 1. Select all bills with an outstanding balance (> 0) for active company + fiscal year
+    const outstandingBills = await db
+      .select({
+        id: bills.id,
+        billNo: bills.billNo,
+        billDate: bills.billDate,
+        basis: bills.basis,
+        totalAmount: bills.totalAmount,
+        balanceAmount: bills.balanceAmount,
+        creditDays: bills.creditDays,
+        billedPartyId: bills.partyId,
+        billedPartyName: parties.name,
+        creditLimit: parties.creditLimit,
+        refType: billLines.referenceType,
+        refId: billLines.referenceId,
+      })
+      .from(bills)
+      .innerJoin(parties, eq(parties.id, bills.partyId))
+      .leftJoin(billLines, eq(billLines.billId, bills.id))
+      .where(
+        and(
+          eq(bills.companyId, companyId),
+          eq(bills.fiscalYearId, fiscalYearId),
+          sql`balance_amount::numeric > 0`
+        )
+      )
+      .orderBy(desc(bills.billDate));
 
-    const enriched = [];
+    if (outstandingBills.length === 0) {
+      return ok([]);
+    }
 
+    // 2. High-Performance Batch Resolution (Zero N+1 Query Loop)
+    // Map deliveries to contractLineIds
+    const deliveryRefIds = [
+      ...new Set(
+        outstandingBills
+          .filter((b) => b.refType === 'DELIVERY' && b.refId)
+          .map((b) => b.refId as number)
+      ),
+    ];
+
+    const delToContractMap = new Map<number, number>();
+    if (deliveryRefIds.length > 0) {
+      const dRows = await db
+        .select({
+          deliveryId: deliveryLines.deliveryId,
+          contractId: contractLines.contractId,
+        })
+        .from(deliveryLines)
+        .innerJoin(contractLines, eq(contractLines.id, deliveryLines.contractLineId))
+        .where(inArray(deliveryLines.deliveryId, deliveryRefIds));
+
+      for (const r of dRows) {
+        if (!delToContractMap.has(r.deliveryId)) {
+          delToContractMap.set(r.deliveryId, r.contractId);
+        }
+      }
+    }
+
+    // Collect all unique contract IDs across CONTRACT and DELIVERY references
+    const allContractIds = new Set<number>();
     for (const b of outstandingBills) {
-      let contractId: number | null = null;
-      let saudaNo: number | null = null;
-      let commodityName: string | null = null;
+      if (b.refType === 'CONTRACT' && b.refId) {
+        allContractIds.add(b.refId);
+      } else if (b.refType === 'DELIVERY' && b.refId) {
+        const cId = delToContractMap.get(b.refId);
+        if (cId) allContractIds.add(cId);
+      }
+    }
 
+    // Batch fetch contract headers + commodity names
+    const contractMetaMap = new Map<
+      number,
+      { saudaNo: number; commodityName: string }
+    >();
+    const contractPartiesMap = new Map<
+      number,
+      { role: string; name: string }[]
+    >();
+
+    const contractIdList = Array.from(allContractIds);
+    if (contractIdList.length > 0) {
+      const [cRows, pRows] = await Promise.all([
+        db
+          .select({
+            contractId: contracts.id,
+            saudaNo: contracts.saudaNo,
+            commodityName: commodities.name,
+          })
+          .from(contracts)
+          .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
+          .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
+          .where(inArray(contracts.id, contractIdList)),
+
+        db
+          .select({
+            contractId: contractParties.contractId,
+            role: contractParties.role,
+            name: parties.name,
+          })
+          .from(contractParties)
+          .innerJoin(parties, eq(parties.id, contractParties.partyId))
+          .where(inArray(contractParties.contractId, contractIdList)),
+      ]);
+
+      for (const r of cRows) {
+        if (!contractMetaMap.has(r.contractId)) {
+          contractMetaMap.set(r.contractId, {
+            saudaNo: r.saudaNo,
+            commodityName: r.commodityName || '-',
+          });
+        }
+      }
+
+      for (const p of pRows) {
+        if (!contractPartiesMap.has(p.contractId)) {
+          contractPartiesMap.set(p.contractId, []);
+        }
+        contractPartiesMap.get(p.contractId)!.push({
+          role: p.role,
+          name: p.name,
+        });
+      }
+    }
+
+    // 3. Assemble and compute aging + due dates
+    const now = Date.now();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    const enriched = outstandingBills.map((b) => {
+      let contractId: number | null = null;
       if (b.refType === 'CONTRACT' && b.refId) {
         contractId = b.refId;
       } else if (b.refType === 'DELIVERY' && b.refId) {
-        const delLines = await db
-          .select({ contractLineId: deliveryLines.contractLineId })
-          .from(deliveryLines)
-          .where(eq(deliveryLines.deliveryId, b.refId))
-          .limit(1);
-
-        if (delLines.length > 0) {
-          const conLines = await db
-            .select({ contractId: contractLines.contractId })
-            .from(contractLines)
-            .where(eq(contractLines.id, delLines[0].contractLineId))
-            .limit(1);
-
-          if (conLines.length > 0) {
-            contractId = conLines[0].contractId;
-          }
-        }
+        contractId = delToContractMap.get(b.refId) || null;
       }
 
-      let buyerName = 'Unknown';
-      let sellerName = 'Unknown';
-      let sellerBrokerName = '-';
-      let buyerBrokerName = '-';
+      const cMeta = contractId ? contractMetaMap.get(contractId) : null;
+      const cParties = contractId ? contractPartiesMap.get(contractId) || [] : [];
 
-      if (contractId) {
-        const con = await db
-          .select({ saudaNo: contracts.saudaNo })
-          .from(contracts)
-          .where(eq(contracts.id, contractId))
-          .limit(1);
+      const buyerName = cParties.find((p) => p.role === 'BUYER')?.name || b.billedPartyName;
+      const sellerName = cParties.find((p) => p.role === 'SELLER')?.name || 'Unknown';
+      const sellerBrokerName = cParties.find((p) => p.role === 'SELLER_BROKER')?.name || '-';
+      const buyerBrokerName = cParties.find((p) => p.role === 'BUYER_BROKER')?.name || '-';
 
-        if (con.length > 0) {
-          saudaNo = con[0].saudaNo;
-        }
+      // Due date & Overdue days logic adhering to SP_outsrear:
+      // Due Date = Bill Date + Credit Days. Overdue days only count AFTER credit days expire.
+      const billTime = new Date(b.billDate).getTime();
+      const creditDays = b.creditDays || 0;
+      const dueTime = billTime + creditDays * MS_PER_DAY;
+      const overDays = Math.max(0, Math.floor((now - dueTime) / MS_PER_DAY));
 
-        const cParties = await db
-          .select({ role: contractParties.role, name: parties.name })
-          .from(contractParties)
-          .innerJoin(parties, eq(parties.id, contractParties.partyId))
-          .where(eq(contractParties.contractId, contractId));
+      const total = parseFloat(b.totalAmount || '0');
+      const balance = parseFloat(b.balanceAmount || '0');
+      const received = Math.max(0, total - balance);
 
-        buyerName = cParties.find(p => p.role === 'BUYER')?.name || 'Unknown';
-        sellerName = cParties.find(p => p.role === 'SELLER')?.name || 'Unknown';
-        sellerBrokerName = cParties.find(p => p.role === 'SELLER_BROKER')?.name || '-';
-        buyerBrokerName = cParties.find(p => p.role === 'BUYER_BROKER')?.name || '-';
-
-        const conLine = await db
-          .select({ name: commodities.name })
-          .from(contractLines)
-          .innerJoin(commodities, eq(commodities.id, contractLines.commodityId))
-          .where(eq(contractLines.contractId, contractId))
-          .limit(1);
-
-        if (conLine.length > 0) {
-          commodityName = conLine[0].name;
-        }
-      }
-
-      const overDays = Math.max(
-        0,
-        Math.floor((Date.now() - new Date(b.billDate).getTime()) / (1000 * 60 * 60 * 24))
-      );
-
-      const total = parseFloat(b.totalAmount);
-      const balance = parseFloat(b.balanceAmount);
-      const received = total - balance;
-
-      enriched.push({
+      return {
         billId: b.id,
         billNo: b.billNo,
         billDate: b.billDate,
+        dueDate: new Date(dueTime).toISOString(),
         basis: b.basis,
         billAmount: total,
         balanceAmount: balance,
         receivedAmount: received,
         deductions: 0,
-        creditDays: b.creditDays,
+        creditDays,
         overDays,
         billedPartyName: b.billedPartyName,
         creditLimit: b.creditLimit ? parseFloat(b.creditLimit) : 0,
-        contractNo: saudaNo || '-',
+        contractNo: cMeta?.saudaNo ? cMeta.saudaNo.toString() : '-',
         buyerName,
         sellerName,
         sellerBrokerName,
         buyerBrokerName,
-        commodityName: commodityName || '-',
-      });
-    }
+        commodityName: cMeta?.commodityName || '-',
+      };
+    });
 
     return ok(enriched);
-  } catch (err) {
+  } catch (err: any) {
     console.error('GET /api/reports/payment-outstanding error:', err);
-    return serverError('Failed to fetch payment outstanding report');
+    return serverError(`Failed to fetch payment outstanding report: ${err?.message || err}`);
   }
 }

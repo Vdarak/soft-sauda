@@ -5,7 +5,7 @@
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
 
 export async function renderBrandList() {
   const app = document.getElementById('app');
@@ -60,10 +60,14 @@ export async function renderBrandList() {
             <div class="form-grid-2">
               <div class="compact-group">
                 <label class="compact-label">Trademark Registered?</label>
-                <select id="brand-reg" class="compact-select">
-                  <option value="false">No (Unregistered Brand)</option>
-                  <option value="true">Yes (Registered Trademark)</option>
-                </select>
+                <div style="display: flex; gap: 1.25rem; padding: 0.35rem 0; align-items: center;">
+                  <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; cursor: pointer; font-weight: 500;">
+                    <input type="radio" name="brand-reg" value="true" style="accent-color: var(--primary); width: 15px; height: 15px;" /> Yes
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; cursor: pointer; font-weight: 500;">
+                    <input type="radio" name="brand-reg" value="false" checked style="accent-color: var(--primary); width: 15px; height: 15px;" /> No
+                  </label>
+                </div>
               </div>
               <div class="compact-group">
                 <label class="compact-label">Registration / Trademark No.</label>
@@ -126,40 +130,58 @@ export async function renderBrandList() {
         </div>
       </div>
     `).join('');
-
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectBrand(id);
-      });
-    });
   }
+
+  // Event delegation on list container (zero per-item listeners)
+  const listEl = document.getElementById('brand-list-items');
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.split-pane-list-item');
+    if (item) {
+      const id = parseInt(item.getAttribute('data-id'), 10);
+      selectBrand(id);
+    }
+  });
 
   function selectBrand(id) {
     selectedId = id;
     const b = allBrands.find(item => item.id === id);
     if (!b) return;
 
+    // Toggle selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => {
+      if (parseInt(el.getAttribute('data-id'), 10) === id) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+
     document.getElementById('brand-id').value = b.id;
     document.getElementById('brand-name').value = b.name || '';
-    document.getElementById('brand-reg').value = String(b.isRegistered || false);
+    // Set trademark registered radio
+    const regVal = String(b.isRegistered || false);
+    const radios = document.querySelectorAll('input[name="brand-reg"]');
+    radios.forEach(r => r.checked = r.value === regVal);
     document.getElementById('brand-regno').value = b.regNo || '';
 
-    document.getElementById('form-title').textContent = `📄 EDIT BRAND RECORD #${b.id}`;
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EDIT BRAND RECORD #${b.id}`;
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-brand').style.display = 'inline-block';
-
-    renderList(allBrands);
   }
 
   function resetForm() {
     selectedId = null;
     document.getElementById('brand-id').value = '';
     document.getElementById('brand-form').reset();
-    document.getElementById('form-title').textContent = '📄 BRAND MASTER RECORD';
+    // Reset radio to 'No'
+    const radios = document.querySelectorAll('input[name="brand-reg"]');
+    radios.forEach(r => r.checked = r.value === 'false');
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} BRAND MASTER RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-brand').style.display = 'none';
-    renderList(allBrands);
+
+    // Remove selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => el.classList.remove('selected'));
     document.getElementById('brand-name').focus();
   }
 
@@ -180,7 +202,7 @@ export async function renderBrandList() {
     const id = document.getElementById('brand-id').value;
     const payload = {
       name: document.getElementById('brand-name').value.trim(),
-      isRegistered: document.getElementById('brand-reg').value === 'true',
+      isRegistered: document.querySelector('input[name="brand-reg"]:checked')?.value === 'true',
       regNo: document.getElementById('brand-regno').value.trim() || null,
     };
 
@@ -201,7 +223,7 @@ export async function renderBrandList() {
 
   document.getElementById('btn-delete-brand').addEventListener('click', async () => {
     if (!selectedId) return;
-    if (!confirm('Are you sure you want to delete this brand?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this brand?'))) return;
 
     try {
       await api.del(`/api/brands/${selectedId}`);

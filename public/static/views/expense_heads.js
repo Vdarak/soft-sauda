@@ -3,7 +3,7 @@
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
 
 export async function renderExpenseHeadList() {
   const app = document.getElementById('app');
@@ -85,6 +85,9 @@ export async function renderExpenseHeadList() {
     try {
       allExpenses = await api.get('/api/expense-heads');
       renderList(allExpenses);
+      if (allExpenses.length > 0 && !selectedId) {
+        selectExpense(allExpenses[0].id);
+      }
     } catch (err) {
       showToast(err.message || 'Failed to load expense heads', 'error');
     }
@@ -111,39 +114,51 @@ export async function renderExpenseHeadList() {
         </div>
       </div>
     `).join('');
-
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectExpense(id);
-      });
-    });
   }
+
+  // Event delegation on list container (zero per-item listeners)
+  const listEl = document.getElementById('exp-list-items');
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.split-pane-list-item');
+    if (item) {
+      const id = parseInt(item.getAttribute('data-id'), 10);
+      selectExpense(id);
+    }
+  });
 
   function selectExpense(id) {
     selectedId = id;
     const e = allExpenses.find(item => item.id === id);
     if (!e) return;
 
+    // Toggle selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => {
+      if (parseInt(el.getAttribute('data-id'), 10) === id) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+
     document.getElementById('exp-id').value = e.id;
     document.getElementById('exp-name').value = e.name || '';
     document.getElementById('exp-type').value = e.expenseType || '';
 
-    document.getElementById('form-title').textContent = `📄 EDIT EXPENSE HEAD #${e.id}`;
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EDIT EXPENSE HEAD #${e.id}`;
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-exp').style.display = 'inline-block';
-
-    renderList(allExpenses);
   }
 
   function resetForm() {
     selectedId = null;
     document.getElementById('exp-id').value = '';
     document.getElementById('exp-form').reset();
-    document.getElementById('form-title').textContent = '📄 EXPENSE HEAD RECORD';
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EXPENSE HEAD RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-exp').style.display = 'none';
-    renderList(allExpenses);
+
+    // Remove selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => el.classList.remove('selected'));
     document.getElementById('exp-name').focus();
   }
 
@@ -181,7 +196,7 @@ export async function renderExpenseHeadList() {
 
   document.getElementById('btn-delete-exp').addEventListener('click', async () => {
     if (!selectedId) return;
-    if (!confirm('Are you sure you want to delete this expense head?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this expense head?'))) return;
 
     try {
       await api.del(`/api/expense-heads/${selectedId}`);

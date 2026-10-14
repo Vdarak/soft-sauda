@@ -1,11 +1,12 @@
 /**
  * Bank Master View (Single-Viewport Compact Paper Form Design)
- * Left Pane: Searchable Bank List
- * Right Pane: Dense 100% Viewport Fit Paper Form
+ * Optimized for 49,000+ records using the reusable VirtualList component,
+ * In-Memory Multi-Token Instant Search, and Single Event Delegation.
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
+import { VirtualList } from '../components/virtual-list.js';
 
 export async function renderBankList() {
   const app = document.getElementById('app');
@@ -28,16 +29,13 @@ export async function renderBankList() {
       </div>
 
       <div class="split-pane-wrapper">
-        <!-- LEFT PANE: Searchable List -->
-        <div class="split-pane-list">
+        <!-- LEFT PANE: Virtual Scrolled Searchable List -->
+        <div class="split-pane-list" style="width: 320px; display: flex; flex-direction: column;">
           <div class="split-pane-list-header">
-            <input type="text" id="search-banks" class="compact-input" placeholder="Search banks or IFSC..." />
-            <span id="bank-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">0</span>
+            <input type="text" id="search-banks" class="compact-input" placeholder="Search banks, branch or IFSC..." />
+            <span id="bank-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">Loading...</span>
           </div>
-          <div class="split-pane-list-body" id="banks-list-items">
-            <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.85rem;">
-              Loading banks...
-            </div>
+          <div class="split-pane-list-body" id="banks-list-items" style="position: relative; overflow-y: auto; flex: 1;">
           </div>
         </div>
 
@@ -118,58 +116,46 @@ export async function renderBankList() {
       </div>
     </div>`;
 
-  // State & Fetch
+  // State
   let allBanks = [];
+  let currentBanks = [];
   let selectedBankId = null;
 
-  async function loadBanks() {
-    try {
-      allBanks = await api.get('/api/banks');
-      renderList(allBanks);
-    } catch (err) {
-      showToast(err.message || 'Failed to load banks', 'error');
-    }
-  }
-
-  function renderList(banks) {
-    const listEl = document.getElementById('banks-list-items');
-    document.getElementById('bank-count').textContent = banks.length;
-
-    if (banks.length === 0) {
-      listEl.innerHTML = `
-        <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
-          No banks found. Click "+ Add New Bank" to create one.
+  // Initialize reusable VirtualList component
+  const listEl = document.getElementById('banks-list-items');
+  const vl = new VirtualList({
+    container: listEl,
+    itemHeight: 48,
+    buffer: 6,
+    items: currentBanks,
+    selectedId: selectedBankId,
+    getItemId: b => b.id,
+    renderItem: (b, isSelected) => `
+      <div class="split-pane-list-item ${isSelected ? 'selected' : ''}" data-id="${b.id}" style="height: 48px; box-sizing: border-box; justify-content: center; padding: 0.25rem 0.5rem;">
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 0.5rem;">${escapeHtml(b.bankName)}</span>
+          <span style="font-size: 0.675rem; font-weight: 600; color: var(--primary); flex-shrink: 0;">${escapeHtml(b.ifscCode || '')}</span>
         </div>
-      `;
-      return;
-    }
-
-    listEl.innerHTML = banks.map(b => `
-      <div class="split-pane-list-item ${selectedBankId === b.id ? 'selected' : ''}" data-id="${b.id}">
-        <div style="font-weight: 700; font-size: 0.85rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between;">
-          <span>${escapeHtml(b.bankName)}</span>
-          <span style="font-size: 0.7rem; font-weight: 600; color: var(--primary);">${escapeHtml(b.ifscCode || '')}</span>
-        </div>
-        <div style="font-size: 0.75rem; color: var(--muted-foreground);">
+        <div style="font-size: 0.725rem; color: var(--muted-foreground); overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
           ${escapeHtml(b.branch || 'Main Branch')} ${b.center ? '• ' + escapeHtml(b.center) : ''}
         </div>
       </div>
-    `).join('');
+    `,
+    onSelect: (id) => {
+      selectBank(parseInt(id, 10));
+    },
+    emptyMessage: 'No banks found. Click "+ Add New Bank" to create one.'
+  });
 
-    // Bind click events
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectBank(id);
-      });
-    });
-  }
-
-  function selectBank(id) {
+  // Fast in-place bank selection (no full DOM rebuild)
+  async function selectBank(id) {
     selectedBankId = id;
+    vl.setSelectedId(id);
+
     const bank = allBanks.find(b => b.id === id);
     if (!bank) return;
 
+    // Populate form fields
     document.getElementById('bank-id').value = bank.id;
     document.getElementById('bank-name').value = bank.bankName || '';
     document.getElementById('bank-branch').value = bank.branch || '';
@@ -185,34 +171,78 @@ export async function renderBankList() {
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-bank').style.display = 'inline-block';
 
-    renderList(allBanks);
+    // If detail attributes (address, micr) were not in summary list, fetch on-demand
+    if (bank.address === undefined && bank.id) {
+      try {
+        const full = await api.get(`/api/banks/${id}`);
+        if (full && selectedBankId === id) {
+          Object.assign(bank, full);
+          document.getElementById('bank-micr').value = full.micrCode || '';
+          document.getElementById('bank-address').value = full.address || '';
+          document.getElementById('bank-address1').value = full.address1 || '';
+          document.getElementById('bank-contact').value = full.contactPerson || '';
+          document.getElementById('bank-district').value = full.districtName || '';
+        }
+      } catch (_) {}
+    }
   }
 
   function resetForm() {
     selectedBankId = null;
+    vl.setSelectedId(null);
+
     document.getElementById('bank-id').value = '';
     document.getElementById('bank-form').reset();
     document.getElementById('form-title').innerHTML = `${Icons.fileText} BANK MASTER RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-bank').style.display = 'none';
-    renderList(allBanks);
+
     document.getElementById('bank-name').focus();
   }
 
-  // Event Listeners
+  // Load all banks with server cache
+  async function loadBanks() {
+    try {
+      allBanks = await api.get('/api/banks?all=true');
+      // Precompute lowercase search index for instant filtering (~10ms)
+      allBanks.forEach(b => {
+        b._search = `${b.bankName || ''} ${b.ifscCode || ''} ${b.branch || ''} ${b.center || ''}`.toLowerCase();
+      });
+      currentBanks = allBanks;
+      document.getElementById('bank-count').textContent = allBanks.length.toLocaleString();
+      vl.setItems(currentBanks);
+
+      if (allBanks.length > 0 && !selectedBankId) {
+        selectBank(allBanks[0].id);
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to load banks', 'error');
+    }
+  }
+
+  // Instant in-memory multi-token search
+  const searchInput = document.getElementById('search-banks');
+  searchInput.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    if (!q) {
+      currentBanks = allBanks;
+      document.getElementById('bank-count').textContent = allBanks.length.toLocaleString();
+    } else {
+      const tokens = q.split(/\s+/).filter(Boolean);
+      currentBanks = allBanks.filter(b => {
+        const searchStr = b._search || (b._search = `${b.bankName || ''} ${b.ifscCode || ''} ${b.branch || ''} ${b.center || ''}`.toLowerCase());
+        return tokens.every(tok => searchStr.includes(tok));
+      });
+      document.getElementById('bank-count').textContent = `${currentBanks.length.toLocaleString()} of ${allBanks.length.toLocaleString()}`;
+    }
+    vl.setItems(currentBanks, true);
+  });
+
+  // Buttons
   document.getElementById('btn-add-bank').addEventListener('click', resetForm);
   document.getElementById('btn-reset-bank').addEventListener('click', resetForm);
 
-  document.getElementById('search-banks').addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    const filtered = allBanks.filter(b => 
-      (b.bankName && b.bankName.toLowerCase().includes(q)) ||
-      (b.ifscCode && b.ifscCode.toLowerCase().includes(q)) ||
-      (b.branch && b.branch.toLowerCase().includes(q))
-    );
-    renderList(filtered);
-  });
-
+  // Form submit handler (in-place array updates for instant UI feedback)
   document.getElementById('bank-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('bank-id').value;
@@ -230,28 +260,45 @@ export async function renderBankList() {
 
     try {
       if (id) {
-        await api.put(`/api/banks/${id}`, payload);
+        const updated = await api.put(`/api/banks/${id}`, payload);
+        const idx = allBanks.findIndex(b => String(b.id) === String(id));
+        if (idx !== -1) {
+          Object.assign(allBanks[idx], payload, updated);
+          allBanks[idx]._search = `${allBanks[idx].bankName || ''} ${allBanks[idx].ifscCode || ''} ${allBanks[idx].branch || ''} ${allBanks[idx].center || ''}`.toLowerCase();
+        }
         showToast('Bank details updated successfully', 'success');
+        vl.setItems(currentBanks);
       } else {
-        await api.post('/api/banks', payload);
+        const created = await api.post('/api/banks', payload);
+        const newBank = { ...payload, ...created };
+        newBank._search = `${newBank.bankName || ''} ${newBank.ifscCode || ''} ${newBank.branch || ''} ${newBank.center || ''}`.toLowerCase();
+        allBanks.unshift(newBank);
+        selectedBankId = newBank.id;
+        currentBanks = allBanks;
+        document.getElementById('bank-count').textContent = allBanks.length.toLocaleString();
+        vl.setItems(currentBanks, true);
         showToast('New bank added successfully', 'success');
       }
-      resetForm();
-      await loadBanks();
+      if (selectedBankId) selectBank(selectedBankId);
     } catch (err) {
       showToast(err.message || 'Failed to save bank record', 'error');
     }
   });
 
+  // Delete button
   document.getElementById('btn-delete-bank').addEventListener('click', async () => {
     if (!selectedBankId) return;
-    if (!confirm('Are you sure you want to delete this bank record?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this bank record?'))) return;
 
     try {
       await api.del(`/api/banks/${selectedBankId}`);
       showToast('Bank record deleted', 'success');
+      allBanks = allBanks.filter(b => b.id !== selectedBankId);
+      currentBanks = currentBanks.filter(b => b.id !== selectedBankId);
+      document.getElementById('bank-count').textContent = allBanks.length.toLocaleString();
       resetForm();
-      await loadBanks();
+      vl.setItems(currentBanks);
+      if (allBanks.length > 0) selectBank(allBanks[0].id);
     } catch (err) {
       showToast(err.message || 'Failed to delete bank record', 'error');
     }

@@ -5,7 +5,7 @@
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
 
 export async function renderTransporterList() {
   const app = document.getElementById('app');
@@ -124,6 +124,9 @@ export async function renderTransporterList() {
     try {
       allTransporters = await api.get('/api/transporters');
       renderList(allTransporters);
+      if (allTransporters.length > 0 && !selectedId) {
+        selectTransporter(allTransporters[0].id);
+      }
     } catch (err) {
       showToast(err.message || 'Failed to load transporters', 'error');
     }
@@ -153,19 +156,31 @@ export async function renderTransporterList() {
         </div>
       </div>
     `).join('');
-
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectTransporter(id);
-      });
-    });
   }
+
+  // Event delegation on list container (zero per-item listeners)
+  const listEl = document.getElementById('trpt-list-items');
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.split-pane-list-item');
+    if (item) {
+      const id = parseInt(item.getAttribute('data-id'), 10);
+      selectTransporter(id);
+    }
+  });
 
   function selectTransporter(id) {
     selectedId = id;
     const t = allTransporters.find(item => item.id === id);
     if (!t) return;
+
+    // Toggle selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => {
+      if (parseInt(el.getAttribute('data-id'), 10) === id) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
 
     document.getElementById('trpt-id').value = t.id;
     document.getElementById('trpt-name').value = t.name || '';
@@ -178,21 +193,21 @@ export async function renderTransporterList() {
     document.getElementById('trpt-mobile').value = t.mobile || '';
     document.getElementById('trpt-pho').value = t.phoneOffice || '';
 
-    document.getElementById('form-title').textContent = `📄 EDIT TRANSPORTER RECORD #${t.id}`;
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EDIT TRANSPORTER RECORD #${t.id}`;
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-trpt').style.display = 'inline-block';
-
-    renderList(allTransporters);
   }
 
   function resetForm() {
     selectedId = null;
     document.getElementById('trpt-id').value = '';
     document.getElementById('trpt-form').reset();
-    document.getElementById('form-title').textContent = '📄 TRANSPORTER MASTER RECORD';
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} TRANSPORTER MASTER RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-trpt').style.display = 'none';
-    renderList(allTransporters);
+
+    // Remove selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => el.classList.remove('selected'));
     document.getElementById('trpt-name').focus();
   }
 
@@ -241,7 +256,7 @@ export async function renderTransporterList() {
 
   document.getElementById('btn-delete-trpt').addEventListener('click', async () => {
     if (!selectedId) return;
-    if (!confirm('Are you sure you want to delete this transporter?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this transporter?'))) return;
 
     try {
       await api.del(`/api/transporters/${selectedId}`);

@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { banks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ok, badRequest, notFound, serverError, parseBody } from "@/lib/api-helpers";
+import { cacheInvalidate } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!body) return badRequest("Missing request body");
     const [updated] = await db.update(banks).set(body).where(eq(banks.id, numId)).returning();
     if (!updated) return notFound("banks entry not found");
+    cacheInvalidate('banks');
     return ok(updated);
   } catch (err: any) {
     return serverError(err.message);
@@ -47,6 +49,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (isNaN(numId)) return badRequest("Invalid ID");
     const [deleted] = await db.delete(banks).where(eq(banks.id, numId)).returning();
     if (!deleted) return notFound("banks entry not found");
+    cacheInvalidate('banks');
     return ok({ success: true, deletedId: numId });
   } catch (err: any) {
     return serverError(err.message);

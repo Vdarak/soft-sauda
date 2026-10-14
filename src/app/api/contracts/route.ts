@@ -10,7 +10,7 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { contracts, contractParties, contractLines, parties, commodities, commodityPackaging, deliveries, deliveryLines } from '@/db/schema';
+import { contracts, contractParties, contractLines, contractDocuments, contractSpecifications, contractTerms, parties, commodities, commodityPackaging, deliveries, deliveryLines } from '@/db/schema';
 import { desc, eq, and, ilike, sql, or, exists } from 'drizzle-orm';
 import { ok, created, badRequest, serverError, parseBody, unauthorized } from '@/lib/api-helpers';
 import { cacheGet, cacheSet, cacheInvalidate } from '@/lib/cache';
@@ -60,16 +60,21 @@ export async function GET(req: NextRequest) {
     const { companyId, fiscalYearId } = ctx;
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
+    const book = searchParams.get('book');
+    const effectiveBook = book === 'ALL' ? null : (book || 'SD');
     const statusFilter = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
     // Base scoping conditions
-    const scopeConditions = [
+    const scopeConditions: any[] = [
       eq(contracts.companyId, companyId),
       eq(contracts.fiscalYearId, fiscalYearId),
     ];
+    if (effectiveBook) {
+      scopeConditions.push(eq(contracts.saudaBook, effectiveBook));
+    }
 
     // ── Search Mode ──
     if (q) {
@@ -153,13 +158,21 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Standard Paginated Mode ──
-    const cacheKey = `contracts:list:${companyId}:${fiscalYearId}:${page}:${limit}:${statusFilter || 'ALL'}`;
+    const cacheKey = `contracts:list:${companyId}:${fiscalYearId}:${effectiveBook || 'ALL'}:${page}:${limit}:${statusFilter || 'ALL'}`;
     const cached = cacheGet<unknown[]>(cacheKey);
     if (cached) return ok(stripAuditFields(cached, ctx.role));
 
     // Build WHERE conditions for status filtering
     const whereConditions: any[] = [...scopeConditions];
-    if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'DELIVERY_PENDING') {
+    if (statusFilter === 'DELIVERY_PENDING') {
+      whereConditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM contract_lines cl
+          WHERE cl.contract_id = ${contracts.id}
+            AND cl.balance_weight > 0
+        )`
+      );
+    } else if (statusFilter && statusFilter !== 'ALL') {
       whereConditions.push(eq(contracts.status, statusFilter as any));
     }
 
@@ -349,28 +362,61 @@ export async function POST(req: NextRequest) {
       }];
 
       for (const line of lines) {
-        if (!line.commodity) continue;
-        const commodityId = await resolveCommodity(line.commodity, tx);
+        const commName = line.commodity || line.commodityName;
+        if (!commName) continue;
+        const commodityId = await resolveCommodity(commName, tx);
         const packagingId = await resolvePackaging(commodityId, line.packaging, tx);
         const weight = parseFloat(line.weight || line.weightQuintals || '0');
         const rate = parseFloat(line.rate || '0');
-        const qtyBags = line.quantityBags ? parseFloat(line.quantityBags) : null;
+        const packWt = line.packWeight != null ? parseFloat(line.packWeight) : (line.pack != null ? parseFloat(line.pack) : null);
+        const qtyBags = line.quantityBags != null ? parseFloat(line.quantityBags) : (packWt && packWt > 0 && weight > 0 ? (weight * 100) / packWt : null);
+        const slBrok = line.sellerBrokerageRate != null ? parseFloat(line.sellerBrokerageRate) : (line.slBrokRate != null ? parseFloat(line.slBrokRate) : null);
 
         contractLinesToInsert.push({
           contractId: contract.id,
           commodityId,
           packagingId,
-          brand: line.brand || null,
-          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : null,
-          quantityBags: qtyBags ? qtyBags.toString() : null,
+          brand: line.brand || line.quantityDetails || null,
+          numberOfLorries: line.numberOfLorries ? parseInt(line.numberOfLorries, 10) : (line.qtyNos ? parseInt(line.qtyNos, 10) : 1),
+          packWeight: packWt != null ? packWt.toString() : null,
+          quantityBags: qtyBags != null ? qtyBags.toString() : null,
           weightQuintals: weight.toString(),
           rate: rate.toString(),
           amount: (weight * rate).toString(),
+          sellerBrokerageRate: slBrok != null ? slBrok.toString() : null,
+          brokerageType: line.brokerageType || line.type || 'PQtl',
         });
       }
 
       if (contractLinesToInsert.length > 0) {
         await tx.insert(contractLines).values(contractLinesToInsert);
+      }
+
+      if (Array.isArray(body.documents) && body.documents.length > 0) {
+        const docRows = body.documents
+          .filter((d: any) => d.narration && d.narration.trim().length > 0)
+          .map((d: any, idx: number) => ({ contractId: contract.id, narration: d.narration.trim(), sortOrder: d.sortOrder ?? idx }));
+        if (docRows.length > 0) await tx.insert(contractDocuments).values(docRows);
+      }
+
+      if (Array.isArray(body.specifications) && body.specifications.length > 0) {
+        const specRows = body.specifications
+          .filter((s: any) => s.specName && s.specName.trim().length > 0)
+          .map((s: any) => ({
+            contractId: contract.id,
+            specName: s.specName.trim(),
+            specValue: s.specValue != null && s.specValue !== '' ? s.specValue.toString() : null,
+            minMax: s.minMax ? s.minMax.trim() : null,
+            remarks: s.remarks ? s.remarks.trim() : null,
+          }));
+        if (specRows.length > 0) await tx.insert(contractSpecifications).values(specRows);
+      }
+
+      if (Array.isArray(body.terms) && body.terms.length > 0) {
+        const termRows = body.terms
+          .filter((t: any) => t.narration && t.narration.trim().length > 0)
+          .map((t: any, idx: number) => ({ contractId: contract.id, narration: t.narration.trim(), sortOrder: t.sortOrder ?? idx }));
+        if (termRows.length > 0) await tx.insert(contractTerms).values(termRows);
       }
 
       result = contract;

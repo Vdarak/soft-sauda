@@ -5,15 +5,30 @@ import { userRoleEnum, auditActionEnum } from "./enums";
 // 0. COMPANIES & USERS & FISCAL YEARS
 // ==========================================
 
+export const departments = pgTable("departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  shortCode: text("short_code").notNull().unique(),
+  icon: text("icon"),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
+  departmentId: integer("department_id").references(() => departments.id),
+  legacyCoCode: integer("legacy_cocode"),
   name: text("name").notNull().unique(),
   shortCode: text("short_code").notNull().unique(),
   description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxDeptId: index("idx_companies_dept_id").on(t.departmentId),
+}));
 
 export const fiscalYears = pgTable("fiscal_years", {
   id: serial("id").primaryKey(),

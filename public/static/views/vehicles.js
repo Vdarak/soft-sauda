@@ -5,7 +5,7 @@
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
 
 export async function renderVehicleList() {
   const app = document.getElementById('app');
@@ -103,6 +103,9 @@ export async function renderVehicleList() {
     try {
       allVehicles = await api.get('/api/vehicles');
       renderList(allVehicles);
+      if (allVehicles.length > 0 && !selectedId) {
+        selectVehicle(allVehicles[0].id);
+      }
     } catch (err) {
       showToast(err.message || 'Failed to load vehicles', 'error');
     }
@@ -134,19 +137,31 @@ export async function renderVehicleList() {
         </div>
       </div>
     `).join('');
-
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectVehicle(id);
-      });
-    });
   }
+
+  // Event delegation on list container (zero per-item listeners)
+  const listEl = document.getElementById('veh-list-items');
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.split-pane-list-item');
+    if (item) {
+      const id = parseInt(item.getAttribute('data-id'), 10);
+      selectVehicle(id);
+    }
+  });
 
   function selectVehicle(id) {
     selectedId = id;
     const v = allVehicles.find(item => item.id === id);
     if (!v) return;
+
+    // Toggle selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => {
+      if (parseInt(el.getAttribute('data-id'), 10) === id) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
 
     document.getElementById('veh-id').value = v.id;
     document.getElementById('veh-type').value = v.vehicleType || '';
@@ -155,21 +170,21 @@ export async function renderVehicleList() {
     document.getElementById('veh-min-wght').value = v.minWeight || '';
     document.getElementById('veh-max-wght').value = v.maxWeight || '';
 
-    document.getElementById('form-title').textContent = `📄 EDIT VEHICLE TYPE #${v.id}`;
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EDIT VEHICLE TYPE #${v.id}`;
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-veh').style.display = 'inline-block';
-
-    renderList(allVehicles);
   }
 
   function resetForm() {
     selectedId = null;
     document.getElementById('veh-id').value = '';
     document.getElementById('veh-form').reset();
-    document.getElementById('form-title').textContent = '📄 VEHICLE TYPE RECORD';
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} VEHICLE TYPE RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-veh').style.display = 'none';
-    renderList(allVehicles);
+
+    // Remove selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => el.classList.remove('selected'));
     document.getElementById('veh-type').focus();
   }
 
@@ -213,7 +228,7 @@ export async function renderVehicleList() {
 
   document.getElementById('btn-delete-veh').addEventListener('click', async () => {
     if (!selectedId) return;
-    if (!confirm('Are you sure you want to delete this vehicle type?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this vehicle type?'))) return;
 
     try {
       await api.del(`/api/vehicles/${selectedId}`);

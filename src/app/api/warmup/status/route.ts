@@ -37,3 +37,13 @@ export async function GET(req: NextRequest) {
     });
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const { cacheClear } = await import('@/lib/cache');
+    cacheClear();
+    return ok({ success: true, message: 'Cache cleared successfully' });
+  } catch (err) {
+    return ok({ success: false, error: 'Failed to clear cache' });
+  }
+}

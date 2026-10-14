@@ -104,11 +104,11 @@ export async function warmCache(
 
         if (partyIds.length > 0) {
           const [taxRows, bankRows, contactRows, addressRows, roleRows] = await Promise.all([
-            db.select().from(partyTaxIds).where(sql`${partyTaxIds.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
-            db.select().from(partyBankDetails).where(sql`${partyBankDetails.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
-            db.select().from(partyContacts).where(sql`${partyContacts.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
-            db.select().from(partyDeliveryAddresses).where(sql`${partyDeliveryAddresses.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
-            db.select().from(partyRoles).where(sql`${partyRoles.partyId} IN (${sql.join(partyIds.map(id => sql`${id}`), sql`, `)})`),
+            db.select().from(partyTaxIds),
+            db.select().from(partyBankDetails),
+            db.select().from(partyContacts),
+            db.select().from(partyDeliveryAddresses),
+            db.select().from(partyRoles),
           ]);
 
           for (const row of taxRows) {
@@ -590,11 +590,18 @@ export async function warmCache(
     {
       key: 'banks:all',
       fn: async () => {
-        const data = await db.select().from(banks).orderBy(banks.bankName);
+        // Pre-warm lightweight list in server cache for instant access on /banks page
+        const data = await db.select({
+          id: banks.id,
+          bankName: banks.bankName,
+          branch: banks.branch,
+          ifscCode: banks.ifscCode,
+          center: banks.center
+        }).from(banks).orderBy(banks.bankName);
+        cacheSet('banks:list:all', data, TTL);
         cacheSet('banks:all', data, TTL);
-        payload['/banks'] = data;
       },
-      payloadFn: () => { payload['/banks'] = cacheGet<any[]>('banks:all') || []; },
+      payloadFn: () => {},
     },
 
     // ── Brands (Global) ──

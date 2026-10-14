@@ -3,7 +3,7 @@
  */
 
 import * as api from '../lib/api.js';
-import { showToast, Icons } from '../components/ui.js';
+import { showToast, Icons, confirmDialog } from '../components/ui.js';
 
 export async function renderTermList() {
   const app = document.getElementById('app');
@@ -79,6 +79,9 @@ export async function renderTermList() {
     try {
       allTerms = await api.get('/api/terms');
       renderList(allTerms);
+      if (allTerms.length > 0 && !selectedId) {
+        selectTerm(allTerms[0].id);
+      }
     } catch (err) {
       showToast(err.message || 'Failed to load terms', 'error');
     }
@@ -107,38 +110,50 @@ export async function renderTermList() {
         </div>
       </div>
     `).join('');
-
-    listEl.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = parseInt(item.getAttribute('data-id'), 10);
-        selectTerm(id);
-      });
-    });
   }
+
+  // Event delegation on list container (zero per-item listeners)
+  const listEl = document.getElementById('term-list-items');
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.split-pane-list-item');
+    if (item) {
+      const id = parseInt(item.getAttribute('data-id'), 10);
+      selectTerm(id);
+    }
+  });
 
   function selectTerm(id) {
     selectedId = id;
     const t = allTerms.find(item => item.id === id);
     if (!t) return;
 
+    // Toggle selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => {
+      if (parseInt(el.getAttribute('data-id'), 10) === id) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+
     document.getElementById('term-id').value = t.id;
     document.getElementById('term-text').value = t.termText || '';
 
-    document.getElementById('form-title').textContent = `📄 EDIT CLAUSE #${t.id}`;
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} EDIT CLAUSE #${t.id}`;
     document.getElementById('form-status-badge').textContent = 'Editing';
     document.getElementById('btn-delete-term').style.display = 'inline-block';
-
-    renderList(allTerms);
   }
 
   function resetForm() {
     selectedId = null;
     document.getElementById('term-id').value = '';
     document.getElementById('term-form').reset();
-    document.getElementById('form-title').textContent = '📄 TERMS & CONDITIONS RECORD';
+    document.getElementById('form-title').innerHTML = `${Icons.fileText} TERMS & CONDITIONS RECORD`;
     document.getElementById('form-status-badge').textContent = 'New Record';
     document.getElementById('btn-delete-term').style.display = 'none';
-    renderList(allTerms);
+
+    // Remove selected class in-place
+    listEl.querySelectorAll('.split-pane-list-item').forEach(el => el.classList.remove('selected'));
     document.getElementById('term-text').focus();
   }
 
@@ -175,7 +190,7 @@ export async function renderTermList() {
 
   document.getElementById('btn-delete-term').addEventListener('click', async () => {
     if (!selectedId) return;
-    if (!confirm('Are you sure you want to delete this clause?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this clause?'))) return;
 
     try {
       await api.del(`/api/terms/${selectedId}`);

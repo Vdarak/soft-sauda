@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────
+# GCC Rates Scraper Cron Worker
+# Lightweight container that runs the scraper on a schedule
+# ─────────────────────────────────────────────────────────────
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm install --production=false
+
+# Copy source files needed for scraping
+COPY src/lib/rate-scraper.ts ./src/lib/rate-scraper.ts
+COPY scripts/scrape-rates.ts ./scripts/scrape-rates.ts
+COPY tsconfig.json ./
+
+# Copy the cron entrypoint
+COPY scripts/docker-cron-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+ENTRYPOINT ["/entrypoint.sh"]

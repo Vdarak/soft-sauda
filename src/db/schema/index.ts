@@ -14,3 +14,4 @@ export * from "./06-deliveries";
 export * from "./07-billing";
 export * from "./08-ledger";
 export * from "./09-marketplace";
+export * from "./10-market-rates";

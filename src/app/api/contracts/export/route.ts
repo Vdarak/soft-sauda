@@ -3,16 +3,22 @@
  * Returns flat array with all columns for Excel export
  */
 
+import { NextRequest } from 'next/server';
 import { db } from '@/db';
 import { contracts, contractParties, contractLines, parties, commodities, deliveries, deliveryLines } from '@/db/schema';
-import { desc, eq, sql } from 'drizzle-orm';
-import { ok, serverError } from '@/lib/api-helpers';
+import { desc, eq, and, sql } from 'drizzle-orm';
+import { ok, serverError, unauthorized } from '@/lib/api-helpers';
 import { formatDateIndian } from '@/lib/date-utils';
+import { getRequestContext } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const ctx = await getRequestContext(req);
+    if (!ctx) return unauthorized();
+    const { companyId, fiscalYearId } = ctx;
+
     const rawContracts = await db.select({
       id: contracts.id,
       saudaNo: contracts.saudaNo,
@@ -39,6 +45,11 @@ export async function GET() {
       .from(contracts)
       .leftJoin(contractLines, eq(contractLines.contractId, contracts.id))
       .leftJoin(commodities, eq(commodities.id, contractLines.commodityId))
+      .where(and(
+        eq(contracts.companyId, companyId),
+        eq(contracts.fiscalYearId, fiscalYearId),
+        eq(contracts.saudaBook, 'SD')
+      ))
       .orderBy(desc(contracts.saudaNo));
 
     // Batch fetch all party associations

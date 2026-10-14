@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:3001": "next dev -p 3001",
+    "backend": "tsx scripts/backend-server.ts",
+    "scrape:rates": "tsx scripts/scrape-rates.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

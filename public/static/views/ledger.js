@@ -4,7 +4,7 @@
  * The account field uses party autocomplete so users can type a party name
  * instead of remembering raw IDs.
  */
-import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData } from '../components/ui.js';
+import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatCurrency, collectFormData, confirmDialog } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
@@ -190,7 +190,7 @@ export async function renderLedgerForm(id) {
 
     if (isEdit) {
       document.getElementById('btn-delete').addEventListener('click', async (e) => {
-        if (!confirm('Are you sure you want to delete this ledger entry?')) return;
+        if (!(await confirmDialog('Are you sure you want to delete this ledger entry?'))) return;
         const btn = e.target.closest('button');
         const ogHtml = btn.innerHTML;
         btn.disabled = true;

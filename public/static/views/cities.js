@@ -2,7 +2,7 @@
  * City Master View — List + Create form
  * WS4: City / District / State / Pincode Master
  */
-import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData } from '../components/ui.js';
+import { Icons, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, collectFormData, confirmDialog } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { autocomp } from '../vendor/autocomp.js';
 import { attachCityAutocomp, getCitiesList } from '../lib/autocomplete.js';
@@ -210,7 +210,7 @@ export async function renderCityForm(id) {
 
     if (isEdit) {
       document.getElementById('btn-delete')?.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to delete this city?')) return;
+        if (!(await confirmDialog('Are you sure you want to delete this city?'))) return;
         try {
           await api.del(`/cities/${id}`);
           showToast('City deleted');

@@ -68,6 +68,7 @@ export function renderLogin() {
       const data = await api.post('/auth/login', { username, password });
       api.setToken(data.token);
       localStorage.setItem('ss_user', data.username);
+      localStorage.setItem('ss_departments', JSON.stringify(data.departments || []));
       localStorage.setItem('ss_companies', JSON.stringify(data.companies || []));
       localStorage.setItem('ss_role', data.role || 'EMPLOYEE');
       localStorage.setItem('ss_permissions', JSON.stringify(data.permissions || {}));

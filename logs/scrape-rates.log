@@ -1,0 +1,41 @@
+
+═══════════════════════════════════════════════════════════════
+[2026-10-14 09:38:37 IST] CRON: Starting rate scrape
+═══════════════════════════════════════════════════════════════
+[dotenv@17.3.1] injecting env (6) from .env.local -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+[36m═══════════════════════════════════════════════════════════════[0m
+[1m[32m  COMMODITIES RATE INGESTION & NORMALIZATION WORKER[0m
+[36m═══════════════════════════════════════════════════════════════[0m
+  Source       : commoditiescontrol.com
+  Target Date  : 2026-10-14
+  Auto-Approve : YES (Staged directly for Chatbot & Broadcast)
+───────────────────────────────────────────────────────────────
+  Fetching live pulses market rates...
+  Scraped 21 pulse spot quotes.
+  Normalizing and storing into daily_market_rates...
+[32m  Successfully stored 21 rates in PostgreSQL:[0m
+
+    - Pulses   | Standard                  | Mandi      | Rs. 6150.00 - 6250.00 / QTL [APPROVED]
+    - Pulses   | Standard                  | Mandi      | Rs. 6150.00 - 6250.00 / QTL [APPROVED]
+    - Moong    | Desi                      | Jaipur     | Rs. 7850.00 - 7950.00 / QTL [APPROVED]
+    - Moong    | Desi                      | Jaipur     | Rs. 7850.00 - 7950.00 / QTL [APPROVED]
+    - Peas     | Standard                  | Kanpur     | Rs. 5100.00 - 5200.00 / QTL [APPROVED]
+    - Peas     | Standard                  | Kanpur     | Rs. 5100.00 - 5200.00 / QTL [APPROVED]
+    - Toor     | Desi (Akola Line)         | Akola      | Rs. 7450.00 - 7500.00 / QTL [APPROVED]
+    - Toor     | Desi (Latur Line)         | Latur      | Rs. 7350.00 - 7400.00 / QTL [APPROVED]
+    - Toor     | Burmese Lemon             | Mumbai     | Rs. 9600.00 - 9650.00 / QTL [APPROVED]
+    - Toor     | Tanzania Harusa           | Mumbai     | Rs. 8250.00 - 8300.00 / QTL [APPROVED]
+    - Toor     | Maruti White              | Gulbarga   | Rs. 7550.00 - 7600.00 / QTL [APPROVED]
+    - Chana    | Desi Kantewala            | Akola      | Rs. 7100.00 - 7150.00 / QTL [APPROVED]
+    - Chana    | Australian Import         | Mumbai     | Rs. 7550.00 - 7650.00 / QTL [APPROVED]
+    - Chana    | Rajasthan Line            | Delhi      | Rs. 7300.00 - 7350.00 / QTL [APPROVED]
+    - Moong    | Shining Quality           | Jaipur     | Rs. 8150.00 - 8350.00 / QTL [APPROVED]
+    - Moong    | Desi Chamki               | Jalgaon    | Rs. 7900.00 - 8100.00 / QTL [APPROVED]
+    - Urad     | Burma SQ (Special Quality) | Chennai    | Rs. 10400.00 - 10550.00 / QTL [APPROVED]
+    - Urad     | FAQ (Fair Average Quality) | Mumbai     | Rs. 9400.00 - 9550.00 / QTL [APPROVED]
+    - Urad     | Desi Black                | Latur      | Rs. 8200.00 - 8350.00 / QTL [APPROVED]
+    - Masoor   | Canada Crimson Import     | Mumbai     | Rs. 6500.00 - 6575.00 / QTL [APPROVED]
+    - Peas     | Kanpur U.P. Line (Matar)  | Kanpur     | Rs. 5100.00 - 5175.00 / QTL [APPROVED]
+
+[36m═══════════════════════════════════════════════════════════════[0m
+[2026-10-14 09:38:38 IST] CRON: Scrape completed successfully

@@ -135,6 +135,9 @@ async function seed() {
         delivery_charges,
         delivery_lines,
         deliveries,
+        contract_documents,
+        contract_specifications,
+        contract_terms,
         contract_lines,
         contract_parties,
         contracts,
@@ -155,6 +158,7 @@ async function seed() {
         fiscal_years,
         users,
         companies,
+        departments,
         audit_log
       RESTART IDENTITY CASCADE;
     `);
@@ -173,13 +177,38 @@ async function seed() {
   }
 
   // ════════════════════════════════════════
-  // 1. Companies
+  // 0. Departments
   // ════════════════════════════════════════
-  console.log('🏢 Seeding companies...');
+  console.log('Seeding departments...');
+  const DEPARTMENTS_DATA = [
+    { name: 'Pulses', shortCode: 'PULSES', icon: 'wheat', description: 'Pulses & Grains Trading Division' },
+    { name: 'Soybean & Wheat', shortCode: 'SOYWHEAT', icon: 'sun', description: 'Soybean, Wheat & Oilseeds Division' },
+    { name: 'Oil & Cake', shortCode: 'OILCAKE', icon: 'droplet', description: 'Edible Oils & Cottonseed Cake Division' },
+    { name: 'MAFI', shortCode: 'MAFI', icon: 'factory', description: 'MAFI Division' },
+  ];
+
+  const deptMap: Record<string, number> = {};
+  for (const d of DEPARTMENTS_DATA) {
+    const [row] = await db.execute(sql`
+      INSERT INTO departments (name, short_code, icon, description)
+      VALUES (${d.name}, ${d.shortCode}, ${d.icon}, ${d.description})
+      RETURNING id
+    `);
+    deptMap[d.shortCode] = (row as any).id;
+  }
+  console.log(`   Created ${Object.keys(deptMap).length} departments`);
+
+  // ════════════════════════════════════════
+  // 1. Companies (Firms)
+  // ════════════════════════════════════════
+  console.log('🏢 Seeding companies (firms)...');
   const companyIds: number[] = [];
   for (const c of COMPANIES) {
+    const dId = deptMap[c.shortCode] || null;
     const [row] = await db.execute(sql`
-      INSERT INTO companies (name, short_code, description) VALUES (${c.name}, ${c.shortCode}, ${c.description}) RETURNING id
+      INSERT INTO companies (name, short_code, description, department_id)
+      VALUES (${c.name}, ${c.shortCode}, ${c.description}, ${dId})
+      RETURNING id
     `);
     companyIds.push((row as any).id);
   }

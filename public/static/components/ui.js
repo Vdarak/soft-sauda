@@ -33,6 +33,18 @@ export const Icons = {
   refresh:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
   save:        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   phone:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  lock:        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  building:    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>',
+  wheat:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 10-10"/><path d="m16 8-4 4"/><path d="M18 6a4 4 0 0 0-4 4v2"/><path d="M8 16a4 4 0 0 0 4-4v-2"/><path d="M15 2a4 4 0 0 0-4 4v2"/><path d="M6 11a4 4 0 0 0 4-4V5"/></svg>',
+  droplet:     '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+  factory:     '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>',
+  clock:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  alertTriangle:'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  star:        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  starFilled:  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  x:           '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  clipboard:   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+  calculator:  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>',
 };
 
 /* ── Badge Component ── */
@@ -98,7 +110,7 @@ export function DataTable({ id, title, count, headers, rows, emptyMessage = 'No 
 export function FormGroup({ id, label, type = 'text', value = '', required = false, placeholder = '', options = null }) {
   let input;
   if (type === 'select' && options) {
-    input = `<select id="${id}" name="${id}"${required ? ' required' : ''}>
+    input = `<select id="${id}" name="${id}" class="compact-select"${required ? ' required' : ''}>
       <option value="">Select...</option>
       ${options.map(o => `<option value="${o.value}"${o.value === value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
     </select>`;
@@ -339,3 +351,248 @@ export function AuditMetadataBlock(record) {
     </div>
   `;
 }
+
+/**
+ * Upgrade a native <select> element to a custom styled dropdown.
+ * Replaces the select with a custom box that matches the autocomplete dropdown styling.
+ * 
+ * @param {HTMLSelectElement} selectEl - The native select element to upgrade
+ * @returns {object} - { wrapper, getValue, setValue } for programmatic control
+ */
+export function upgradeSelect(selectEl) {
+  if (!selectEl || selectEl._upgraded) return null;
+  selectEl._upgraded = true;
+  
+  const options = Array.from(selectEl.options).map(opt => ({
+    value: opt.value,
+    text: opt.textContent,
+    selected: opt.selected,
+  }));
+  
+  const selectedOpt = options.find(o => o.selected) || options[0] || { value: '', text: '' };
+  
+  // Create wrapper
+  const wrapper = document.createElement('div');
+  wrapper.className = 'custom-select-wrapper';
+  wrapper.style.cssText = selectEl.style.cssText;
+  wrapper.style.position = 'relative';
+  
+  // Create display button
+  const display = document.createElement('div');
+  display.className = 'custom-select-display compact-input';
+  display.style.cssText = 'cursor: pointer; display: flex; align-items: center; justify-content: space-between; user-select: none;';
+  display.innerHTML = `<span class="custom-select-text">${escapeHtml(selectedOpt.text)}</span><span style="font-size: 0.6rem; opacity: 0.6;">▼</span>`;
+  display.tabIndex = 0;
+  
+  // Create dropdown
+  const dropdown = document.createElement('div');
+  dropdown.className = 'autocomp custom-select-dropdown';
+  dropdown.style.cssText = 'display: none; position: absolute; width: 100%; top: 100%; left: 0; z-index: 9999; max-height: 200px; overflow-y: auto;';
+  
+  // Hidden input to store value (for form submission)
+  const hiddenInput = document.createElement('input');
+  hiddenInput.type = 'hidden';
+  hiddenInput.name = selectEl.name;
+  hiddenInput.id = selectEl.id;
+  hiddenInput.value = selectedOpt.value;
+  
+  // Copy data-* attributes from original select to hidden input (for event delegation)
+  Array.from(selectEl.attributes).forEach(attr => {
+    if (attr.name.startsWith('data-')) {
+      hiddenInput.setAttribute(attr.name, attr.value);
+    }
+  });
+  
+  // Copy relevant classes for event delegation (pack-input, spec-input, etc.)
+  selectEl.classList.forEach(cls => {
+    if (cls !== 'compact-select' && cls !== 'no-custom') {
+      hiddenInput.classList.add(cls);
+      wrapper.classList.add(cls);
+    }
+  });
+  
+  function renderOptions() {
+    dropdown.innerHTML = '';
+    options.forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'autocomp-item' + (opt.value === hiddenInput.value ? ' autocomp-sel' : '');
+      item.textContent = opt.text;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        hiddenInput.value = opt.value;
+        display.querySelector('.custom-select-text').textContent = opt.text;
+        dropdown.style.display = 'none';
+        // Fire change event
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      dropdown.appendChild(item);
+    });
+  }
+  
+  renderOptions();
+  
+  // Toggle dropdown
+  display.addEventListener('click', () => {
+    const isOpen = dropdown.style.display !== 'none';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) renderOptions();
+  });
+  
+  // Close on blur
+  display.addEventListener('blur', () => {
+    setTimeout(() => { dropdown.style.display = 'none'; }, 150);
+  });
+  
+  // Keyboard navigation
+  display.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      display.click();
+    } else if (e.key === 'Escape') {
+      dropdown.style.display = 'none';
+    }
+  });
+  
+  wrapper.appendChild(display);
+  wrapper.appendChild(dropdown);
+  wrapper.appendChild(hiddenInput);
+  
+  // Replace native select
+  selectEl.parentNode.insertBefore(wrapper, selectEl);
+  selectEl.style.display = 'none';
+  selectEl.removeAttribute('id');
+  selectEl.removeAttribute('name');
+  
+  return {
+    wrapper,
+    getValue: () => hiddenInput.value,
+    setValue: (val) => {
+      hiddenInput.value = val;
+      const opt = options.find(o => o.value === val);
+      if (opt) display.querySelector('.custom-select-text').textContent = opt.text;
+    },
+  };
+}
+
+/**
+ * Upgrade all native <select> elements with class 'compact-select' to custom dropdowns.
+ * Call this after DOM rendering to replace all selects at once.
+ */
+export function upgradeAllSelects(container = document) {
+  container.querySelectorAll('select.compact-select:not(.no-custom)').forEach(sel => {
+    if (sel.closest('#lines-grid-table')) return;
+    upgradeSelect(sel);
+  });
+}
+
+/**
+ * Custom styled confirmation dialog — replaces native confirm().
+ * Returns a Promise that resolves to true (confirmed) or false (cancelled).
+ * 
+ * Usage:  if (!(await confirmDialog('Delete this record?'))) return;
+ * 
+ * @param {string} message - The confirmation message to display
+ * @param {object} [opts] - Options: { title, confirmText, cancelText, danger }
+ * @returns {Promise<boolean>}
+ */
+export function confirmDialog(message, opts = {}) {
+  const {
+    title = 'Confirm Action',
+    confirmText = 'Yes, Delete',
+    cancelText = 'Cancel',
+    danger = true,
+  } = opts;
+
+  return new Promise((resolve) => {
+    // Prevent duplicates
+    const existing = document.getElementById('gcc-confirm-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'gcc-confirm-overlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(0,0,0,0.45); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.12s ease-out;
+    `;
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: var(--card, #fff); color: var(--foreground, #111);
+      border: 1px solid var(--border, #e2e2e2);
+      border-radius: 10px; padding: 1.5rem 1.75rem;
+      min-width: 340px; max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: slideUp 0.15s ease-out;
+    `;
+
+    card.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem;">
+        <div style="
+          width: 36px; height: 36px; border-radius: 50%;
+          background: ${danger ? 'var(--danger, #e53e3e)' : 'var(--primary, #3b82f6)'};
+          opacity: 0.12; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        "></div>
+        <div style="
+          position: relative; left: -42px; width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        ">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" 
+               stroke="${danger ? 'var(--danger, #e53e3e)' : 'var(--primary, #3b82f6)'}" 
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            ${danger 
+              ? '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'
+              : '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>'
+            }
+          </svg>
+        </div>
+        <h3 style="font-size: 0.95rem; font-weight: 700; margin: 0 0 0 -36px;">${escapeHtml(title)}</h3>
+      </div>
+      <p style="font-size: 0.825rem; color: var(--muted-foreground, #666); margin: 0 0 1.25rem 0; line-height: 1.5;">
+        ${escapeHtml(message)}
+      </p>
+      <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button id="gcc-confirm-cancel" style="
+          height: 34px; padding: 0 1rem; font-size: 0.8rem; font-weight: 600;
+          border: 1px solid var(--border, #ddd); border-radius: 6px;
+          background: var(--background, #fff); color: var(--foreground, #333);
+          cursor: pointer; transition: all 0.15s;
+        ">${escapeHtml(cancelText)}</button>
+        <button id="gcc-confirm-ok" style="
+          height: 34px; padding: 0 1rem; font-size: 0.8rem; font-weight: 600;
+          border: none; border-radius: 6px;
+          background: ${danger ? 'var(--danger, #e53e3e)' : 'var(--primary, #3b82f6)'};
+          color: #fff; cursor: pointer; transition: all 0.15s;
+        ">${escapeHtml(confirmText)}</button>
+      </div>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    // Focus the cancel button by default (safer)
+    const cancelBtn = document.getElementById('gcc-confirm-cancel');
+    const okBtn = document.getElementById('gcc-confirm-ok');
+    cancelBtn.focus();
+
+    function cleanup(result) {
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 0.1s';
+      setTimeout(() => overlay.remove(), 100);
+      resolve(result);
+    }
+
+    cancelBtn.addEventListener('click', () => cleanup(false));
+    okBtn.addEventListener('click', () => cleanup(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+    document.addEventListener('keydown', function handler(e) {
+      if (e.key === 'Escape') { cleanup(false); document.removeEventListener('keydown', handler); }
+      if (e.key === 'Enter') { cleanup(true); document.removeEventListener('keydown', handler); }
+    });
+  });
+}
+
+export { VirtualList } from './virtual-list.js';

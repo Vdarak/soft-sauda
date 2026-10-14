@@ -3,7 +3,7 @@
  * Left Pane: Searchable Bill Register List
  * Right Pane: 100% Viewport Fit Multi-Column Invoice Form
  */
-import { Icons, Badge, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock } from '../components/ui.js';
+import { Icons, Badge, Spinner, showToast, escapeHtml, formatDate, formatCurrency, AuditMetadataBlock, upgradeAllSelects, confirmDialog, VirtualList } from '../components/ui.js';
 import * as api from '../lib/api.js';
 import { attachPartyAutocomp } from '../lib/autocomplete.js';
 
@@ -71,26 +71,7 @@ export async function renderBillForm(id = null, preloadedList = null) {
             <input type="text" id="search-bills" class="compact-input" placeholder="Search bill no, party, place..." />
             <span id="bill-count" style="font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground);">${allBills.length}</span>
           </div>
-          <div class="split-pane-list-body" id="bills-list-items">
-            ${allBills.length === 0 ? `
-              <div style="padding: 1rem; text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
-                No bills found. Click "+ New Bill" to generate one.
-              </div>
-            ` : allBills.map(b => `
-              <div class="split-pane-list-item ${String(b.id) === String(id) ? 'selected' : ''}" data-id="${b.id}">
-                <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between;">
-                  <span>${escapeHtml(b.billNo)} (${escapeHtml(b.basis || 'CONTRACT')})</span>
-                  <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary);">₹${formatCurrency(b.totalAmount)}</span>
-                </div>
-                <div style="font-size: 0.725rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                  ${escapeHtml(b.partyName || 'Party')} ${b.place ? '• ' + escapeHtml(b.place) : ''}
-                </div>
-                <div style="font-size: 0.675rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.15rem;">
-                  <span>${formatDate(b.billDate)}</span>
-                  <span>Bal: ₹${formatCurrency(b.balanceAmount)}</span>
-                </div>
-              </div>
-            `).join('')}
+          <div class="split-pane-list-body" id="bills-list-items" style="flex: 1; position: relative; overflow-y: auto;">
           </div>
         </div>
 
@@ -198,6 +179,9 @@ export async function renderBillForm(id = null, preloadedList = null) {
     </div>
   `;
 
+  // Upgrade all native selects to custom styled dropdowns
+  upgradeAllSelects();
+
   attachPartyAutocomp('partySearch', (name, party) => {
     if (party) document.getElementById('partyId').value = party.id;
   });
@@ -247,16 +231,64 @@ export async function renderBillForm(id = null, preloadedList = null) {
 
   document.getElementById('btn-add-bill-line').addEventListener('click', () => addBillLineRow());
 
-  // Split pane handlers
-  document.querySelectorAll('.split-pane-list-item').forEach(item => {
-    item.addEventListener('click', () => renderBillForm(item.getAttribute('data-id'), allBills));
+  // Virtual List setup for 60 FPS smooth scrolling
+  const vl = new VirtualList({
+    container: document.getElementById('bills-list-items'),
+    itemHeight: 54,
+    buffer: 6,
+    items: allBills,
+    selectedId: id,
+    getItemId: b => b.id,
+    renderItem: (b, isSelected) => `
+      <div class="split-pane-list-item ${isSelected ? 'selected' : ''}" data-id="${b.id}" style="height: 54px; box-sizing: border-box; justify-content: center; padding: 0.25rem 0.5rem;">
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--foreground); display: flex; align-items: center; justify-content: space-between; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 0.5rem;">${escapeHtml(b.billNo)} (${escapeHtml(b.basis || 'CONTRACT')})</span>
+          <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary); flex-shrink: 0;">${formatCurrency(b.totalAmount)}</span>
+        </div>
+        <div style="font-size: 0.725rem; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(b.partyName || 'Party')} ${b.place ? '• ' + escapeHtml(b.place) : ''}
+        </div>
+        <div style="font-size: 0.675rem; color: var(--muted-foreground); display: flex; justify-content: space-between; margin-top: 0.15rem; overflow: hidden; white-space: nowrap;">
+          <span>${formatDate(b.billDate)}</span>
+          <span>Bal: ${formatCurrency(b.balanceAmount)}</span>
+        </div>
+      </div>
+    `,
+    onSelect: (selectedId) => {
+      renderBillForm(selectedId, allBills);
+    },
+    emptyMessage: 'No bills found. Click "+ New Bill" to generate one.'
   });
 
+  if (id) {
+    vl.scrollToId(id);
+  }
+
+  // Precompute lowercase search index
+  allBills.forEach(b => {
+    if (!b._search) {
+      b._search = `${b.billNo || ''} ${b.partyName || ''} ${b.place || ''} ${b.basis || ''}`.toLowerCase();
+    }
+  });
+
+  // Instant in-memory search
   document.getElementById('search-bills').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase().trim();
-    document.querySelectorAll('.split-pane-list-item').forEach(item => {
-      item.style.display = item.textContent.toLowerCase().includes(q) ? 'block' : 'none';
+    const countEl = document.getElementById('bill-count');
+    if (!q) {
+      if (countEl) countEl.textContent = allBills.length.toLocaleString();
+      vl.setItems(allBills, true);
+      return;
+    }
+
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const filtered = allBills.filter(b => {
+      const str = b._search || (b._search = `${b.billNo || ''} ${b.partyName || ''} ${b.place || ''} ${b.basis || ''}`.toLowerCase());
+      return tokens.every(tok => str.includes(tok));
     });
+
+    if (countEl) countEl.textContent = `${filtered.length.toLocaleString()} of ${allBills.length.toLocaleString()}`;
+    vl.setItems(filtered, true);
   });
 
   document.getElementById('btn-new-bill').addEventListener('click', () => renderBillForm(null, allBills));
@@ -264,10 +296,13 @@ export async function renderBillForm(id = null, preloadedList = null) {
 
   if (isEdit) {
     document.getElementById('btn-print-bill')?.addEventListener('click', () => {
-      window.open(`/api/pdf/bill/${bill.id}`, '_blank');
+      const token = localStorage.getItem('ss_token') || '';
+      const companyId = sessionStorage.getItem('active_company_id') || '';
+      const fyId = sessionStorage.getItem('active_fiscal_year_id') || '';
+      window.open(`/api/pdf/bill/${bill.id}?token=${encodeURIComponent(token)}&companyId=${companyId}&fyId=${fyId}`, '_blank');
     });
     document.getElementById('btn-delete-bill')?.addEventListener('click', async () => {
-      if (!confirm(`Are you sure you want to delete Bill #${bill.billNo}?`)) return;
+      if (!(await confirmDialog(`Are you sure you want to delete Bill #${bill.billNo}?`))) return;
       try {
         await api.del(`/api/bills/${bill.id}`);
         showToast('Bill deleted successfully', 'success');

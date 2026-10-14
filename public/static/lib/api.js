@@ -151,6 +151,12 @@ function updateLocalCache(method, path, responseData, requestBody) {
 
 /** Generic fetch helper */
 async function request(method, path, body = null, options = {}) {
+  // Normalize: strip duplicate /api prefix if caller already included it
+  // (some views use api.get('/api/banks') which would double to '/api/api/banks')
+  if (path.startsWith('/api/')) {
+    path = path.slice(4); // '/api/banks' → '/banks'
+  }
+
   // If GET and cached, return instantly
   if (method === 'GET' && clientCache.has(path) && !options.forceRefresh) {
     return clientCache.get(path);
@@ -161,7 +167,12 @@ async function request(method, path, body = null, options = {}) {
     opts.body = JSON.stringify(body);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  let url = `${API_BASE}${path}`;
+  if (options.forceRefresh) {
+    url += (url.includes('?') ? '&' : '?') + 'fresh=1';
+  }
+
+  const res = await fetch(url, opts);
   const data = await res.json();
 
   if (!res.ok) {
@@ -180,7 +191,13 @@ async function request(method, path, body = null, options = {}) {
       const basePath = path.split('?')[0]; // e.g. "/contracts"
       data.forEach(item => {
         if (item && item.id) {
-          clientCache.set(`${basePath}/${item.id}`, item);
+          const key = `${basePath}/${item.id}`;
+          const existing = clientCache.get(key);
+          if (existing && typeof existing === 'object' && !item.deliveryAddresses && existing.deliveryAddresses) {
+            clientCache.set(key, { ...item, ...existing });
+          } else {
+            clientCache.set(key, item);
+          }
         }
       });
     } else if (path.includes('/') && !path.includes('?')) {
@@ -192,10 +209,6 @@ async function request(method, path, body = null, options = {}) {
     // Perform local in-place update first, then background warmup silently
     updateLocalCache(method, path, data, body);
     triggerWarmup({ forceRefresh: true })
-      .then(() => {
-        // Dispatch event so active view re-renders with fresh computed metrics
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      })
       .catch(err => console.error('[api.js] Background warmup failed:', err));
   }
 
@@ -256,7 +269,11 @@ export async function triggerWarmup(options = {}) {
       const data = await res.json();
       if (data.payload) {
         payload = data.payload;
-        sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
+        try {
+          sessionStorage.setItem('gcc_mega_payload', JSON.stringify(payload));
+        } catch (e) {
+          // Quota exceeded: data is larger than 5MB, keep in-memory only
+        }
       }
     }
 

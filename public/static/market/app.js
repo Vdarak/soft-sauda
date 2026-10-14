@@ -12,6 +12,7 @@ import { renderListing } from './views/listing.js';
 import { renderAuth } from './views/auth.js';
 import { renderSell } from './views/sell.js';
 import { renderWatchlist } from './views/watchlist.js';
+import { renderRatesAssistant } from './views/rates-assistant.js';
 
 /* ── Auth guard ── */
 function requireMember(handler) {
@@ -31,9 +32,20 @@ const Icons = {
 };
 
 /* ── Theme Control ── */
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem('ss_theme', theme);
+  const toggleBtn = document.getElementById('mkt-theme-toggle');
+  if (toggleBtn) {
+    toggleBtn.innerHTML = theme === 'dark' ? Icons.sun : Icons.moon;
+  }
+}
+
 function initTheme() {
   const saved = localStorage.getItem('ss_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
+  document.documentElement.classList.toggle('dark', saved === 'dark');
 }
 
 /* ── Top navigation with Hamburger ── */
@@ -43,7 +55,7 @@ function renderNav() {
   const path = window.location.pathname;
   const member = api.getMember();
   const authed = api.isAuthed();
-  const savedTheme = localStorage.getItem('ss_theme') || 'dark';
+  const isDark = document.documentElement.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
 
   const link = (href, label) =>
     `<a data-route href="${href}" class="${path === href ? 'active' : ''}">${label}</a>`;
@@ -59,17 +71,18 @@ function renderNav() {
     </button>
 
     <a class="mkt-brand" data-route href="/market">
-      <img src="/gcc-logo.svg" alt="" width="24" height="24"><span>GCC&nbsp;Market</span>
+      <img src="/gcc-logo.svg" alt="Logo" width="24" height="24"><span>Market</span>
     </a>
     
     <nav id="mkt-nav-links-menu" class="mkt-nav-links">
       ${link('/market', 'Feed')}
+      ${link('/market/rates-assistant', 'Rates AI')}
       ${authed ? link('/market/watchlist', 'Dashboard') : ''}
       ${authed ? link('/market/sell', 'Sell') : ''}
     </nav>
     <div class="mkt-nav-actions">
       <button id="mkt-theme-toggle" class="mkt-theme-toggle" title="Toggle theme" type="button" style="background:none; border:none; color:var(--muted-foreground); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0.35rem; border-radius:var(--radius-base);">
-        ${savedTheme === 'dark' ? Icons.sun : Icons.moon}
+        ${isDark ? Icons.sun : Icons.moon}
       </button>
       ${
         authed
@@ -92,11 +105,9 @@ function renderNav() {
   const themeToggle = document.getElementById('mkt-theme-toggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('ss_theme', next);
-      themeToggle.innerHTML = next === 'dark' ? Icons.sun : Icons.moon;
+      const isCurrentDark = document.documentElement.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+      const next = isCurrentDark ? 'light' : 'dark';
+      applyTheme(next);
     });
   }
 
@@ -591,15 +602,15 @@ function updateChatWindowUI(roomId) {
       let statusIcon = '';
       if (isMe) {
         if (m.status === 'sending') {
-          statusIcon = `<span class="mkt-chat-status-icon" title="Sending">🕒</span>`;
+          statusIcon = `<span class="mkt-chat-status-icon" title="Sending"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>`;
         } else if (m.status === 'failed') {
-          statusIcon = `<span class="mkt-chat-status-icon" title="Failed" style="color:var(--danger)">⚠️</span>`;
+          statusIcon = `<span class="mkt-chat-status-icon" title="Failed" style="color:var(--danger)"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
         } else if (m.isRead || m.status === 'seen') {
           // Double check (seen)
-          statusIcon = `<span class="mkt-chat-status-icon" title="Seen" style="color:var(--primary)">✓✓</span>`;
+          statusIcon = `<span class="mkt-chat-status-icon" title="Seen" style="color:var(--primary)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
         } else {
           // Single check (delivered)
-          statusIcon = `<span class="mkt-chat-status-icon" title="Delivered">✓</span>`;
+          statusIcon = `<span class="mkt-chat-status-icon" title="Delivered"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="20 6 9 17 4 12"/></svg></span>`;
         }
       }
 
@@ -779,6 +790,7 @@ const r = tinyrouter.new({
 });
 
 r.on('/market', () => { renderFeed(); });
+r.on('/market/rates-assistant', () => { renderRatesAssistant(); });
 r.on('/market/login', () => { renderAuth(); });
 r.on('/market/watchlist', requireMember(() => { renderWatchlist(); }));
 r.on('/market/sell', requireMember(() => { renderSell(); }));

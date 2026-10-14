@@ -102,7 +102,7 @@ export async function renderBatchBilling() {
               <table id="candidates-table">
                 <thead>
                   <tr>
-                    <th style="width: 40px; text-align: center;">✓</th>
+                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="check-all-candidates" title="Select All" /></th>
                     <th>Date</th>
                     <th>Ref details</th>
                     <th>Billed Party</th>

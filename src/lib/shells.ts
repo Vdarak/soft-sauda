@@ -237,13 +237,13 @@ export const LANDING_SHELL = `<!DOCTYPE html>
 // Bundle: /static/market/app.js. Styles build on theme.css + site.css tokens.
 // ==========================================================================
 export const MARKET_SHELL = `<!DOCTYPE html>
-<html lang="en" data-theme="dark" class="dark">
+<html lang="en" data-theme="light" class="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
-  <title>GCC Marketplace</title>
-  <meta name="description" content="Ganesh Canvassing Company commodity marketplace.">
+  <meta name="color-scheme" content="light dark">
+  <title>Market</title>
+  <meta name="description" content="Commodity market platform.">
 
   <link rel="icon" href="/gcc-logo.svg" type="image/png">
   <!-- Oat.ink CSS -->

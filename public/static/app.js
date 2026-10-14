@@ -30,7 +30,7 @@ import { renderUserList, renderUserForm, renderAuditLogs } from './views/admin.j
 import { renderAnalytics } from './views/analytics.js';
 import * as api from './lib/api.js';
 import { isAuthenticated, clearAuth, triggerWarmup, clientCache } from './lib/api.js';
-import { Icons, showToast } from './components/ui.js';
+import { Icons, showToast, escapeHtml } from './components/ui.js';
 import tinyrouter from './vendor/tinyrouter.js';
 
 /* ── Force Clear Rogue Service Workers & Cache (Bypasses old caching on dev port 3000) ── */
@@ -90,119 +90,180 @@ function renderCompanySelector() {
 
   const app = document.getElementById('app');
   const companies = JSON.parse(localStorage.getItem('ss_companies') || '[]');
+  const departments = JSON.parse(localStorage.getItem('ss_departments') || '[]');
   const displayName = localStorage.getItem('ss_display_name') || localStorage.getItem('ss_user') || 'User';
 
-  const cardsHtml = companies.map(comp => {
-    const currentFy = comp.fiscalYears.find(fy => fy.isCurrent) || comp.fiscalYears[0];
-    
-    const fyOptions = comp.fiscalYears.map(fy => `
-      <option value="${fy.id}" ${fy.id === currentFy?.id ? 'selected' : ''}>
-        ${fy.label}${fy.isLocked ? ' 🔒' : ''}
-      </option>
-    `).join('');
+  let selectedDeptId = departments.length > 0 ? (departments[0]?.id || null) : null;
 
-    let icon = '🌾';
-    if (comp.shortCode === 'SOYBEAN') icon = '🌻';
-    else if (comp.shortCode === 'OIL') icon = '🫒';
-    else if (comp.shortCode === 'MAFI') icon = '🏭';
+  function renderGrid() {
+    const filteredCompanies = selectedDeptId && departments.length > 0
+      ? companies.filter(c => c.departmentId === selectedDeptId || !c.departmentId)
+      : companies;
 
-    return `
-      <div class="company-card card" data-id="${comp.id}" style="padding: 1.5rem; text-align: center;">
-        <div class="card-icon" style="font-size: 2.5rem; margin-bottom: 0.75rem;">${icon}</div>
-        <h3 style="margin-bottom: 0.5rem; font-weight: 700;">${comp.name}</h3>
-        <p style="font-size: 0.8rem; color: var(--muted-foreground); margin-bottom: 1.25rem; min-height: 38px; line-height: 1.3;">
-          ${comp.description || 'Access and manage transactions, deliveries, and ledgers.'}
-        </p>
-        
-        <div class="form-group" style="margin-bottom: 1rem; text-align: left;">
-          <label style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground);">Fiscal Year</label>
-          <select class="select-fy" style="width: 100%; margin-top: 0.25rem; height: 38px; padding: 0.4rem 0.75rem; font-size: 0.875rem; line-height: 1.4;">
-            ${fyOptions}
-          </select>
-        </div>
+    function getDeptIconSvg(iconKey, shortCode) {
+      const code = (shortCode || '').toUpperCase();
+      const key = (iconKey || '').toLowerCase();
+      if (key === 'wheat' || code === 'PULSES') return Icons.wheat;
+      if (key === 'sun' || code === 'SOYBEAN' || code === 'SOYWHEAT') return Icons.sun;
+      if (key === 'droplet' || code === 'OIL' || code === 'OILCAKE') return Icons.droplet;
+      if (key === 'factory' || code === 'MAFI') return Icons.factory;
+      return Icons.building;
+    }
 
-        <button class="primary enter-workspace-btn" style="width: 100%; padding: 0.5rem 1rem;">
-          Enter Workspace
-        </button>
-      </div>
-    `;
-  }).join('');
-
-  app.innerHTML = `
-    <div class="company-selector-page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 2rem; max-width: 1200px; margin: 0 auto;">
-      <div style="margin-bottom: 2.5rem; text-align: center;">
-        <h1 style="font-weight: 800; font-size: 2.25rem; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--primary);">
-          Select Workspace
-        </h1>
-        <p style="color: var(--muted-foreground); font-size: 0.95rem;">
-          Welcome back, <strong>${displayName}</strong>. Please select a division and fiscal year.
-        </p>
-      </div>
-
-      <div class="company-grid">
-        ${cardsHtml}
-      </div>
+    const cardsHtml = filteredCompanies.map(comp => {
+      const currentFy = comp.fiscalYears?.find(fy => fy.isCurrent) || comp.fiscalYears?.[0];
       
-      <a href="#" id="company-selector-logout" style="margin-top: 3rem; font-size: 0.85rem; color: var(--muted-foreground); text-decoration: underline;">
-        Sign out
-      </a>
-    </div>
-  `;
+      const fyOptions = (comp.fiscalYears || []).map(fy => `
+        <option value="${fy.id}" ${fy.id === currentFy?.id ? 'selected' : ''}>
+          ${fy.label}${fy.isLocked ? ' (Locked)' : ''}
+        </option>
+      `).join('');
 
-  // Bind enter workspace buttons
-  app.querySelectorAll('.company-card').forEach(card => {
-    const compId = parseInt(card.getAttribute('data-id'), 10);
-    const company = companies.find(c => c.id === compId);
-    
-    card.querySelector('.enter-workspace-btn').addEventListener('click', async (e) => {
-      const selectFy = card.querySelector('.select-fy');
-      const fyId = parseInt(selectFy.value, 10);
-      const fy = company.fiscalYears.find(f => f.id === fyId);
-      
-      sessionStorage.setItem('active_company_id', company.id);
-      sessionStorage.setItem('active_company_name', company.name);
-      sessionStorage.setItem('active_company_code', company.shortCode);
-      sessionStorage.setItem('active_fiscal_year_id', fy.id);
-      sessionStorage.setItem('active_fiscal_year_label', fy.label);
+      const dept = departments.find(d => d.id === comp.departmentId);
+      const iconSvg = getDeptIconSvg(dept?.icon, comp.shortCode);
 
-      // Clear any cached mega payload
-      sessionStorage.removeItem('gcc_mega_payload');
-      clientCache.clear();
+      return `
+        <div class="company-card card" data-id="${comp.id}" style="padding: 1.5rem; text-align: center;">
+          <div class="card-icon" style="display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: var(--primary);">
+            <span style="display: inline-flex; transform: scale(2.2);">${iconSvg}</span>
+          </div>
+          <h3 style="margin-bottom: 0.25rem; font-weight: 700;">${escapeHtml(comp.name)}</h3>
+          ${dept ? `<div style="font-size: 0.75rem; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">${escapeHtml(dept.name)}</div>` : ''}
+          <p style="font-size: 0.8rem; color: var(--muted-foreground); margin-bottom: 1.25rem; min-height: 38px; line-height: 1.3;">
+            ${escapeHtml(comp.description || 'Access and manage contracts, deliveries, and ledgers.')}
+          </p>
+          
+          <div class="form-group" style="margin-bottom: 1rem; text-align: left;">
+            <label style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground);">Fiscal Year</label>
+            <select class="select-fy" style="width: 100%; margin-top: 0.25rem; height: 38px; padding: 0.4rem 0.75rem; font-size: 0.875rem; line-height: 1.4;">
+              ${fyOptions}
+            </select>
+          </div>
 
-      // Show loader overlay
-      app.innerHTML = `
-        <div class="warmup-overlay">
-          <img src="/gcc-logo.svg" alt="GCC" onerror="this.style.display='none'">
-          <div class="warmup-overlay-title">GCC</div>
-          <div class="warmup-overlay-sub">Preparing ${company.name} workspace…</div>
-          <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
+          <button class="primary enter-workspace-btn" style="width: 100%; padding: 0.5rem 1rem;">
+            Enter Workspace
+          </button>
         </div>
       `;
+    }).join('');
 
-      try {
-        await triggerWarmup({ forceRefresh: true });
-        document.body.removeAttribute('data-page');
-        showToast(`Entered ${company.name} workspace`, 'success');
-        window.history.pushState({}, '', '/dashboard');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      } catch (err) {
-        showToast(err.message, 'error');
-        renderCompanySelector();
-      }
+    const deptTabsHtml = departments.length > 0 ? `
+      <div class="dept-selector-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; justify-content: center;">
+        <button type="button" class="dept-tab-btn ${selectedDeptId === null ? 'active' : ''}" data-dept="all"
+          style="padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: ${selectedDeptId === null ? 'var(--primary)' : 'var(--card)'}; color: ${selectedDeptId === null ? '#fff' : 'var(--foreground)'};">
+          All Departments
+        </button>
+        ${departments.map(d => {
+          const tabIcon = getDeptIconSvg(d.icon, d.shortCode);
+          return `
+          <button type="button" class="dept-tab-btn ${selectedDeptId === d.id ? 'active' : ''}" data-dept="${d.id}"
+            style="padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: ${selectedDeptId === d.id ? 'var(--primary)' : 'var(--card)'}; color: ${selectedDeptId === d.id ? '#fff' : 'var(--foreground)'}; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <span style="display: inline-flex;">${tabIcon}</span> ${escapeHtml(d.name)}
+          </button>
+        `;}).join('')}
+      </div>
+    ` : '';
+
+    app.innerHTML = `
+      <div class="company-selector-page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 2rem; max-width: 1200px; margin: 0 auto;">
+        <div style="margin-bottom: 2rem; text-align: center;">
+          <h1 style="font-weight: 800; font-size: 2.25rem; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--primary);">
+            Select Workspace
+          </h1>
+          <p style="color: var(--muted-foreground); font-size: 0.95rem;">
+            Welcome back, <strong>${escapeHtml(displayName)}</strong>. Select your department, firm, and fiscal year.
+          </p>
+        </div>
+
+        ${deptTabsHtml}
+
+        <div class="company-grid" style="width: 100%;">
+          ${cardsHtml || '<div style="grid-column: 1/-1; text-align: center; color: var(--muted-foreground); padding: 2rem;">No firms available for this department.</div>'}
+        </div>
+        
+        <a href="#" id="company-selector-logout" style="margin-top: 3rem; font-size: 0.85rem; color: var(--muted-foreground); text-decoration: underline;">
+          Sign out
+        </a>
+      </div>
+    `;
+
+    // Bind tab clicks
+    app.querySelectorAll('.dept-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const deptVal = btn.getAttribute('data-dept');
+        selectedDeptId = deptVal === 'all' ? null : parseInt(deptVal, 10);
+        renderGrid();
+      });
     });
-  });
 
-  // Bind sign out link
-  document.getElementById('company-selector-logout').addEventListener('click', (e) => {
-    e.preventDefault();
-    clearAuth();
-    window.location.href = '/login';
-  });
+    // Bind enter workspace buttons
+    app.querySelectorAll('.company-card').forEach(card => {
+      const compId = parseInt(card.getAttribute('data-id'), 10);
+      const company = companies.find(c => c.id === compId);
+      if (!company) return;
+      
+      card.querySelector('.enter-workspace-btn').addEventListener('click', async () => {
+        const selectFy = card.querySelector('.select-fy');
+        const fyId = parseInt(selectFy.value, 10);
+        const fy = company.fiscalYears?.find(f => f.id === fyId) || { id: fyId, label: 'Current FY' };
+        
+        const dept = departments.find(d => d.id === company.departmentId);
+
+        sessionStorage.setItem('active_company_id', company.id);
+        sessionStorage.setItem('active_company_name', company.name);
+        sessionStorage.setItem('active_company_code', company.shortCode);
+        if (dept) {
+          sessionStorage.setItem('active_department_id', dept.id);
+          sessionStorage.setItem('active_department_name', dept.name);
+        } else {
+          sessionStorage.removeItem('active_department_id');
+          sessionStorage.removeItem('active_department_name');
+        }
+        sessionStorage.setItem('active_fiscal_year_id', fy.id);
+        sessionStorage.setItem('active_fiscal_year_label', fy.label);
+
+        // Clear cached mega payload
+        sessionStorage.removeItem('gcc_mega_payload');
+        clientCache.clear();
+
+        // Show loader overlay
+        app.innerHTML = `
+          <div class="warmup-overlay">
+            <img src="/gcc-logo.svg" alt="GCC" onerror="this.style.display='none'">
+            <div class="warmup-overlay-title">GCC</div>
+            <div class="warmup-overlay-sub">Preparing ${escapeHtml(company.name)} workspace…</div>
+            <div class="warmup-overlay-track"><div class="warmup-overlay-bar"></div></div>
+          </div>
+        `;
+
+        try {
+          await triggerWarmup({ forceRefresh: true });
+          document.body.removeAttribute('data-page');
+          showToast(`Entered ${company.name} workspace`, 'success');
+          window.history.pushState({}, '', '/dashboard');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } catch (err) {
+          showToast(err.message, 'error');
+          renderCompanySelector();
+        }
+      });
+    });
+
+    // Bind sign out link
+    document.getElementById('company-selector-logout')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      clearAuth();
+      window.location.href = '/login';
+    });
+  }
+
+  renderGrid();
 }
 
 /* ── Update Header Context ── */
 function updateHeaderWithActiveContext() {
   const companyName = sessionStorage.getItem('active_company_name') || 'No Company';
+  const deptName = sessionStorage.getItem('active_department_name');
   const role = localStorage.getItem('ss_role') || 'EMPLOYEE';
   const displayName = localStorage.getItem('ss_display_name') || localStorage.getItem('ss_user') || 'User';
 
@@ -210,10 +271,11 @@ function updateHeaderWithActiveContext() {
   const brandEl = document.querySelector('.topbar-brand');
   if (brandEl && !brandEl.querySelector('.company-badge')) {
     brandEl.innerHTML = `
-      <div id="company-badge-switch" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;user-select:none;" title="Click to switch company">
+      <div id="company-badge-switch" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;user-select:none;" title="Click to switch workspace">
         <img src="/gcc-logo.svg" alt="GCC Logo" style="height:28px;border-radius:4px">
-        <span class="company-badge" style="font-weight:700;font-size:1.05rem;color:var(--primary);margin-left:0.25rem;display:flex;align-items:center;gap:0.25rem;transition:opacity 0.2s;">
-          ${companyName}
+        <span class="company-badge" style="font-weight:700;font-size:1.05rem;color:var(--primary);margin-left:0.25rem;display:flex;align-items:center;gap:0.35rem;transition:opacity 0.2s;">
+          ${escapeHtml(companyName)}
+          ${deptName ? `<span style="font-size:0.8rem;font-weight:500;opacity:0.8;color:var(--muted-foreground);">(${escapeHtml(deptName)})</span>` : ''}
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><path d="m6 9 6 6 6-6"/></svg>
         </span>
       </div>
@@ -226,6 +288,8 @@ function updateHeaderWithActiveContext() {
       sessionStorage.removeItem('active_company_id');
       sessionStorage.removeItem('active_company_name');
       sessionStorage.removeItem('active_company_code');
+      sessionStorage.removeItem('active_department_id');
+      sessionStorage.removeItem('active_department_name');
       sessionStorage.removeItem('active_fiscal_year_id');
       sessionStorage.removeItem('active_fiscal_year_label');
       sessionStorage.removeItem('gcc_mega_payload');
@@ -255,7 +319,7 @@ function updateHeaderWithActiveContext() {
       
       const optionsHtml = activeCompany.fiscalYears.map(fy => `
         <option value="${fy.id}" ${fy.id === activeFyId ? 'selected' : ''}>
-          ${fy.label}${fy.isLocked ? ' 🔒' : ''}
+          ${fy.label}${fy.isLocked ? ' (Locked)' : ''}
         </option>
       `).join('');
       

@@ -114,10 +114,43 @@ export const contractLines = pgTable("contract_lines", {
   // Brokerage per line
   sellerBrokerageRate: numeric("seller_brokerage_rate", { precision: 10, scale: 2 }),
   sellerBrokerageAmount: numeric("seller_brokerage_amount", { precision: 15, scale: 2 }),
+  brokerageType: text("brokerage_type").default('PQtl'),
   buyerBrokerageRate: numeric("buyer_brokerage_rate", { precision: 10, scale: 2 }),
   buyerBrokerageAmount: numeric("buyer_brokerage_amount", { precision: 15, scale: 2 }),
   linkedBillId: integer("linked_bill_id"),
 }, (t) => ({
   idxContractId: index("idx_contract_lines_contract_id").on(t.contractId),
   idxCommodityId: index("idx_contract_lines_commodity_id").on(t.commodityId),
+}));
+
+export const contractDocuments = pgTable("contract_documents", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
+  narration: text("narration").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxContractId: index("idx_contract_docs_contract_id").on(t.contractId),
+}));
+
+export const contractSpecifications = pgTable("contract_specifications", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
+  specName: text("spec_name").notNull(),
+  specValue: numeric("spec_value", { precision: 10, scale: 2 }),
+  minMax: text("min_max"),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxContractId: index("idx_contract_specs_contract_id").on(t.contractId),
+}));
+
+export const contractTerms = pgTable("contract_terms", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
+  narration: text("narration").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxContractId: index("idx_contract_terms_contract_id").on(t.contractId),
 }));

@@ -75,7 +75,7 @@ export async function renderWatchlist() {
     try {
       const { watchlist } = await api.get('/watchlist');
       if (!watchlist.length) {
-        contentEl.innerHTML = `<div class="mkt-empty" style="grid-column: 1/-1;">Your watchlist is empty. Save listings by tapping ☆ Save on the feed.</div>`;
+        contentEl.innerHTML = `<div class="mkt-empty" style="grid-column: 1/-1;">Your watchlist is empty. Save listings by tapping Save on the feed.</div>`;
         return;
       }
       contentEl.innerHTML = watchlist

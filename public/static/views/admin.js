@@ -1,7 +1,7 @@
 /**
  * Admin Panel Views — User Management (CRUD) and Audit Log Viewer
  */
-import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatDateTime } from '../components/ui.js';
+import { Icons, Badge, DataTable, FormGroup, PageHeader, Spinner, showToast, escapeHtml, formatDate, formatDateTime, confirmDialog } from '../components/ui.js';
 import * as api from '../lib/api.js';
 
 // Format audit changes detail to a readable text or list
@@ -95,7 +95,7 @@ export async function renderUserList(ctx) {
     app.querySelectorAll('.delete-user-row-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const id = btn.getAttribute('data-id');
-        if (!confirm('Are you sure you want to delete this user?')) return;
+        if (!(await confirmDialog('Are you sure you want to delete this user?'))) return;
         try {
           await api.del(`/users/${id}`);
           showToast('User deleted successfully');

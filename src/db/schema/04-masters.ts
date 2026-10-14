@@ -112,7 +112,7 @@ export const proprietors = pgTable("proprietors", {
 export const partyItemBrokerage = pgTable("party_item_brokerage", {
   id: serial("id").primaryKey(),
   partyId: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
-  commodityId: integer("commodity_id").references(() => commodities.id, { onDelete: "cascade" }).notNull(),
+  commodityId: integer("commodity_id").references(() => commodities.id, { onDelete: "cascade" }),
   packingWeight: numeric("packing_weight", { precision: 10, scale: 3 }),
   sellerBrokerageRate: numeric("seller_brokerage_rate", { precision: 10, scale: 2 }),
   sellerBrokerageType: text("seller_brokerage_type"),
